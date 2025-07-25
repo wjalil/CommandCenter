@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>📚 Document Repository</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 2rem; background-color: #f9f9f9; }
+        .doc-card { margin-bottom: 1.5rem; }
+        .tag-badge { margin-right: 0.5rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="text-end mb-2">
+      <a href="/home" class="btn btn-sm btn-outline-primary">🏠 Home</a>
+    </div>
+    <h2 class="mb-4">📂 Document Repository</h2>
+
+    <!-- ✅ Success Alert -->
+    {% if request.query_params.get("success") %}
+        <div class="alert alert-success">
+            ✅ {{ request.query_params.get("success") }}
+        </div>
+    {% endif %}
+
+    <!-- 🔍 Search Form -->
+    <form method="get" action="/documents/admin/documents" class="mb-4">
+        <div class="input-group">
+            <input type="text" class="form-control" name="search" placeholder="Search by title..." value="{{ search_query }}">
+            <button class="btn btn-outline-primary" type="submit">Search</button>
+        </div>
+    </form>
+
+    <!-- ✅ Upload Form -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title">➕ Upload New Document</h5>
+            <form method="post" action="/documents/admin/documents/upload" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Title</label>
+                    <input type="text" class="form-control" name="title" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Tags (comma separated)</label>
+                    <input type="text" class="form-control" name="tags" placeholder="e.g. SOP, Inventory, Frontline">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">File</label>
+                    <input type="file" class="form-control" name="file" accept=".pdf,.doc,.docx" required>
+                </div>
+                <button type="submit" class="btn btn-primary">📤 Upload Document</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ✅ Document List -->
+    <h4 class="mb-3">📄 Uploaded Documents</h4>
+
+    {% if documents %}
+        <div class="row">
+            {% for doc in documents %}
+                <div class="col-md-6">
+                    <div class="card doc-card shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ doc.title }}</h5>
+                            <p class="card-text">
+                                {% for tag in doc.tags.split(',') %}
+                                    <span class="badge bg-secondary tag-badge">{{ tag.strip() }}</span>
+                                {% endfor %}
+                            </p>
+                            <a href="{{ url_for('static', path='uploads/' + doc.filename) }}" class="btn btn-sm btn-outline-primary" target="_blank">📎 View File</a>
+
+                            <!-- 🗑️ Delete Button -->
+                            <form method="post" action="/documents/admin/documents/delete/{{ doc.id }}"
+                                  onsubmit="return confirm('Are you sure you want to delete this document?')"
+                                  style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">🗑️ Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            No documents uploaded yet.
+        </div>
+    {% endif %}
+</div>
+</body>
+</html>

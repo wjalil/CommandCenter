@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>📄 Search Recipes & SOPs</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 2rem; background-color: #f8f9fa; }
+        .doc-card { margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2 class="mb-4">📚 Recipes & SOPs</h2>
+
+    <form method="get" action="/documents/worker/documents" class="mb-4">
+        <div class="input-group">
+            <input type="text" class="form-control" name="search" placeholder="Search by title..." value="{{ search_query }}">
+            <button class="btn btn-primary" type="submit">Search</button>
+        </div>
+    </form>
+
+    {% if documents %}
+        <div class="row">
+            {% for doc in documents %}
+            <div class="col-md-6">
+                <div class="card doc-card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ doc.title }}</h5>
+                        <p class="card-text">{{ doc.description or "No description provided." }}</p>
+                        <a href="/static/uploads/{{ doc.filename }}" class="btn btn-outline-secondary" target="_blank">View</a>
+                        <a href="/static/uploads/{{ doc.filename }}" download class="btn btn-outline-success">Download</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>No documents found.</p>
+    {% endif %}
+</div>
+</body>
+</html>

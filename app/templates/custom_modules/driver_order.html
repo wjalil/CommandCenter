@@ -1,0 +1,24 @@
+{% extends "custom_modules/base.html" %}
+
+{% block title %}Driver Delivery Log{% endblock %}
+
+{% block header %}🚚 Daily Driver Delivery Log{% endblock %}
+
+{% block content %}
+<form method="post" action="/modules/driver_order" enctype="multipart/form-data">
+  
+  <div class="mb-3">
+    <label for="notes" class="form-label">📝 Driver Notes</label>
+    <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Any special notes from delivery..."></textarea>
+  </div>
+
+  <div class="mb-3">
+    <label for="photo" class="form-label">📸 Fridge Photo Upload</label>
+    <input class="form-control" type="file" id="photo" name="photo" accept="image/*" required>
+  </div>
+
+  <div class="text-end">
+    <button type="submit" class="btn btn-success">✅ Submit Log</button>
+  </div>
+</form>
+{% endblock %}

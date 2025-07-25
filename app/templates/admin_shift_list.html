@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CookieOps Admin Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; padding: 0; }
+    .badge-unfilled { background-color: #ffc107; }
+    .badge-filled { background-color: #0d6efd; }
+    .badge-completed { background-color: #198754; }
+    .shift-row td { background-color: #fff; }
+    .accordion-button { font-weight: 600; font-size: 1.1rem; }
+    .hours-summary { font-size: 0.9rem; color: #6c757d; }
+    .table-sm td, .table-sm th { padding: 0.5rem; }
+
+   /* 🎀 Enhanced Ribbon Styles */
+  .toolbar-ribbon {
+    background-color: #e9f1ff;
+    border: 1px solid #d0e3ff;
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+  }
+
+  .toolbar-section-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #0d6efd;
+    margin-bottom: 0.25rem;
+  }
+
+  .toolbar-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .toolbar-buttons form {
+    margin: 0;
+  }
+  </style>
+</head>
+<body>
+
+<!-- 🧭 Top Nav -->
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm px-4">
+  <div class="container-fluid">
+    <span class="navbar-brand fw-bold text-primary">🍪 CookieOps Admin</span>
+    <span class="ms-auto text-muted small">Operations Control Panel</span>
+  </div>
+</nav>
+
+<div class="container mt-4">
+
+  <!-- 🍬 Admin Ribbon -->
+<div class="toolbar-ribbon">
+  <div class="row g-3 align-items-start">
+    <div class="col-md-8">
+      <p class="toolbar-section-title">🎯 Core Admin Tools</p>
+      <div class="toolbar-buttons">
+        <a href="/tasks/admin/task-templates" class="btn btn-sm btn-outline-primary" title="Manage reusable task templates">🧩 Task Templates</a>
+        <a href="/documents/admin/documents" class="btn btn-sm btn-outline-success">📄 Documents</a>
+        <form method="post" action="/admin/shifts/generate_next_week">
+          <button class="btn btn-sm btn-outline-secondary">🔁 Generate Shifts</button>
+        </form>
+        <a href="/admin/workers" class="btn btn-sm btn-outline-dark">👤 Create Workers</a>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <p class="toolbar-section-title">🧰 Custom Modules</p>
+      <div class="toolbar-buttons">
+        <a href="/modules/inventory" class="btn btn-sm btn-outline-dark">📦 Inventory</a>
+        <a href="/modules/fridge" class="btn btn-sm btn-outline-dark">🧊 Fridge</a>
+        <a href="/modules/vending" class="btn btn-sm btn-outline-dark">🥤 Vending</a>
+        <a href="/home" class="btn btn-sm btn-outline-primary">🏠 Home</a>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- ➕ Shift Creation Form -->
+  {% include "_new_shift_form.html" %}
+
+  <!-- 🗕️ Filter Shift View -->
+  <form method="get" class="row g-2 mb-4">
+    <div class="col-md-3">
+      <label for="start_date" class="form-label">Start Date</label>
+      <input type="date" name="start_date" class="form-control" value="{{ request.query_params.get('start_date', '') }}">
+    </div>
+    <div class="col-md-3">
+      <label for="end_date" class="form-label">End Date</label>
+      <input type="date" name="end_date" class="form-control" value="{{ request.query_params.get('end_date', '') }}">
+    </div>
+    <div class="col-md-2">
+      <label for="status" class="form-label">Status</label>
+      <select name="status" class="form-select">
+        <option value="">Any</option>
+        <option value="filled" {% if request.query_params.get('status') == 'filled' %}selected{% endif %}>Filled</option>
+        <option value="unfilled" {% if request.query_params.get('status') == 'unfilled' %}selected{% endif %}>Unfilled</option>
+        <option value="completed" {% if request.query_params.get('status') == 'completed' %}selected{% endif %}>Completed</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label for="role" class="form-label">Worker Role</label>
+      <select name="role" class="form-select">
+        <option value="">Any</option>
+        <option value="Barista" {% if request.query_params.get('role') == 'Barista' %}selected{% endif %}>Barista</option>
+        <option value="Inventory" {% if request.query_params.get('role') == 'Inventory' %}selected{% endif %}>Inventory</option>
+        <option value="Delivery" {% if request.query_params.get('role') == 'Delivery' %}selected{% endif %}>Delivery</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label for="shift_type" class="form-label">Shift Type</label>
+      <select name="shift_type" class="form-select">
+        <option value="">Any</option>
+        <option value="Store" {% if request.query_params.get('shift_type') == 'Store' %}selected{% endif %}>Store</option>
+        <option value="Driver" {% if request.query_params.get('shift_type') == 'Driver' %}selected{% endif %}>Driver</option>
+      </select>
+    </div>
+    <div class="col-md-12 text-end">
+      <button type="submit" class="btn btn-primary mt-2">Apply Filters</button>
+    </div>
+  </form>
+
+  <!-- 🗕️ Weekly Shift View -->
+  <div class="accordion" id="weeklyShiftAccordion">
+    {% for week_label, shifts in weekly_shifts.items() %}
+    <div class="accordion-item mb-3 border rounded shadow-sm">
+      <h2 class="accordion-header" id="heading{{ loop.index }}">
+        <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}" aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="collapse{{ loop.index }}">
+          <span class="me-2">🗓️ Week of {{ week_label }}</span>
+          {% set week_hours = weekly_hours.get(week_label, {}) %}
+          <span class="hours-summary">
+            {% for worker_id, hours in week_hours.items() %}
+              <span class="badge bg-secondary me-1">{{ worker_names.get(worker_id, 'Unknown') }}: {{ hours|round(1) }} hrs</span>
+            {% endfor %}
+          </span>
+        </button>
+      </h2>
+      <div id="collapse{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="heading{{ loop.index }}" data-bs-parent="#weeklyShiftAccordion">
+        <div class="accordion-body p-0">
+          <table class="table table-sm table-hover align-middle m-0">
+            <thead class="table-light">
+              <tr>
+                <th>Label</th>
+                <th>Date & Time</th>
+                <th>Status</th>
+                <th>Assigned Worker</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for shift in shifts %}
+              <tr class="shift-row">
+                <td>
+                  <div class="fw-semibold">{{ shift.label }}</div>
+                  {% if shift.shift_type %}
+                    <span class="badge {% if shift.shift_type == 'Store' %}bg-primary{% elif shift.shift_type == 'Driver' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                      🏷️ {{ shift.shift_type }}
+                    </span>
+                  {% endif %}
+                </td>
+                
+                <td>
+                  <div><strong>{{ shift.start_time.strftime('%b %d, %Y') }}</strong></div>
+                  <div class="text-muted small">{{ shift.start_time.strftime('%I:%M %p') }} – {{ shift.end_time.strftime('%I:%M %p') }}</div>
+                </td>
+                <td>
+                  {% if shift.is_recurring %}
+                    <span class="badge bg-info text-dark me-1">🔁</span>
+                  {% endif %}
+                  {% if shift.is_completed %}
+                    <span class="badge badge-completed">✅ Completed</span>
+                  {% elif shift.is_filled %}
+                    <span class="badge badge-filled">🣍 Filled</span>
+                  {% else %}
+                    <span class="badge badge-unfilled">❗ Unfilled</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="mb-1 fw-semibold">{{ worker_names.get(shift.assigned_worker_id, "-") }}</div>
+                  <form method="post" action="/shifts/{{ shift.id }}/assign" class="d-flex gap-1">
+                    <select class="form-select form-select-sm" name="user_id">
+                      <option disabled selected>Assign...</option>
+                      {% for worker in workers %}
+                        <option value="{{ worker.id }}">{{ worker.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-outline-primary btn-sm">✔️</button>
+                  </form>
+                </td>
+                <td class="text-nowrap">
+                  <form method="post" action="/shifts/{{ shift.id }}/complete" style="display:inline">
+                    <button class="btn btn-success btn-sm" title="Complete">✔️</button>
+                  </form>
+                  <form method="post" action="/shifts/{{ shift.id }}/unclaim" style="display:inline">
+                    <button class="btn btn-warning btn-sm" title="Unclaim">↩️</button>
+                  </form>
+                  <form method="post" action="/shifts/{{ shift.id }}/delete" style="display:inline">
+                    <button class="btn btn-danger btn-sm" title="Delete">🗑️</button>
+                  </form>
+                </td>
+              </tr>
+              <tr>
+
+                <td colspan="5" class="bg-white">
+                  <form method="post" action="/admin/assign-task/{{ shift.id }}" class="d-flex gap-2 align-items-center px-3 py-2">
+                    <select class="form-select form-select-sm w-auto" name="task_type" required>
+                      <option disabled selected>➕ Assign Task...</option>
+                      {% for template in task_templates %}
+                        <option value="template_{{ template.id }}">🧩 {{ template.title }}</option>
+                      {% endfor %}
+                      <option value="driver_order">🔧 Driver Order (Custom)</option>
+                    </select>
+                    <button type="submit" class="btn btn-outline-success btn-sm">Assign</button>
+                  </form>
+                </td>
+                
+                <td colspan="5" class="bg-light">
+                  {% if shift.tasks or shift.driver_order %}
+                    <div class="ms-3 my-2">
+                      <button class="btn btn-sm btn-outline-secondary mb-2" type="button"
+                              data-bs-toggle="collapse" data-bs-target="#taskCollapse{{ shift.id }}"
+                              aria-expanded="false" aria-controls="taskCollapse{{ shift.id }}">
+                        🧹 Show Tasks ({{ shift.tasks|length + (1 if shift.driver_order else 0) }})
+                      </button>
+
+                      <div class="collapse" id="taskCollapse{{ shift.id }}">
+                        <ul class="list-group list-group-flush mt-1">
+
+                          <!-- Standard Tasks -->
+                          {% for task in shift.tasks %}
+                          <li class="list-group-item small d-flex justify-content-between align-items-center">
+                            <div>
+                              <strong>{{ task.template.title }}</strong> — {{ task.template.description or "No description" }}
+                            </div>
+                            {% if task.template.auto_assign_label %}
+                              <span class="badge bg-info text-dark ms-2">📌 {{ task.template.auto_assign_label }}</span>
+                            {% endif %}
+                          </li>
+                          {% endfor %}
+
+                          <!-- Custom DriverOrder Task -->
+                          {% if shift.driver_order %}
+                          <li class="list-group-item d-flex justify-content-between align-items-center" style="background: #101820; color: #00ffe7; font-family: 'Courier New', monospace;">
+                            <div>
+                              <strong>🚚 Driver Order Task</strong> — Auto-created delivery workflow<br>
+                              <small>Photo & Notes will appear on the Driver Shift</small>
+                            </div>
+                            <span class="badge rounded-pill" style="background: #00ffe7; color: #101820;">🧬 Custom Module</span>
+                          </li>
+                          {% endif %}
+
+                        </ul>
+                      </div>
+                    </div>
+                  {% else %}
+                    <div class="ms-3 text-muted small">No tasks assigned.</div>
+                  {% endif %}
+                </td>
+
+
+                      
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  </div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
