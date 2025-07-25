@@ -1,0 +1,19 @@
+{% extends "custom_modules/base.html" %}
+
+{% block title %}Previous Driver Log{% endblock %}
+
+{% block header %}📦 Previous Driver Delivery Log{% endblock %}
+
+{% block content %}
+  {% if driver_order %}
+    <div class="card shadow-sm p-3">
+      <h5 class="text-success">📅 Submitted: {{ driver_order.timestamp.strftime('%b %d, %Y %I:%M %p') }}</h5>
+      <p><strong>📝 Notes:</strong> {{ driver_order.notes or "No notes provided." }}</p>
+      <img src="/static/uploads/driver_orders/{{ driver_order.photo_filename }}" class="img-fluid rounded shadow" alt="Fridge Photo">
+    </div>
+  {% else %}
+    <div class="alert alert-info">
+      No previous driver log found before this shift.
+    </div>
+  {% endif %}
+{% endblock %}

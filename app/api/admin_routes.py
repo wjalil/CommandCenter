@@ -18,6 +18,7 @@ from app.auth.dependencies import get_current_admin_user
 from app.models.custom_modules.driver import DriverOrder
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+from app.utils.admin import compute_weekly_shifts_and_hours
 
 #---- Admin Shifts View
 @router.get("/admin/shifts")
@@ -27,19 +28,7 @@ async def admin_shift_view(request: Request, db: AsyncSession = Depends(get_db))
     workers = result.scalars().all()
     worker_names = {worker.id: worker.name for worker in workers}
 
-    # 🧠 Group shifts by week label
-    weekly_shifts = defaultdict(list)
-    weekly_hours = defaultdict(lambda: defaultdict(float))  # weekly_hours[week][worker_id] = hours
-
-    for s in shifts:
-        week_start = s.start_time - timedelta(days=s.start_time.weekday())  # Monday
-        week_label = week_start.strftime("%B %d, %Y")
-
-        weekly_shifts[week_label].append(s)
-
-        if s.assigned_worker_id:
-            duration = (s.end_time - s.start_time).total_seconds() / 3600
-            weekly_hours[week_label][s.assigned_worker_id] += duration
+    weekly_shifts, weekly_hours = compute_weekly_shifts_and_hours(shifts)
 
     # ✅ Fetch all TaskTemplates to populate the dropdown
     result = await db.execute(select(TaskTemplate))
@@ -172,7 +161,23 @@ async def delete_worker(user_id: str, db: AsyncSession = Depends(get_db), user=D
     await db.commit()
     return RedirectResponse(url="/admin/workers", status_code=302)
 
-# -- Admin Dashboard route
 @router.get("/admin/dashboard", response_class=HTMLResponse)
-async def admin_dashboard(request: Request,user=Depends(get_current_admin_user)):
-    return templates.TemplateResponse("admin_dashboard.html", {"request": request, "user": user})
+async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), user=Depends(get_current_admin_user)):
+    # Fetch workers
+    result = await db.execute(select(User).where(User.role == "worker"))
+    workers = result.scalars().all()
+    worker_names = {worker.id: worker.name for worker in workers}
+
+    # Fetch shifts
+    result = await db.execute(select(Shift))
+    shifts = result.scalars().all()
+
+    # Use shared utils function
+    _, weekly_hours = compute_weekly_shifts_and_hours(shifts)
+
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "user": user,
+        "weekly_hours": weekly_hours,
+        "worker_names": worker_names,
+    })

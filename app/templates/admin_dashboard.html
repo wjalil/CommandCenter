@@ -148,6 +148,30 @@
       </div>
     </div>
   </div>
+
+  <!-- ✅ FIXED: Weekly Summary inside container + row/col -->
+  <div class="row mt-5">
+    <div class="col-12">
+      <div class="dashboard-card">
+        <div class="section-label">Worker Stats</div>
+        <h5 class="card-title">📈 Weekly Worker Hours</h5>
+        {% if weekly_hours %}
+          {% for week_label, hours_dict in weekly_hours.items() %}
+            <div class="mt-3">
+              <strong class="text-primary">🗓️ {{ week_label }}</strong>
+              <ul class="mb-0">
+                {% for worker_id, hours in hours_dict.items() %}
+                  <li>{{ worker_names.get(worker_id, 'Unknown') }} — <span class="text-success fw-semibold">{{ hours|round(1) }} hrs</span></li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-muted">No shift data available.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- SCRIPTS -->

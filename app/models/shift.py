@@ -28,5 +28,5 @@ class Shift(Base):
 
     tasks = relationship("Task", back_populates="shift")
 
-    driver_orders = relationship("DriverOrder", back_populates="shift",uselist=False, cascade="all, delete-orphan")
+    driver_order = relationship("DriverOrder", back_populates="shift",uselist=False, cascade="all, delete-orphan")
 

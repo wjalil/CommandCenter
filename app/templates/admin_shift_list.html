@@ -206,67 +206,64 @@
                 </td>
               </tr>
               <tr>
+                <td colspan="5" class="px-4 pb-3">
 
-                <td colspan="5" class="bg-white">
-                  <form method="post" action="/admin/assign-task/{{ shift.id }}" class="d-flex gap-2 align-items-center px-3 py-2">
-                    <select class="form-select form-select-sm w-auto" name="task_type" required>
-                      <option disabled selected>➕ Assign Task...</option>
-                      {% for template in task_templates %}
-                        <option value="template_{{ template.id }}">🧩 {{ template.title }}</option>
-                      {% endfor %}
-                      <option value="driver_order">🔧 Driver Order (Custom)</option>
-                    </select>
-                    <button type="submit" class="btn btn-outline-success btn-sm">Assign</button>
-                  </form>
-                </td>
-                
-                <td colspan="5" class="bg-light">
-                  {% if shift.tasks or shift.driver_order %}
-                    <div class="ms-3 my-2">
-                      <button class="btn btn-sm btn-outline-secondary mb-2" type="button"
+                  <!-- 🧩 Assign Task + Show Tasks -->
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <form method="post" action="/admin/assign-task/{{ shift.id }}" class="d-flex gap-2 align-items-center">
+                      <select class="form-select form-select-sm w-auto" name="task_type" required>
+                        <option disabled selected>➕ Assign Task...</option>
+                        {% for template in task_templates %}
+                          <option value="template_{{ template.id }}">🧩 {{ template.title }}</option>
+                        {% endfor %}
+                        <option value="driver_order">🔧 Driver Order (Custom)</option>
+                      </select>
+                      <button type="submit" class="btn btn-outline-success btn-sm">Assign</button>
+                    </form>
+
+                    {% if shift.tasks or shift.driver_orders %}
+                      <button class="btn btn-sm btn-outline-secondary" type="button"
                               data-bs-toggle="collapse" data-bs-target="#taskCollapse{{ shift.id }}"
                               aria-expanded="false" aria-controls="taskCollapse{{ shift.id }}">
-                        🧹 Show Tasks ({{ shift.tasks|length + (1 if shift.driver_order else 0) }})
+                        🧹 Show Tasks ({{ shift.tasks|length + (1 if shift.driver_orders else 0) }})
                       </button>
+                    {% endif %}
+                  </div>
 
-                      <div class="collapse" id="taskCollapse{{ shift.id }}">
-                        <ul class="list-group list-group-flush mt-1">
+                  <!-- 📋 Task List Collapse -->
+                  <div class="collapse" id="taskCollapse{{ shift.id }}">
+                    <ul class="list-group list-group-flush">
 
-                          <!-- Standard Tasks -->
-                          {% for task in shift.tasks %}
-                          <li class="list-group-item small d-flex justify-content-between align-items-center">
-                            <div>
-                              <strong>{{ task.template.title }}</strong> — {{ task.template.description or "No description" }}
-                            </div>
-                            {% if task.template.auto_assign_label %}
-                              <span class="badge bg-info text-dark ms-2">📌 {{ task.template.auto_assign_label }}</span>
-                            {% endif %}
-                          </li>
-                          {% endfor %}
+                      <!-- Standard Tasks -->
+                      {% for task in shift.tasks %}
+                      <li class="list-group-item small d-flex justify-content-between align-items-center">
+                        <div>
+                          <strong>{{ task.template.title }}</strong> — {{ task.template.description or "No description" }}
+                        </div>
+                        {% if task.template.auto_assign_label %}
+                          <span class="badge bg-info text-dark ms-2">📌 {{ task.template.auto_assign_label }}</span>
+                        {% endif %}
+                      </li>
+                      {% endfor %}
 
-                          <!-- Custom DriverOrder Task -->
-                          {% if shift.driver_order %}
-                          <li class="list-group-item d-flex justify-content-between align-items-center" style="background: #101820; color: #00ffe7; font-family: 'Courier New', monospace;">
-                            <div>
-                              <strong>🚚 Driver Order Task</strong> — Auto-created delivery workflow<br>
-                              <small>Photo & Notes will appear on the Driver Shift</small>
-                            </div>
-                            <span class="badge rounded-pill" style="background: #00ffe7; color: #101820;">🧬 Custom Module</span>
-                          </li>
-                          {% endif %}
+                      <!-- Custom DriverOrder Task -->
+                      {% if shift.driver_orders %}
+                      <li class="list-group-item d-flex justify-content-between align-items-center" style="background: #f0f9ff; color: #0c3c60;">
+                        <div>
+                          <strong>🚚 Driver Order Task</strong> — Auto-created delivery workflow<br>
+                          <small class="text-muted">Photo & Notes will appear on the Driver Shift</small>
+                        </div>
+                        <span class="badge bg-primary-subtle text-dark">🧬 Custom Module</span>
+                      </li>
+                      {% endif %}
+                    </ul>
+                  </div>
 
-                        </ul>
-                      </div>
-                    </div>
-                  {% else %}
-                    <div class="ms-3 text-muted small">No tasks assigned.</div>
-                  {% endif %}
                 </td>
-
-
-                      
               </tr>
+
               {% endfor %}
+          
             </tbody>
           </table>
         </div>
