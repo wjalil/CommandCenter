@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+from fastapi.responses import RedirectResponse
 
 from app.schemas.shift import ShiftCreate, ShiftRead
 from app.crud import shift as shift_crud
@@ -34,7 +35,7 @@ async def delete_shift(shift_id: str, db: AsyncSession = Depends(get_db)):
 @router.post("/{shift_id}/unclaim")
 async def unclaim_shift(shift_id: str, db: AsyncSession = Depends(get_db)):
     await shift_crud.unclaim_shift(db, shift_id)
-    return {"message": "Shift unclaimed"}
+    return RedirectResponse(url="/admin/shifts", status_code=303)
 
 @router.post("/{shift_id}/complete")
 async def mark_complete(shift_id: str, db: AsyncSession = Depends(get_db)):

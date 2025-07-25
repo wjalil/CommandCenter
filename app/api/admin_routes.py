@@ -19,6 +19,9 @@ from app.models.custom_modules.driver import DriverOrder
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 from app.utils.admin import compute_weekly_shifts_and_hours
+from app.models.internal_task import InternalTask
+from app.crud import internal_task
+from app.api.internal_task_routes import InternalTask
 
 #---- Admin Shifts View
 @router.get("/admin/shifts")
@@ -43,6 +46,10 @@ async def admin_shift_view(request: Request, db: AsyncSession = Depends(get_db))
         select(TaskTemplate.auto_assign_label).where(TaskTemplate.auto_assign_label != None)
     )
     preset_labels = sorted(set(result.scalars().all()))
+
+    print("🔍 Retrieved Shifts:")
+    for s in shifts:
+        print(f"{s.label} — {s.start_time} to {s.end_time}")
 
     return templates.TemplateResponse("admin_shift_list.html", {
         "request": request,
@@ -161,6 +168,7 @@ async def delete_worker(user_id: str, db: AsyncSession = Depends(get_db), user=D
     await db.commit()
     return RedirectResponse(url="/admin/workers", status_code=302)
 
+#Admin Dashboard Views
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), user=Depends(get_current_admin_user)):
     # Fetch workers
@@ -172,6 +180,9 @@ async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), 
     result = await db.execute(select(Shift))
     shifts = result.scalars().all()
 
+    # Fetch Internal Tasks
+    internal_tasks = await internal_task.get_all_tasks(db)
+
     # Use shared utils function
     _, weekly_hours = compute_weekly_shifts_and_hours(shifts)
 
@@ -180,4 +191,5 @@ async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), 
         "user": user,
         "weekly_hours": weekly_hours,
         "worker_names": worker_names,
+        "internal_tasks": internal_tasks,
     })
