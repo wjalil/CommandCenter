@@ -11,12 +11,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.auth.routes import auth_backend, fastapi_users
 from app.models.user import User
 from app.api import shift_routes, task_routes, admin_routes, worker_routes,document_routes,public_routes
-from app.db import create_db_and_tables
+from app.db import create_db_and_tables,async_session
 from app.schemas.user import UserRead, UserCreate
 from app.models import shift, task, submission, user
+from app.models.user import User
 from app.auth.routes import get_current_user
 from app.api.custom_modules import inventory_routes, driver_order_routes,vending_form_route
 from app.api.internal_task_routes import router as internal_task_router
+from sqlalchemy.future import select
 
 # ⬇️ Make sure the 'static/uploads' folder exists (relative to project root)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
@@ -92,12 +94,31 @@ async def whoami(user=Depends(get_current_user)):
     print("✅ User Authenticated:", user)
     return user
 
-# ✅ DB setup on startup
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     print("🔧 Starting DB setup...")
-    asyncio.create_task(create_db_and_tables())
-    print("✅ DB setup launched (async)")
+    await create_db_and_tables()
+    print("✅ DB schema created.")
+
+    # ⬇️ Seed default admin user if none exist
+    async with async_session() as db:
+        result = await db.execute(select(User).where(User.role == "admin"))
+        existing_admin = result.scalars().first()
+
+        if not existing_admin:
+            print("👤 No admin found. Creating default admin user...")
+            admin = User(
+                name="Admin",
+                pin_code="1234",
+                role="admin",
+                is_active=True
+            )
+            db.add(admin)
+            await db.commit()
+            print("✅ Default admin created.")
+        else:
+            print("🔐 Admin already exists. No seed needed.")
+
 
 # ✅ Core app routers
 app.include_router(shift_routes.router, prefix="/shifts")
