@@ -53,7 +53,7 @@
               {% endif %}
             </div>
             <div class="time-box">
-              <div><strong>Date:</strong> {{ shift.start_time.strftime('%b %d, %Y') }}</div>
+              <div><strong>Date:</strong> {{ shift.start_time.strftime('%a %b %d %Y') }}</div>
               <div><strong>Time:</strong> {{ shift.start_time.strftime('%I:%M %p') }} – {{ shift.end_time.strftime('%I:%M %p') }}</div>
             </div>
             <a href="/tasks/shift/{{ shift.id }}/tasks" class="btn btn-sm btn-outline-primary">
