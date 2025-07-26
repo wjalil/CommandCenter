@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Boolean
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
+from app.models.shortage_log import ShortageLog
 
 class User(Base):
     __tablename__ = "users"
@@ -17,4 +18,5 @@ class User(Base):
     business_id = Column(String, nullable=True)  # just store it raw for now
 
     shifts = relationship("Shift", back_populates="worker")
+    
     submissions = relationship("TaskSubmission", back_populates="worker")

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>📦 Shared Shortage Board</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f4fdf8;
+      padding: 2rem;
+    }
+
+    .card {
+      max-width: 600px;
+      margin: 0 auto 1rem;
+      box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.05);
+      border-radius: 1rem;
+    }
+
+    .form-label {
+      font-weight: 600;
+    }
+
+    .btn-primary {
+      background-color: #198754;
+      border: none;
+    }
+
+    .btn-primary:hover {
+      background-color: #157347;
+    }
+
+    .resolved {
+      text-decoration: line-through;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 📝 Form to add a new shortage -->
+  <div class="card p-4">
+    <h3 class="mb-3">📦 Add to Shared Shortage Board</h3>
+
+    <form method="post">
+      <div class="mb-3">
+        <label for="note" class="form-label">What are we low on?</label>
+        <textarea class="form-control" id="note" name="note" required rows="3" placeholder="e.g. Out of milk, lids running low..."></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">➕ Add to Board</button>
+    </form>
+
+    <a href="{{ '/admin/dashboard' if user.role == 'admin' else '/worker/dashboard' }}" class="btn btn-link mt-3 w-100 text-center">⬅️ Back to Home</a>
+  </div>
+
+  <!-- 📋 Existing items -->
+  {% if shortages %}
+    <div class="card p-4">
+      <h5 class="mb-3">📋 Current Shortages</h5>
+      <ul class="list-group">
+        {% for item in shortages %}
+          <li class="list-group-item d-flex justify-content-between align-items-center {% if item.is_resolved %}resolved{% endif %}">
+            <span>{{ item.note }}</span>
+            {% if not item.is_resolved %}
+              <form method="post" action="/resolve-shortage" style="margin: 0;">
+                <input type="hidden" name="shortage_id" value="{{ item.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-success">✔ Mark Resolved</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+</body>
+</html>

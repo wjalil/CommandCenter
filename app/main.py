@@ -1,5 +1,4 @@
 ### cookieops-backend/app/main.py
-
 from fastapi import FastAPI,Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -7,18 +6,23 @@ import asyncio
 from fastapi.staticfiles import StaticFiles
 import os
 from starlette.middleware.sessions import SessionMiddleware
-
 from app.auth.routes import auth_backend, fastapi_users
 from app.models.user import User
 from app.api import shift_routes, task_routes, admin_routes, worker_routes,document_routes,public_routes
+from app.api.shortage_log_routes import router as shortage_router
 from app.db import create_db_and_tables,async_session
 from app.schemas.user import UserRead, UserCreate
 from app.models import shift, task, submission, user
 from app.models.user import User
+print("🧪 DEBUG: User has shortage_logs?", hasattr(User, "shortage_logs"))
 from app.auth.routes import get_current_user
 from app.api.custom_modules import inventory_routes, driver_order_routes,vending_form_route
 from app.api.internal_task_routes import router as internal_task_router
 from sqlalchemy.future import select
+import app.models  # registers all models via models/__init__.py
+from sqlalchemy.orm import configure_mappers
+configure_mappers()
+
 
 # ⬇️ Make sure the 'static/uploads' folder exists (relative to project root)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
@@ -27,6 +31,7 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)  # ⬅️ ensures directory exists
 
 # Create the FastAPI app
 app = FastAPI()
+app.include_router(shortage_router)
 
 # ✅ Session middleware (required for PIN login sessions)
 app.add_middleware(SessionMiddleware, secret_key="supersecret-cookieops-key")
@@ -131,3 +136,4 @@ app.include_router(driver_order_routes.router)
 app.include_router(vending_form_route.router)
 app.include_router(internal_task_router)
 app.include_router(admin_routes.router)
+app.include_router(shortage_router)

@@ -22,6 +22,7 @@ from app.utils.admin import compute_weekly_shifts_and_hours
 from app.models.internal_task import InternalTask
 from app.crud import internal_task
 from app.api.internal_task_routes import InternalTask
+from app.models.shortage_log import ShortageLog
 
 #---- Admin Shifts View
 @router.get("/admin/shifts")
@@ -183,8 +184,13 @@ async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), 
     # Fetch Internal Tasks
     internal_tasks = await internal_task.get_all_tasks(db)
 
-    # Use shared utils function
+    # Use shared utils function for weekly hours
     _, weekly_hours = compute_weekly_shifts_and_hours(shifts)
+
+    # Fetch shortage logs
+    result = await db.execute(select(ShortageLog).order_by(ShortageLog.timestamp.desc()))
+    shortage_logs = result.scalars().all()
+    unresolved_logs = [log for log in shortage_logs if not log.is_resolved]
 
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
@@ -192,4 +198,10 @@ async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), 
         "weekly_hours": weekly_hours,
         "worker_names": worker_names,
         "internal_tasks": internal_tasks,
+        "shortage_logs": shortage_logs,
+        "unresolved_logs": unresolved_logs,
     })
+
+@router.get("/admin/shortages")
+async def redirect_to_worker_shortages():
+    return RedirectResponse(url="/shortage-form")

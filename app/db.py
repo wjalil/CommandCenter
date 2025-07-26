@@ -30,6 +30,7 @@ async def create_db_and_tables():
     import app.models.shift
     import app.models.task
     import app.models.submission
+    import app.models.shortage_log
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

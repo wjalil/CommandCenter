@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>📦 All Shortage Logs</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f9f9f9;
+      padding: 2rem;
+    }
+    .shortage-card {
+      background-color: #fff3cd;
+      border-left: 5px solid #ffb347;
+      border-radius: 0.75rem;
+      padding: 1rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <a href="/admin/dashboard" class="back-link text-decoration-none">&larr; Back to Dashboard</a>
+  <h2 class="mb-4">📦 Full Shortage Log</h2>
+
+  {% if shortage_logs %}
+    {% for log in shortage_logs %}
+      <div class="shortage-card">
+        <p class="mb-1">{{ log.note }}</p>
+        <small class="text-muted">{{ log.timestamp.strftime('%b %d, %Y at %I:%M %p') }}</small>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="text-muted">No shortage logs recorded yet.</div>
+  {% endif %}
+
+</body>
+</html>
