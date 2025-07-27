@@ -72,6 +72,8 @@ async def assign_shift_html(shift_id: str, user_id: str = Form(...), db: AsyncSe
     await shift.claim_shift(db, shift_id, user_id)
     return RedirectResponse(url="/admin/shifts", status_code=303)
 
+
+#### 🧩  Task
 @router.post("/admin/assign-task/{shift_id}")
 async def assign_task_to_shift(
     shift_id: str,
@@ -107,6 +109,29 @@ async def assign_task_to_shift(
     # 🚫 Invalid
     return RedirectResponse(url="/admin/shifts", status_code=400)
 
+# 🧩 Remnove Task
+@router.post("/admin/remove_task")
+async def remove_task_from_shift(
+    request: Request,
+    task_id: str = Form(...),
+    task_type: str = Form(default="standard"),
+    db: AsyncSession = Depends(get_db)
+):
+    if task_type == "driver_order":
+        from app.models.custom_modules.driver_order import DriverOrder
+        result = await db.execute(select(DriverOrder).where(DriverOrder.id == task_id))
+    else:
+        from app.models.task import Task
+        result = await db.execute(select(Task).where(Task.id == task_id))
+
+    task = result.scalar_one_or_none()
+
+    if task:
+        await db.delete(task)
+        await db.commit()
+
+    referer = request.headers.get("referer", "/admin/shifts")
+    return RedirectResponse(referer, status_code=303)
 
 
 @router.post("/admin/shifts/create",response_class=RedirectResponse)

@@ -235,16 +235,21 @@
                     <ul class="list-group list-group-flush">
 
                       <!-- Standard Tasks -->
-                      {% for task in shift.tasks %}
-                      <li class="list-group-item small d-flex justify-content-between align-items-center">
-                        <div>
-                          <strong>{{ task.template.title }}</strong> — {{ task.template.description or "No description" }}
-                        </div>
+                    {% for task in shift.tasks %}
+                    <li class="list-group-item small d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong>{{ task.template.title }}</strong> — {{ task.template.description or "No description" }}
                         {% if task.template.auto_assign_label %}
                           <span class="badge bg-info text-dark ms-2">📌 {{ task.template.auto_assign_label }}</span>
                         {% endif %}
-                      </li>
-                      {% endfor %}
+                      </div>
+                      <form method="POST" action="/admin/remove_task" style="margin: 0;">
+                        <input type="hidden" name="task_id" value="{{ task.id }}">
+                        <input type="hidden" name="task_type" value="standard">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                      </form>
+                    </li>
+                  {% endfor %}
 
                       <!-- Custom DriverOrder Task -->
                       {% if shift.driver_orders %}
@@ -255,6 +260,11 @@
                         </div>
                         <span class="badge bg-primary-subtle text-dark">🧬 Custom Module</span>
                       </li>
+                      <form method="POST" action="/admin/remove_task" style="margin: 0;">
+                        <input type="hidden" name="task_id" value="{{ task.id }}">
+                        <input type="hidden" name="task_type" value="standard">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                      </form>
                       {% endif %}
                     </ul>
                   </div>
