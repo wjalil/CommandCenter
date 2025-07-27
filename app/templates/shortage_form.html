@@ -51,7 +51,7 @@
       <button type="submit" class="btn btn-primary w-100">➕ Add to Board</button>
     </form>
 
-    <a href="{{ '/admin/dashboard' if user.role == 'admin' else '/worker/dashboard' }}" class="btn btn-link mt-3 w-100 text-center">⬅️ Back to Home</a>
+    <a href="{{ '/admin/dashboard' if user.role == 'admin' else '/worker/' ~ user.id ~ '/shifts' }}" class="btn btn-link mt-3 w-100 text-center">⬅️ Back to Home</a>
   </div>
 
   <!-- 📋 Existing items -->
