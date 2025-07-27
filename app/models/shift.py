@@ -4,7 +4,6 @@ from app.models.base import Base
 import uuid
 from datetime import datetime
 from app.models.task import TaskSubmission
-from app.models.custom_modules.driver import DriverOrder
 
 class Shift(Base):
     __tablename__ = "shifts"
@@ -27,5 +26,3 @@ class Shift(Base):
     submissions = relationship("TaskSubmission",back_populates="shift",cascade="all, delete-orphan", passive_deletes=True)
 
     tasks = relationship("Task", back_populates="shift")
-
-    driver_order = relationship("DriverOrder", back_populates="shift",uselist=False, cascade="all, delete-orphan")

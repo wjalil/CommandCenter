@@ -44,7 +44,6 @@ async def get_all_shifts(db: AsyncSession):
     result = await db.execute(
         select(Shift).options(
             selectinload(Shift.tasks).selectinload(Task.template),
-            selectinload(Shift.driver_order)
         )
     )
     return result.scalars().all()

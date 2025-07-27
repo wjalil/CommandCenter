@@ -1,24 +1,33 @@
-{% extends "custom_modules/base.html" %}
-
-{% block title %}Driver Delivery Log{% endblock %}
-
-{% block header %}🚚 Daily Driver Delivery Log{% endblock %}
-
+{% extends "base.html" %}
 {% block content %}
-<form method="post" action="/modules/driver_order" enctype="multipart/form-data">
-  
-  <div class="mb-3">
-    <label for="notes" class="form-label">📝 Driver Notes</label>
-    <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Any special notes from delivery..."></textarea>
-  </div>
+<div class="container py-4">
+  <h2 class="mb-3">🚚 Driver Dispatch Board</h2>
 
-  <div class="mb-3">
-    <label for="photo" class="form-label">📸 Fridge Photo Upload</label>
-    <input class="form-control" type="file" id="photo" name="photo" accept="image/*" required>
-  </div>
+  <form method="POST" action="/modules/driver_order/submit" enctype="multipart/form-data" class="mb-4">
+    <textarea name="notes" class="form-control mb-2" placeholder="Add fridge note or driver instructions..." rows="3"></textarea>
+    <input type="file" name="photo" class="form-control mb-2" accept="image/*">
+    <button type="submit" class="btn btn-primary">Submit Log</button>
+  </form>
 
-  <div class="text-end">
-    <button type="submit" class="btn btn-success">✅ Submit Log</button>
-  </div>
-</form>
+  <h5 class="mt-4">📋 Latest Logs</h5>
+  <ul class="list-group">
+    {% for log in logs %}
+      <li class="list-group-item {% if log.is_resolved %}text-decoration-line-through text-muted{% endif %}">
+        <div>
+          {{ log.timestamp.strftime('%b %d, %I:%M %p') }} —
+          {{ log.notes or "No note" }}
+          {% if log.photo_filename %}
+            • <a href="/static/uploads/driver_photos/{{ log.photo_filename }}" target="_blank">📷 View Photo</a>
+          {% endif %}
+        </div>
+        {% if not log.is_resolved %}
+        <form method="POST" action="/modules/driver_order/resolve" class="mt-1">
+          <input type="hidden" name="log_id" value="{{ log.id }}">
+          <button type="submit" class="btn btn-sm btn-success">Mark as Resolved</button>
+        </form>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</div>
 {% endblock %}

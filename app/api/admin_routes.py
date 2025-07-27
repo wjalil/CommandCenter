@@ -15,7 +15,7 @@ from app.schemas.shift import ShiftCreate
 from collections import defaultdict
 from datetime import timedelta
 from app.auth.dependencies import get_current_admin_user
-from app.models.custom_modules.driver import DriverOrder
+from app.models.custom_modules.driver_order import DriverOrder
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 from app.utils.admin import compute_weekly_shifts_and_hours
@@ -93,36 +93,19 @@ async def assign_task_to_shift(
         new_task = Task(shift_id=shift_id, template_id=template.id)
         db.add(new_task)
         await db.commit()
-        return RedirectResponse(url="/admin/shifts", status_code=303)
 
-    # 🔧 Custom Driver Order
-    elif task_type == "driver_order":
-        result = await db.execute(select(DriverOrder).where(DriverOrder.shift_id == shift_id))
-        existing = result.scalar_one_or_none()
-
-        if not existing:
-            custom = DriverOrder(shift_id=shift_id)
-            db.add(custom)
-            await db.commit()
-        return RedirectResponse(url="/admin/shifts", status_code=303)
-
-    # 🚫 Invalid
-    return RedirectResponse(url="/admin/shifts", status_code=400)
+    return RedirectResponse(url="/admin/shifts", status_code=303)
 
 # 🧩 Remnove Task
 @router.post("/admin/remove_task")
 async def remove_task_from_shift(
     request: Request,
     task_id: str = Form(...),
-    task_type: str = Form(default="standard"),
     db: AsyncSession = Depends(get_db)
 ):
-    if task_type == "driver_order":
-        from app.models.custom_modules.driver_order import DriverOrder
-        result = await db.execute(select(DriverOrder).where(DriverOrder.id == task_id))
-    else:
-        from app.models.task import Task
-        result = await db.execute(select(Task).where(Task.id == task_id))
+
+    from app.models.task import Task
+    result = await db.execute(select(Task).where(Task.id == task_id))
 
     task = result.scalar_one_or_none()
 

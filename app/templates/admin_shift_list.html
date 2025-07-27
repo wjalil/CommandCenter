@@ -210,22 +210,24 @@
 
                   <!-- 🧩 Assign Task + Show Tasks -->
                   <div class="d-flex justify-content-between align-items-center mb-2">
+
+                    <!-- Assign Task Form -->
                     <form method="post" action="/admin/assign-task/{{ shift.id }}" class="d-flex gap-2 align-items-center">
                       <select class="form-select form-select-sm w-auto" name="task_type" required>
                         <option disabled selected>➕ Assign Task...</option>
                         {% for template in task_templates %}
                           <option value="template_{{ template.id }}">🧩 {{ template.title }}</option>
                         {% endfor %}
-                        <option value="driver_order">🔧 Driver Order (Custom)</option>
                       </select>
                       <button type="submit" class="btn btn-outline-success btn-sm">Assign</button>
                     </form>
 
-                    {% if shift.tasks or shift.driver_orders %}
+                    <!-- Show Tasks Button (only if tasks exist) -->
+                    {% if shift.tasks %}
                       <button class="btn btn-sm btn-outline-secondary" type="button"
                               data-bs-toggle="collapse" data-bs-target="#taskCollapse{{ shift.id }}"
                               aria-expanded="false" aria-controls="taskCollapse{{ shift.id }}">
-                        🧹 Show Tasks ({{ shift.tasks|length + (1 if shift.driver_orders else 0) }})
+                        🧹 Show Tasks ({{ shift.tasks|length }})
                       </button>
                     {% endif %}
                   </div>
@@ -251,21 +253,7 @@
                     </li>
                   {% endfor %}
 
-                      <!-- Custom DriverOrder Task -->
-                      {% if shift.driver_orders %}
-                      <li class="list-group-item d-flex justify-content-between align-items-center" style="background: #f0f9ff; color: #0c3c60;">
-                        <div>
-                          <strong>🚚 Driver Order Task</strong> — Auto-created delivery workflow<br>
-                          <small class="text-muted">Photo & Notes will appear on the Driver Shift</small>
-                        </div>
-                        <span class="badge bg-primary-subtle text-dark">🧬 Custom Module</span>
-                      </li>
-                      <form method="POST" action="/admin/remove_task" style="margin: 0;">
-                        <input type="hidden" name="task_id" value="{{ task.id }}">
-                        <input type="hidden" name="task_type" value="standard">
-                        <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
-                      </form>
-                      {% endif %}
+                    
                     </ul>
                   </div>
 
