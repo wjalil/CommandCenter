@@ -19,11 +19,13 @@ from app.auth.routes import get_current_user
 from app.api.custom_modules import inventory_routes, driver_order_routes,vending_log_routes
 from app.api.internal_task_routes import router as internal_task_router
 from sqlalchemy.future import select
+from dotenv import load_dotenv
 import app.models  # registers all models via models/__init__.py
 from sqlalchemy.orm import configure_mappers
 configure_mappers()
 from fastapi.staticfiles import StaticFiles
 
+load_dotenv()
 
 # ⬇️ New correct static directory
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -35,7 +37,7 @@ app = FastAPI()
 
 
 # ✅ Session middleware (required for PIN login sessions)
-app.add_middleware(SessionMiddleware, secret_key="supersecret-cookieops-key")
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "fallback-secret"))
 
 # ✅ Mount static files (e.g., for uploaded docs)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
