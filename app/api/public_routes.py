@@ -75,3 +75,8 @@ async def redirect_home(request: Request, db: AsyncSession = Depends(get_db)):
         return RedirectResponse(url=f"/worker/{user.id}/shifts", status_code=302)
 
     return RedirectResponse(url="/", status_code=302)
+
+@router.get("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/", status_code=302)

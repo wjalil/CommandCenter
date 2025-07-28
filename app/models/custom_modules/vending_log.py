@@ -17,3 +17,6 @@ class VendingLog(Base):
 
     machine_id = Column(String, ForeignKey("machines.id"), nullable=True)
     machine = relationship("Machine")
+    issue_type = Column(String, nullable=False)
+    source = Column(String, default="internal") 
+    email = Column(String, nullable=True)

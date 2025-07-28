@@ -2,51 +2,95 @@
 {% block content %}
 <div class="container mt-4">
 
-<div class="container mt-3 mb-2 text-end">
-  <a href="/admin/dashboard" class="btn btn-sm btn-outline-secondary">🏠 Home</a>
-</div>
+  <!-- 🔙 Back Home -->
+  <div class="text-end mb-3">
+    <a href="/admin/dashboard" class="btn btn-sm btn-outline-secondary">🏠 Home</a>
+  </div>
 
-  <h4>🧊 Submit Vending Machine Log</h4>
-  <form method="post" enctype="multipart/form-data" class="mb-5">
-  <div class="mb-3">
-    <label for="machine_id" class="form-label">Machine Location</label>
-    <select name="machine_id" class="form-select" required>
-        <option disabled selected value="">Select a machine</option>
-        {% for machine in machines %}
-        <option value="{{ machine.id }}">{{ machine.name }}</option>
-        {% endfor %}
-    </select>
+  <!-- 📥 Log Submission Form -->
+  <div class="card mb-5 shadow-sm">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">🧊 Submit Vending Machine Log</h5>
     </div>
-
-    <div class="mb-3">
-      <label for="notes" class="form-label">Notes</label>
-      <textarea name="notes" class="form-control" rows="2" placeholder="E.g. Grab Pelligrino, restock Kit-Kats"></textarea>
-    </div>
-    <div class="mb-3">
-        <label for="photos" class="form-label">Photos (Snack + Bev)</label>
-        <input type="file" name="photos" class="form-control" multiple>
-    </div>
-    <button type="submit" class="btn btn-primary">Submit Log</button>
-  </form>
-
-  <h4>📜 Past Logs</h4>
-  {% for log in logs %}
-    <div class="card mb-3">
-      <div class="card-body">
-        <p><strong>Submitted by:</strong> {{ log.submitter.name if log.submitter else 'Unknown' }}</p>
-        <p><strong>Location:</strong> {{ log.machine.name if log.machine else '—' }}</p><p><strong>📍 Machine:</strong> 
-          <h5 class="mb-2 text-primary-emphasis border-start border-4 ps-3">
-            {{ log.machine.name if log.machine else '—' }}
-          </h5>
-        </p><p><strong>Notes:</strong> {{ log.notes or '—' }}</p>
-        {% if log.photo_filename %}
-            {% for filename in log.photo_filename.split(",") %}
-                <img src="/static/vending_logs/{{ filename }}" class="img-fluid rounded mb-2 me-2" style="max-width: 200px;">
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        <div class="mb-3">
+          <label for="machine_id" class="form-label">Machine Location</label>
+          <select name="machine_id" class="form-select" required>
+            <option disabled selected value="">Select a machine</option>
+            {% for machine in machines %}
+              <option value="{{ machine.id }}">{{ machine.name }}</option>
             {% endfor %}
-        {% endif %}
-        <p class="text-muted mt-2">{{ log.timestamp.strftime('%b %d, %Y %I:%M %p') }}</p>
-      </div>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="notes" class="form-label">Notes</label>
+          <textarea name="notes" class="form-control" rows="2" placeholder="E.g. Restock Kit-Kats, grab Pelligrino"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="photos" class="form-label">Photos (Snack + Beverage)</label>
+          <input type="file" name="photos" class="form-control" multiple>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit Log</button>
+      </form>
     </div>
+  </div>
+
+  <!-- 📦 Logs by Machine -->
+  {% for machine_name, sources in grouped_logs.items() %}
+  <details class="mb-4 border rounded p-3 bg-light">
+    <summary class="h5 mb-2">🏭 {{ machine_name }}</summary>
+
+    <!-- Internal Logs -->
+    <div class="mt-3">
+      <h6 class="fw-bold">🛠️ Internal Logs (Showing most recent 3)</h6>
+      {% if sources.internal %}
+        {% for log in sources.internal[:3] %}
+          <p><strong>{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</strong>: {{ log.notes or "—" }}</p>
+          {% if log.photo_filename %}
+            {% for photo in log.photo_filename.split(',') %}
+              <img src="/static/vending_logs/{{ photo.strip() }}" class="img-thumbnail mb-2 me-2" style="max-height: 150px;" />
+            {% endfor %}
+          {% else %}
+            <p class="text-muted small">No photos uploaded.</p>
+          {% endif %}
+          <hr>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted">No internal logs available.</p>
+      {% endif %}
+    </div>
+
+    <!-- QR Logs -->
+    <div class="mt-3">
+      <h6 class="fw-bold">🔗 QR Submissions ({{ sources.qr | length }})</h6>
+      {% if sources.qr %}
+        {% for log in sources.qr %}
+          <p><strong>{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</strong>: {{ log.issue_type }} — {{ log.notes or "—" }}</p>
+          {% if log.photo_filename %}
+            {% if ',' in log.photo_filename %}
+              {% for photo in log.photo_filename.split(',') %}
+                <img src="/static/vending_logs/vending_qr_photos/{{ photo.strip() }}" class="img-thumbnail mb-2 me-2" style="max-height: 150px;" />
+              {% endfor %}
+            {% else %}
+              <img src="/static/vending_logs/vending_qr_photos/{{ log.photo_filename }}" class="img-thumbnail mb-2" style="max-height: 150px;" />
+            {% endif %}
+          {% else %}
+            <p class="text-muted small">No photo uploaded.</p>
+          {% endif %}
+          {% if log.email %}
+            <p class="text-muted small">📧 {{ log.email }}</p>
+          {% endif %}
+          <hr>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted">No QR submissions available.</p>
+      {% endif %}
+    </div>
+  </details>
   {% endfor %}
 
 </div>

@@ -16,7 +16,7 @@ from app.models import shift, task, submission, user
 from app.models.user import User
 print("🧪 DEBUG: User has shortage_logs?", hasattr(User, "shortage_logs"))
 from app.auth.routes import get_current_user
-from app.api.custom_modules import inventory_routes, driver_order_routes,vending_form_route
+from app.api.custom_modules import inventory_routes, driver_order_routes,vending_log_routes
 from app.api.internal_task_routes import router as internal_task_router
 from sqlalchemy.future import select
 import app.models  # registers all models via models/__init__.py
@@ -134,7 +134,7 @@ app.include_router(document_routes.router, prefix="/documents")
 app.include_router(public_routes.router)
 app.include_router(inventory_routes.router)
 app.include_router(driver_order_routes.router)
-app.include_router(vending_form_route.router)
+app.include_router(vending_log_routes.router)
 app.include_router(internal_task_router)
 app.include_router(admin_routes.router)
 app.include_router(shortage_router)

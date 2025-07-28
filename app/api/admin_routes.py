@@ -247,10 +247,24 @@ async def view_vending_logs(request: Request, db: AsyncSession = Depends(get_db)
 
     machine_result = await db.execute(select(Machine))
     machines = machine_result.scalars().all()
+
+    
+
+    grouped_logs = defaultdict(lambda: {"qr": [], "internal": []})
+
+    for log in logs:
+
+        machine_name = log.machine.name if log.machine else "Unknown Machine"
+        source =  (log.source or "internal").strip().lower()
+        if source not in grouped_logs[machine_name]:
+            print(f"🚨 Unexpected source '{source}' for machine '{machine_name}'")
+            continue  # or optionally: grouped_logs[machine_name][source] = []
+        grouped_logs[machine_name][source].append(log)
+
   
     return templates.TemplateResponse(
         "custom_modules/admin_vending_logs.html",
-        {"request": request, "logs": logs, "machines": machines}
+        {"request": request, "grouped_logs": grouped_logs, "machines": machines}
     )
 
 
@@ -261,10 +275,8 @@ async def admin_submit_vending_log(
     notes: str = Form(""),
     photos: list[UploadFile] = File(default=[]),
     machine_id: str = Form(...),  # ⬅️ properly defined
-    current_user: User = Depends(get_current_admin_user),
-):
-
-
+    current_user: User = Depends(get_current_admin_user),   
+    ):
     photo_filenames = []
     for photo in photos:
         if photo.filename:
@@ -281,6 +293,8 @@ async def admin_submit_vending_log(
         submitter_id=current_user.id,
         machine_id=machine_id,
         photo_filename=",".join(photo_filenames),  # we store as a string for now
+        issue_type="internal",  # ✅ required now
+        source="internal" 
     )
     db.add(new_log)
     await db.commit()

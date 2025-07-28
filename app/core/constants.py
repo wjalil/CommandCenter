@@ -7,6 +7,7 @@ UPLOAD_PATHS = {
     "documents": os.path.join(BASE_STATIC_PATH, "documents"),
     "driver_orders": os.path.join(BASE_STATIC_PATH, "driver_orders"),
     "vending_logs": os.path.join(BASE_STATIC_PATH, "vending_logs"),
+    "vending_qr_photos": os.path.join(BASE_STATIC_PATH, "vending_logs", "vending_qr_photos"),
     "shortage_logs": os.path.join(BASE_STATIC_PATH, "shortages"),
     "task_attachments": os.path.join(BASE_STATIC_PATH, "task_attachments"),
 }

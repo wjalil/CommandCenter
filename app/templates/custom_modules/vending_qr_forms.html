@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>📮 Vending Machine Log</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light p-4">
+  <div class="container">
+    {% if machine %}
+      <h2 class="mb-4">📍 {{ machine.name }}</h2>
+    {% else %}
+      <div class="alert alert-danger">No machine found.</div>
+    {% endif %}
+
+    <!-- ➕ Submit New Log -->
+    {% if machine %}
+      <hr>
+      <h5 class="mt-4">➕ Submit a New Report</h5>
+      <form action="/vending/form" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="machine_id" value="{{ machine.id }}">
+
+        <div class="mb-3">
+          <label class="form-label">🧾 Issue Type</label>
+          <select name="issue_type" class="form-select" required>
+            <option value="">-- Select Issue --</option>
+            <option>Out of stock</option>
+            <option>Broken item</option>
+            <option>Refund request</option>
+            <option>Suggestion</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">📝 Notes (optional)</label>
+          <textarea name="notes" class="form-control" rows="2"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">📸 Upload Photo (optional)</label>
+          <input type="file" name="photo" class="form-control" accept="image/*">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">📧 Email for follow-up (optional)</label>
+          <input type="email" name="email" class="form-control">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </form>
+    {% endif %}
+
+    <!-- 💡 Only Show Suggestions -->
+    {% if logs %}
+      <div class="mb-4">
+        <h5 class="mb-3">💡 Recent Suggestions</h5>
+        {% for log in logs if log.issue_type == "Suggestion" %}
+          <div class="border rounded p-2 mb-2 bg-white">
+            <p class="mb-1">
+              <strong>{{ log.issue_type }}</strong> — 
+              <small class="text-muted">{{ log.timestamp.strftime('%b %d, %Y %I:%M %p') }}</small>
+            </p>
+            <p class="mb-1">{{ log.notes or "—" }}</p>
+            {% if log.photo_filename %}
+              <img src="/static/vending_logs/vending_qr_photos/{{ log.photo_filename }}" class="img-fluid rounded" style="max-width: 200px;">
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>
