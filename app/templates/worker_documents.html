@@ -28,8 +28,8 @@
                     <div class="card-body">
                         <h5 class="card-title">{{ doc.title }}</h5>
                         <p class="card-text">{{ doc.description or "No description provided." }}</p>
-                        <a href="/static/uploads/{{ doc.filename }}" class="btn btn-outline-secondary" target="_blank">View</a>
-                        <a href="/static/uploads/{{ doc.filename }}" download class="btn btn-outline-success">Download</a>
+                        <a href="/static/documents/{{ doc.filename }}" class="btn btn-outline-secondary" target="_blank">View</a>
+                        <a href="/static/documents/{{ doc.filename }}" download class="btn btn-outline-success">Download</a>
                     </div>
                 </div>
             </div>

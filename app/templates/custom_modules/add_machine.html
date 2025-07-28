@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container mt-3 mb-2 text-end">
+  <a href="/admin/dashboard" class="btn btn-sm btn-outline-secondary">🏠 Home</a>
+</div>
+
+<div class="container mt-4">
+  <h2 class="mb-4 text-primary">🏪 Add New Machine</h2>
+  <form method="post" action="/admin/machines">
+    <div class="mb-3">
+      <label for="name" class="form-label">Machine Location Name</label>
+      <input type="text" class="form-control" id="name" name="name" required placeholder="e.g. Union Square Gym">
+    </div>
+    <button type="submit" class="btn btn-success">➕ Add Machine</button>
+  </form>
+
+  {% if machines %}
+  <h5 class="mt-5">Current Machines</h5>
+  <ul class="list-group mt-3">
+    {% for machine in machines %}
+    <li class="list-group-item">{{ machine.name }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endblock %}

@@ -22,16 +22,17 @@ from sqlalchemy.future import select
 import app.models  # registers all models via models/__init__.py
 from sqlalchemy.orm import configure_mappers
 configure_mappers()
+from fastapi.staticfiles import StaticFiles
 
 
-# ⬇️ Make sure the 'static/uploads' folder exists (relative to project root)
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
+# ⬇️ New correct static directory
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 UPLOADS_DIR = os.path.join(STATIC_DIR, "uploads")
-os.makedirs(UPLOADS_DIR, exist_ok=True)  # ⬅️ ensures directory exists
+os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 # Create the FastAPI app
 app = FastAPI()
-app.include_router(shortage_router)
+
 
 # ✅ Session middleware (required for PIN login sessions)
 app.add_middleware(SessionMiddleware, secret_key="supersecret-cookieops-key")

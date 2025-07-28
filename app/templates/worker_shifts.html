@@ -102,6 +102,35 @@
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
     }
+    /* ✨ Fade + Slide Animation */
+    .shift-card {
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeSlideUp 0.6s ease-out forwards;
+    }
+
+    .shift-card:nth-child(1) { animation-delay: 0.1s; }
+    .shift-card:nth-child(2) { animation-delay: 0.2s; }
+    .shift-card:nth-child(3) { animation-delay: 0.3s; }
+    .shift-card:nth-child(4) { animation-delay: 0.4s; }
+    .shift-card:nth-child(5) { animation-delay: 0.5s; }
+
+    @keyframes fadeSlideUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .btn {
+        transition: all 0.2s ease-in-out;
+      }
+
+      .btn:hover {
+        transform: scale(1.04);
+      }
+      .card-title {
+        text-shadow: 0 1px 1px rgba(168, 39, 39, 0.05);
+      }
   </style>
 </head>
 <body>

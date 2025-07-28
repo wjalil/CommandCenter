@@ -69,7 +69,7 @@
                                     <span class="badge bg-secondary tag-badge">{{ tag.strip() }}</span>
                                 {% endfor %}
                             </p>
-                            <a href="{{ url_for('static', path='uploads/' + doc.filename) }}" class="btn btn-sm btn-outline-primary" target="_blank">📎 View File</a>
+                            <a href="{{ url_for('static', path='documents/' + doc.filename) }}" class="btn btn-sm btn-outline-primary" target="_blank">📎 View File</a>
 
                             <!-- 🗑️ Delete Button -->
                             <form method="post" action="/documents/admin/documents/delete/{{ doc.id }}"

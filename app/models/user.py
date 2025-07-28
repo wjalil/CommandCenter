@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
 from app.models.shortage_log import ShortageLog
+from app.models.custom_modules.vending_log import VendingLog
 
 class User(Base):
     __tablename__ = "users"
@@ -20,3 +21,5 @@ class User(Base):
     shifts = relationship("Shift", back_populates="worker")
     
     submissions = relationship("TaskSubmission", back_populates="worker")
+
+    vending_logs = relationship("VendingLog", back_populates="submitter", cascade="all, delete-orphan")

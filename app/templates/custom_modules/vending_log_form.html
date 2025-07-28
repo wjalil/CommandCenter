@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h4>📸 Vending Machine Log</h4>
+  <form method="post" enctype="multipart/form-data">
+    <div class="mb-3">
+      <label for="notes" class="form-label">Notes</label>
+      <textarea name="notes" class="form-control" rows="3" placeholder="E.g. Need Pelligrino, restock Kit-Kats"></textarea>
+    </div>
+    <div class="mb-3">
+      <label for="photo" class="form-label">Photo</label>
+      <input type="file" name="photo" class="form-control">
+    </div>
+    <button type="submit" class="btn btn-primary">Submit Log</button>
+  </form>
+</div>
+{% endblock %}

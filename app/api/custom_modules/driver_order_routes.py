@@ -6,15 +6,16 @@ from sqlalchemy.future import select
 from datetime import datetime
 import uuid
 import os
-
+from pathlib import Path
 from app.db import get_db
 from app.models.custom_modules.driver_order import DriverOrder
+from app.core.constants import UPLOAD_PATHS
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
-UPLOAD_DIR = "static/uploads/driver_photos"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+UPLOAD_DIR = UPLOAD_PATHS["driver_orders"]
+
 
 # 🧾 GET: Form + Logs
 @router.get("/modules/driver_order", response_class=HTMLResponse)

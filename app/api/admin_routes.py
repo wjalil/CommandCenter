@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Form
+from fastapi import APIRouter, Depends, Request, Form,UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,12 @@ from app.models.internal_task import InternalTask
 from app.crud import internal_task
 from app.api.internal_task_routes import InternalTask
 from app.models.shortage_log import ShortageLog
+import uuid, shutil, os
+from app.models.custom_modules.vending_log import VendingLog
+from app.models.custom_modules.machine import Machine
+from app.core.constants import UPLOAD_PATHS
+
+UPLOAD_DIR = UPLOAD_PATHS['vending_logs']
 
 #---- Admin Shifts View
 @router.get("/admin/shifts")
@@ -213,3 +219,71 @@ async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), 
 @router.get("/admin/shortages")
 async def redirect_to_worker_shortages():
     return RedirectResponse(url="/shortage-form")
+
+
+#Vending Machine 
+@router.get("/admin/machines")
+async def show_add_machine_form(request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Machine))
+    machines = result.scalars().all()
+    return templates.TemplateResponse("custom_modules/add_machine.html", {"request": request, "machines": machines})
+
+@router.post("/admin/machines")
+async def create_machine(request: Request, name: str = Form(...), db: AsyncSession = Depends(get_db)):
+    machine = Machine(name=name)
+    db.add(machine)
+    await db.commit()
+    return RedirectResponse("/admin/machines", status_code=302)
+
+
+@router.get("/admin/vending-logs")
+async def view_vending_logs(request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+    select(VendingLog)
+    .options(selectinload(VendingLog.submitter), selectinload(VendingLog.machine))
+    .order_by(VendingLog.timestamp.desc())  # ⬅️ Add this line
+    )
+    logs = result.scalars().all()
+
+    machine_result = await db.execute(select(Machine))
+    machines = machine_result.scalars().all()
+  
+    return templates.TemplateResponse(
+        "custom_modules/admin_vending_logs.html",
+        {"request": request, "logs": logs, "machines": machines}
+    )
+
+
+@router.post("/admin/vending-logs")
+async def admin_submit_vending_log(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    notes: str = Form(""),
+    photos: list[UploadFile] = File(default=[]),
+    machine_id: str = Form(...),  # ⬅️ properly defined
+    current_user: User = Depends(get_current_admin_user),
+):
+
+
+    photo_filenames = []
+    for photo in photos:
+        if photo.filename:
+            ext = photo.filename.split(".")[-1]
+            filename = f"{uuid.uuid4()}.{ext}"
+            path = os.path.join(UPLOAD_DIR, filename)
+            with open(path, "wb") as buffer:
+                shutil.copyfileobj(photo.file, buffer)
+            photo_filenames.append(filename)
+
+    # Join filenames into a comma-separated string for now
+    new_log = VendingLog(
+        notes=notes,
+        submitter_id=current_user.id,
+        machine_id=machine_id,
+        photo_filename=",".join(photo_filenames),  # we store as a string for now
+    )
+    db.add(new_log)
+    await db.commit()
+
+    return RedirectResponse("/admin/vending-logs", status_code=302)
+

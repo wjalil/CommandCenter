@@ -20,7 +20,7 @@
           {{ log.timestamp.strftime('%b %d, %I:%M %p') }} —
           {{ log.notes or "No note" }}
           {% if log.photo_filename %}
-            • <a href="/static/uploads/driver_photos/{{ log.photo_filename }}" target="_blank">📷 View Photo</a>
+            <a href="{{ url_for('static', path='driver_orders/' + log.photo_filename) }}" target="_blank">📷 View Photo</a>
           {% endif %}
         </div>
         {% if not log.is_resolved %}

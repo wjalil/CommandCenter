@@ -9,12 +9,13 @@ from app.models.document import Document
 import uuid
 import os
 import shutil
+from app.core.constants import UPLOAD_PATHS
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
-UPLOAD_DIR = os.path.join("static", "uploads") 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+UPLOAD_DIR = UPLOAD_PATHS['documents']
+
 
 # ---------- Admin: View All Uploaded Documents ----------
 @router.get("/admin/documents", name="view_documents")
