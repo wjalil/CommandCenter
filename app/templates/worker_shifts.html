@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="120">
   <title>My Shifts</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
@@ -131,6 +132,15 @@
       .card-title {
         text-shadow: 0 1px 1px rgba(168, 39, 39, 0.05);
       }
+      .flash-badge {
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(255,193,7, 0.6); }
+        70% { box-shadow: 0 0 0 10px rgba(255,193,7, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(255,193,7, 0); }
+      }
   </style>
 </head>
 <body>
@@ -170,9 +180,22 @@
             <div class="text-muted small">🧱 {{ shift.label }}</div>
           </div>
 
-          {% if shift.is_completed %}
-            <span class="badge badge-completed px-3 py-1 mt-1">✅ Completed</span>
-          {% endif %}
+          <div class="text-end">
+            {% set alert = shift_alerts.get(shift.id) %}
+            {% if alert and alert.total > 0 %}
+              {% if alert.pending > 0 %}
+                <span class="badge bg-warning text-dark flash-badge mt-1">🆕 {{ alert.pending }} Task{{ 's' if alert.pending > 1 else '' }}</span>
+              {% else %}
+                <span class="badge bg-success mt-1">✅ All Tasks Done</span>
+              {% endif %}
+            {% else %}
+              <span class="badge bg-secondary mt-1">No Tasks</span>
+            {% endif %}
+
+            {% if shift.is_completed %}
+              <div><span class="badge badge-completed mt-1">✅ Completed</span></div>
+            {% endif %}
+          </div>
         </div>
 
         <div class="d-flex flex-wrap gap-2">
@@ -184,7 +207,7 @@
           </a>
         </div>
       </div>
-    {% endfor %}
+      {% endfor %}
 
 
     {% endfor %}

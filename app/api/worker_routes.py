@@ -21,15 +21,16 @@ async def worker_shift_view(worker_id: str, request: Request, db: AsyncSession =
         .where(Shift.assigned_worker_id == worker_id)
         .order_by(Shift.start_time)
         .options(
-            selectinload(Shift.tasks)
-            .selectinload(Task.template)
-            .selectinload(TaskTemplate.items)
+        selectinload(Shift.tasks).selectinload(Task.template),
+        selectinload(Shift.tasks).selectinload(Task.template).selectinload(TaskTemplate.items),
+        selectinload(Shift.submissions)
         )
     )
     shifts = result.scalars().all()
 
     weekly_shifts = defaultdict(list)
     weekly_hours = defaultdict(float)
+    shift_alerts = {}
 
     for shift in shifts:
         week_start = shift.start_time - timedelta(days=shift.start_time.weekday())  # Monday
@@ -40,6 +41,12 @@ async def worker_shift_view(worker_id: str, request: Request, db: AsyncSession =
         duration = (shift.end_time - shift.start_time).total_seconds() / 3600
         weekly_hours[week_label] += duration
 
+        # 📋 Task alert logic
+        total_items = sum(len(task.template.items) for task in shift.tasks if task.template)
+        completed = len(shift.submissions)
+        pending = total_items - completed
+        shift_alerts[shift.id] = {"pending": pending, "total": total_items}
+
     worker = await db.get(User, worker_id)
     worker_name = worker.name if worker else "Unknown"
 
@@ -49,5 +56,6 @@ async def worker_shift_view(worker_id: str, request: Request, db: AsyncSession =
         "weekly_hours": dict(weekly_hours),
         "worker_id": worker_id,
         "worker_name": worker_name,
+        "shift_alerts": shift_alerts,
     })
 
