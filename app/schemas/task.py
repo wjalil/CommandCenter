@@ -67,6 +67,7 @@ class TaskSubmissionBase(BaseModel):
     worker_id: str
     shift_id: str 
     response_text: Optional[str] = None
+    photo_filename: Optional[str] = None  # ✅ ADD THIS
 
 class TaskSubmissionCreate(TaskSubmissionBase):
     pass

@@ -79,6 +79,7 @@ async def submit_task_response(db: AsyncSession, submission_data: TaskSubmission
         worker_id=submission_data.worker_id,
         shift_id=submission_data.shift_id,
         response_text=submission_data.response_text,
+        photo_filename=submission_data.photo_filename,
         timestamp=datetime.utcnow(),
     )
     db.add(submission)

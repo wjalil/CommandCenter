@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Request, Form, Path
+from fastapi import APIRouter, Depends, Request, Form, Path, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select,delete
+from sqlalchemy.orm import selectinload
 from typing import List,Optional
 from app.db import get_db
 from app.schemas.task import TaskTemplateCreate, TaskCreate, TaskSubmissionCreate
@@ -10,10 +11,16 @@ from app.crud import task as task_crud
 from uuid import UUID
 from app.crud import shift as shift_crud
 from app.models.shift import Shift
-from app.models.task import TaskSubmission,TaskTemplate,TaskItem
+from app.models.task import TaskSubmission,TaskTemplate,TaskItem,Task
+from app.core.constants import UPLOAD_PATHS
+import shutil, os
+import uuid
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+UPLOAD_DIR = UPLOAD_PATHS['task_attachments']
 
 # ---------- Admin: View & Create Templates ----------
 @router.get("/admin/task-templates",name="view_task_templates")
@@ -86,16 +93,26 @@ async def submit_task_response(
     worker_id: str = Form(...),
     shift_id: str = Form(...),  # ✅ Add this
     response_text: str = Form(...),
+    photo: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db)
 ):
     form = await request.form()
     print("📨 FORM BODY:", dict(form))  # helpful debug log
+    
+    filename = None
+    if photo and photo.filename:
+        filename = f"{uuid.uuid4()}_{photo.filename}"
+        filepath = os.path.join(UPLOAD_DIR, filename)
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(photo.file, buffer)
+
     submission = TaskSubmissionCreate(
         task_id=task_id,
         task_item_id=task_item_id,
         worker_id=worker_id,
         shift_id=shift_id,  # ✅ Include in submission
         response_text=response_text,
+        photo_filename=filename
     )
     await task_crud.submit_task_response(db, submission)
     return RedirectResponse(url=f"/tasks/shift/{shift_id}/tasks?success=1", status_code=303)
@@ -154,4 +171,21 @@ async def update_task_template(
     return RedirectResponse(
         url=str(request.url_for("view_task_templates")) + "?success=Template%20updated%20successfully!",
         status_code=303
+    )
+
+#Admin Tasks Submissions View
+@router.get("/admin/task-submissions")
+async def view_task_submissions(request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(TaskSubmission).options(
+            selectinload(TaskSubmission.shift).selectinload(Shift.worker),  # Optional: show worker name
+            selectinload(TaskSubmission.task),
+            selectinload(TaskSubmission.task_item),
+            selectinload(TaskSubmission.task).selectinload(Task.template),  # ✅ Load template separately
+        )
+    )
+    submissions = result.scalars().all()
+    return templates.TemplateResponse(
+        "admin_task_submissions.html",
+        {"request": request, "submissions": submissions}
     )

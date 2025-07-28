@@ -63,7 +63,9 @@ class TaskSubmission(Base):
 
     response_text = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
+    photo_filename = Column(String, nullable=True)  # 📸 New field
 
     task = relationship("Task", back_populates="submissions")
+    task_item = relationship("TaskItem") 
     worker = relationship("User", back_populates="submissions")
     shift = relationship("Shift", back_populates="submissions")  # ✅ must follow the FK

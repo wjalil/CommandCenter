@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🗂️ Task Submissions</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; padding: 2rem; }
+    .photo-preview { max-width: 180px; border-radius: 8px; }
+    .meta { font-size: 0.9rem; color: #6c757d; }
+    .tag { font-weight: 600; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2 class="mb-4">🗂️ Task Submissions (Grouped by Day)</h2>
+
+  {% set grouped = {} %}
+  {% for submission in submissions | sort(attribute='timestamp', reverse=True) %}
+    {% set date_key = submission.timestamp.strftime('%B %d, %Y') %}
+    {% if date_key not in grouped %}
+      {% set _ = grouped.update({date_key: []}) %}
+    {% endif %}
+    {% set _ = grouped[date_key].append(submission) %}
+  {% endfor %}
+
+  <div class="accordion" id="submissionAccordion">
+    {% for date, items in grouped.items() %}
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="heading-{{ loop.index }}">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                data-bs-target="#collapse-{{ loop.index }}" aria-expanded="false" aria-controls="collapse-{{ loop.index }}">
+          📅 {{ date }} ({{ items|length }} submissions)
+        </button>
+      </h2>
+      <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ loop.index }}"
+           data-bs-parent="#submissionAccordion">
+        <div class="accordion-body">
+          {% for submission in items %}
+          <div class="card mb-3 shadow-sm">
+            <div class="card-body">
+              <h5 class="card-title">{{ submission.task.template.title }}</h5>
+              <p><span class="tag">Prompt:</span> {{ submission.task_item.prompt }}</p>
+              <p><span class="tag">Response:</span> {{ submission.response_text or "—" }}</p>
+              <p class="meta">
+                👷 Worker: {{ submission.shift.worker.name if submission.shift and submission.shift.worker else '—' }}<br>
+                🕒 Shift: {{ submission.shift.label if submission.shift else '—' }} | 
+                Submitted: {{ submission.timestamp.strftime('%I:%M %p') }}
+              </p>
+              {% if submission.photo_filename %}
+                <div class="mt-2">
+                    <a href="/static/task_attachments/{{ submission.photo_filename }}" target="_blank">
+                    <img src="/static/task_attachments/{{ submission.photo_filename }}" alt="Photo" style="max-width: 200px; border-radius: 8px;">
+                    </a>
+                    <p class="mt-1">
+                    <a href="/static/task_attachments/{{ submission.photo_filename }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        🔗 View Full Image
+                    </a>
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
