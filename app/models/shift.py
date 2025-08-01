@@ -1,8 +1,9 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Integer
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
 from datetime import datetime
+from app.models.tenant import Tenant
 from app.models.task import TaskSubmission
 
 class Shift(Base):
@@ -13,6 +14,9 @@ class Shift(Base):
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
     date = Column(DateTime, default=datetime.utcnow)
+
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    tenant = relationship("Tenant", back_populates="shifts")
 
     is_filled = Column(Boolean, default=False)
     is_completed = Column(Boolean, default=False)     # ✅ NEW

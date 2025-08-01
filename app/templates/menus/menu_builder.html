@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5" x-data="menuBuilder()">
+  <h2>Create Menu Items</h2>
+
+  <!-- Menu Selector -->
+  <form method="post" @submit.prevent="submitForm">
+    <div class="mb-3">
+      <label for="menu_id" class="form-label">Select Menu</label>
+      <select class="form-select" x-model="menu_id" required>
+        <option value="" disabled selected>-- Choose a menu --</option>
+        {% for menu in menus %}
+          <option value="{{ menu.id }}">{{ menu.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Editable Table -->
+    <table class="table table-bordered align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Price ($)</th>
+          <th>Qty Available</th>
+          <th>Remove</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="(item, index) in items" :key="index">
+          <tr>
+            <td><input type="text" class="form-control" x-model="item.name" required></td>
+            <td><input type="text" class="form-control" x-model="item.description"></td>
+            <td><input type="number" class="form-control" step="0.01" x-model.number="item.price" required></td>
+            <td><input type="number" class="form-control" x-model.number="item.qty" required></td>
+            <td><button type="button" class="btn btn-sm btn-danger" @click="removeRow(index)">❌</button></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+
+    <div class="d-flex justify-content-between">
+      <button type="button" class="btn btn-secondary" @click="addRow">➕ Add Row</button>
+      <button type="submit" class="btn btn-primary">💾 Save Items</button>
+    </div>
+  </form>
+</div>
+
+<!-- Alpine Component -->
+<script>
+function menuBuilder() {
+  return {
+    menu_id: "",
+    items: [
+      { name: "", description: "", price: 0, qty: 0 }
+    ],
+    addRow() {
+      this.items.push({ name: "", description: "", price: 0, qty: 0 });
+    },
+    removeRow(index) {
+      this.items.splice(index, 1);
+    },
+    async submitForm() {
+      const response = await fetch("/admin/menu-items/bulk-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ menu_id: this.menu_id, items: this.items })
+      });
+
+      if (response.redirected) {
+        window.location.href = response.url;
+      } else {
+        alert("Error saving items.");
+      }
+    }
+  }
+}
+</script>
+{% endblock %}

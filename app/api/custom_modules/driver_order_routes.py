@@ -6,9 +6,10 @@ from sqlalchemy.future import select
 from datetime import datetime
 import uuid
 import os
-from pathlib import Path
+
 from app.db import get_db
 from app.models.custom_modules.driver_order import DriverOrder
+from app.auth.dependencies import get_current_user
 from app.core.constants import UPLOAD_PATHS
 
 router = APIRouter()
@@ -19,10 +20,19 @@ UPLOAD_DIR = UPLOAD_PATHS["driver_orders"]
 
 # 🧾 GET: Form + Logs
 @router.get("/modules/driver_order", response_class=HTMLResponse)
-async def driver_order_module(request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(DriverOrder).order_by(DriverOrder.timestamp.desc()))
+async def driver_order_module(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    result = await db.execute(
+        select(DriverOrder)
+        .where(DriverOrder.tenant_id == user.tenant_id)
+        .order_by(DriverOrder.timestamp.desc())
+    )
     logs = result.scalars().all()
     return templates.TemplateResponse("custom_modules/driver_order.html", {"request": request, "logs": logs})
+
 
 # 📝 POST: Submit a New Log
 @router.post("/modules/driver_order/submit")
@@ -31,6 +41,7 @@ async def submit_driver_order(
     notes: str = Form(""),
     photo: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user)
 ):
     photo_filename = None
 
@@ -46,11 +57,13 @@ async def submit_driver_order(
         notes=notes,
         timestamp=datetime.utcnow(),
         photo_filename=photo_filename,
+        tenant_id=user.tenant_id  # ✅ set tenant
     )
     db.add(log)
     await db.commit()
 
     return RedirectResponse("/modules/driver_order", status_code=303)
+
 
 # ✅ POST: Mark Resolved
 @router.post("/modules/driver_order/resolve")
@@ -58,8 +71,13 @@ async def resolve_driver_order(
     request: Request,
     log_id: str = Form(...),
     db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user)
 ):
-    result = await db.execute(select(DriverOrder).where(DriverOrder.id == log_id))
+    result = await db.execute(
+        select(DriverOrder)
+        .where(DriverOrder.id == log_id)
+        .where(DriverOrder.tenant_id == user.tenant_id)  # ✅ scope resolution
+    )
     log = result.scalar_one_or_none()
     if log:
         log.is_resolved = True

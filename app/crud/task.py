@@ -1,18 +1,19 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from app.models.task import TaskTemplate, TaskItem, Task,TaskSubmission
+from app.models.task import TaskTemplate, TaskItem, Task, TaskSubmission
 from app.schemas.task import TaskTemplateCreate, TaskItemCreate, TaskCreate, TaskSubmissionCreate
 import uuid
 from datetime import datetime
 from sqlalchemy import delete
 
 # --------- Task Templates ---------
-async def create_task_template(db: AsyncSession, template: TaskTemplateCreate):
+async def create_task_template(db: AsyncSession, template: TaskTemplateCreate, tenant_id: str):
     new_template = TaskTemplate(
         id=str(uuid.uuid4()),
         title=template.title,
-        description=template.description
+        description=template.description,
+        tenant_id=tenant_id
     )
     db.add(new_template)
     await db.flush()  # Get template ID before adding items
@@ -31,17 +32,20 @@ async def create_task_template(db: AsyncSession, template: TaskTemplateCreate):
     return new_template
 
 
-async def get_all_task_templates(db: AsyncSession):
+async def get_all_task_templates(db: AsyncSession, tenant_id: str):
     result = await db.execute(
-        select(TaskTemplate).options(selectinload(TaskTemplate.items))
+        select(TaskTemplate)
+        .where(TaskTemplate.tenant_id == tenant_id)
+        .options(selectinload(TaskTemplate.items))
     )
     return result.scalars().all()
 
 
-async def get_task_template(db: AsyncSession, template_id: str):
+async def get_task_template(db: AsyncSession, template_id: str, tenant_id: str):
     result = await db.execute(
         select(TaskTemplate)
         .where(TaskTemplate.id == template_id)
+        .where(TaskTemplate.tenant_id == tenant_id)
         .options(selectinload(TaskTemplate.items))
     )
     return result.scalar_one_or_none()
@@ -54,6 +58,7 @@ async def create_task(db: AsyncSession, task_data: TaskCreate):
         shift_id=task_data.shift_id,
         template_id=task_data.template_id,
         is_completed=False,
+        tenant_id=task_data.tenant_id
     )
     db.add(task)
     await db.commit()
@@ -61,10 +66,11 @@ async def create_task(db: AsyncSession, task_data: TaskCreate):
     return task
 
 
-async def get_tasks_for_shift(db: AsyncSession, shift_id: str):
+async def get_tasks_for_shift(db: AsyncSession, shift_id: str, tenant_id: str):
     result = await db.execute(
         select(Task)
         .where(Task.shift_id == shift_id)
+        .where(Task.tenant_id == tenant_id)
         .options(selectinload(Task.template).selectinload(TaskTemplate.items))
     )
     return result.scalars().all()
@@ -87,8 +93,15 @@ async def submit_task_response(db: AsyncSession, submission_data: TaskSubmission
     await db.refresh(submission)
     return submission
 
+
 # --------- Task Delete ---------
-async def delete_task_template(db: AsyncSession, template_id: str):
-    await db.execute(delete(TaskItem).where(TaskItem.template_id == template_id))
-    await db.execute(delete(TaskTemplate).where(TaskTemplate.id == template_id))
+async def delete_task_template(db: AsyncSession, template_id: str, tenant_id: str):
+    await db.execute(
+        delete(TaskItem).where(TaskItem.template_id == template_id)
+    )
+    await db.execute(
+        delete(TaskTemplate)
+        .where(TaskTemplate.id == template_id)
+        .where(TaskTemplate.tenant_id == tenant_id)
+    )
     await db.commit()

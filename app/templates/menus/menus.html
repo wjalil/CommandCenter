@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="container mt-4">
+    <h2>Menus</h2>
+    <a href="/admin/dashboard" class="btn btn-outline-secondary">← Back to Admin Dashboard</a>
+    <a href="/admin/menus/create" class="btn btn-outline-secondary"">➕ Create New Menu</a>
+    <table class="table table-bordered">
+      <thead>
+        <tr><th>Name</th><th>Description</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for menu in menus %}
+        <tr>
+          <td>
+            <a href="/admin/menu-items?menu_id={{ menu.id }}" class="text-decoration-none fw-semibold">
+              {{ menu.name }}
+            </a>
+          </td>
+          <td>{{ menu.description or "—" }}</td>
+          <td>
+            {% if menu.is_active %}
+              <span class="badge bg-success">Active</span>
+            {% else %}
+              <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

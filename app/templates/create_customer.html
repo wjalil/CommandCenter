@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <a href="/admin/dashboard" class="btn btn-outline-secondary btn-sm mb-3">← Back to Home</a>
+  <h2>➕ Create New Customer</h2>
+  {% if request.query_params.get("success") %}
+    <div class="alert alert-success">{{ request.query_params.get("success") }}</div>
+  {% endif %}
+  <form method="post" action="/admin/customers/create" class="mt-4" style="max-width: 400px;">
+    <div class="mb-3">
+      <label for="name" class="form-label">Full Name</label>
+      <input type="text" name="name" id="name" class="form-control" required>
+    </div>
+    <div class="mb-3">
+    <label for="pin_code" class="form-label">4-Digit PIN</label>
+    <input type="text" name="pin_code" id="pin_code" class="form-control" maxlength="4" required>
+    </div>
+
+    <div class="mb-3">
+    <label for="phone_number" class="form-label">Phone Number</label>
+    <input type="text" name="phone_number" id="phone_number" class="form-control" maxlength="10" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Create Customer</button>
+    <a href="/admin/dashboard" class="btn btn-secondary ms-2">Back</a>
+  </form>
+</div>
+
+
+<hr class="my-4">
+<h5>👥 Existing Customers</h5>
+<table class="table table-sm table-bordered mt-2">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Phone</th>
+      <th>PIN</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for customer in customers %}
+      <tr>
+        <td>{{ customer.name }}</td>
+        <td>{{ customer.phone_number }}</td>
+        <td>{{ customer.pin_code }}</td>
+        <td>
+          <form action="/admin/customers/{{ customer.id }}/delete" method="post" onsubmit="return confirm('Delete this customer?')">
+            <button type="submit" class="btn btn-sm btn-outline-danger">🗑</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr>
+        <td colspan="4" class="text-muted text-center">No customers added yet.</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

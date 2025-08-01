@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean
+from sqlalchemy import Column, String, Boolean,Integer,ForeignKey
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
@@ -12,14 +12,13 @@ class User(Base):
     name = Column(String, nullable=False)
     pin_code = Column(String, nullable=False)
     role = Column(String, nullable=False)  # "admin", "worker"
+    #Tenant ID 
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    tenant = relationship("Tenant", back_populates="users")
+
     worker_type = Column(String, nullable=True) 
-
     is_active = Column(Boolean, default=True)
-
     business_id = Column(String, nullable=True)  # just store it raw for now
-
     shifts = relationship("Shift", back_populates="worker")
-    
     submissions = relationship("TaskSubmission", back_populates="worker")
-
     vending_logs = relationship("VendingLog", back_populates="submitter", cascade="all, delete-orphan")

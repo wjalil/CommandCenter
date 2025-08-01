@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
-from fastapi.responses import RedirectResponse,HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
@@ -12,14 +12,20 @@ from app.db import get_db
 from sqlalchemy.future import select
 from app.core.constants import UPLOAD_PATHS
 from typing import Optional
+from app.utils.security import validate_and_read_image, generate_safe_filename
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 UPLOAD_DIR = UPLOAD_PATHS['vending_logs']
 
+# 📝 Internal form: for staff/admin use
 @router.get("/vending/log")
-async def show_vending_log_form(request: Request, db: AsyncSession = Depends(get_db)):
+async def show_vending_log_form(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     result = await db.execute(select(Machine))
     machines = result.scalars().all()
     return templates.TemplateResponse("custom_modules/vending_log_form.html", {
@@ -32,19 +38,19 @@ async def submit_vending_log(
     request: Request,
     db: AsyncSession = Depends(get_db),
     notes: str = Form(""),
-    machine_id: str = Form(...),  # 👈 add this
+    machine_id: str = Form(...),
     photo: UploadFile = File(None),
     current_user: User = Depends(get_current_user),
 ):
     photo_filename = None
     if photo:
-        ext = photo.filename.split(".")[-1]
-        photo_filename = f"{uuid.uuid4()}.{ext}"
+        contents = await validate_and_read_image(photo)
+        photo_filename = generate_safe_filename(photo.filename)
         path = os.path.join(UPLOAD_DIR, photo_filename)
         with open(path, "wb") as buffer:
             shutil.copyfileobj(photo.file, buffer)
 
-    print("🔧 [DEBUG] Submitting internal vending log with issue_type='internal'")  # 👈 Add this
+    print("🔧 [DEBUG] Submitting internal vending log with issue_type='internal'")
 
     new_log = VendingLog(
         notes=notes,
@@ -59,8 +65,13 @@ async def submit_vending_log(
 
     return RedirectResponse("/worker/shifts", status_code=302)
 
+# 🌐 Public QR form: no login required
 @router.get("/vending/form", response_class=HTMLResponse)
-async def vending_qr_board(request: Request, machine_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def vending_qr_board(
+    request: Request,
+    machine_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
     machine = None
     logs = []
     if machine_id:
@@ -94,16 +105,14 @@ async def submit_vending_form(
 ):
     photo_filename = None
 
-    # ✅ Handle photo upload
     if photo and photo.filename:
-        ext = os.path.splitext(photo.filename)[1]
-        photo_filename = f"vending_{uuid.uuid4().hex}{ext}"
+        contents = await validate_and_read_image(photo)
+        photo_filename = generate_safe_filename(photo.filename)
         upload_path = os.path.join(UPLOAD_PATHS["vending_qr_photos"], photo_filename)
 
         with open(upload_path, "wb") as buffer:
-            shutil.copyfileobj(photo.file, buffer)
+            buffer.write(contents)
 
-    # ✅ Create VendingLog entry
     new_log = VendingLog(
         machine_id=machine_id,
         issue_type=issue_type,
@@ -116,8 +125,7 @@ async def submit_vending_form(
     db.add(new_log)
     await db.commit()
 
-    # ✅ Redirect to thank-you page or confirmation
     return RedirectResponse(
-    url=f"/vending/form?machine_id={machine_id}",
-    status_code=303
+        url=f"/vending/form?machine_id={machine_id}&success=true",
+        status_code=303
     )

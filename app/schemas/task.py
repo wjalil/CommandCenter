@@ -33,6 +33,7 @@ class TaskTemplateBase(BaseModel):
 
 class TaskTemplateCreate(TaskTemplateBase):
     items: Optional[List[TaskItemCreate]] = []
+    tenant_id: str
 
 class TaskTemplateRead(TaskTemplateBase):
     id: str
@@ -48,7 +49,7 @@ class TaskBase(BaseModel):
     template_id: Optional[str] = None
 
 class TaskCreate(TaskBase):
-    pass
+    tenant_id: str
 
 class TaskRead(BaseModel):
     id: str

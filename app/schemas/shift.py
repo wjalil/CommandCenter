@@ -10,7 +10,7 @@ class ShiftBase(BaseModel):
     shift_type: Optional[str] = None 
 
 class ShiftCreate(ShiftBase):
-    pass
+    tenant_id: str
 
 class ShiftRead(ShiftBase):  # ✅ Inherit from ShiftBase to avoid repetition
     id: str

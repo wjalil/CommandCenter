@@ -6,8 +6,8 @@ async def get_all_tasks(db: AsyncSession):
     result = await db.execute(select(InternalTask))
     return result.scalars().all()
 
-async def add_task(db: AsyncSession, title: str):
-    task = InternalTask(title=title)
+async def add_task(db: AsyncSession, title: str, tenant_id: int):
+    task = InternalTask(title=title, tenant_id=tenant_id)
     db.add(task)
     await db.commit()
 

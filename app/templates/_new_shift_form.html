@@ -1,4 +1,5 @@
 <form method="post" action="/admin/shifts/create" class="border rounded shadow-sm p-3 bg-white mb-4">
+  <input type="hidden" name="tenant_id" value="{{ request.state.tenant_id }}">
   <h5 class="mb-3">➕ Create New Shift</h5>
 
   {% if preset_labels %}

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text , Integer
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
@@ -20,3 +20,6 @@ class VendingLog(Base):
     issue_type = Column(String, nullable=False)
     source = Column(String, default="internal") 
     email = Column(String, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    tenant = relationship("Tenant", back_populates="vending_logs")
+

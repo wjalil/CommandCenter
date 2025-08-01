@@ -1,6 +1,6 @@
 # app/models/custom_modules/driver_order.py
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Boolean, Integer
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
@@ -15,6 +15,8 @@ class DriverOrder(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     photo_filename = Column(String, nullable=True)
     is_resolved = Column(Boolean, default=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    tenant = relationship("Tenant", back_populates="driver_orders")
 
 
 

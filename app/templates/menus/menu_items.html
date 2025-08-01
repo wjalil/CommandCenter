@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-4">🍽️ Menu Items Management</h2>
+  <a href="/admin/menus" class="btn btn-outline-secondary">← Back to Menus</a>
+  {% if request.query_params.get("success") %}
+    <div class="alert alert-success">{{ request.query_params.get("success") }}</div>
+  {% endif %}
+
+  {% for menu in menus %}
+    <div class="mb-4" x-data="{
+        newItems: [],
+        addRow() {
+          this.newItems.push({ name: '', description: '', price: 0.00, qty: 0 });
+        },
+        async submitNewItems(menuId) {
+          const response = await fetch('/admin/menu-items/bulk-create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ menu_id: menuId, items: this.newItems })
+          });
+          if (response.ok) {
+            location.reload();
+          } else {
+            alert('Failed to add new items.');
+          }
+        }
+      }"
+    >
+      <h4>{{ menu.name }} {% if menu.is_active %}<span class="badge bg-success">Active</span>{% endif %}</h4>
+      <div class="table-responsive">
+        <table class="table nice-table align-middle text-center">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Description</th>
+              <th>Price ($)</th>
+              <th>Qty Available</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in menu.items %}
+              <tr x-data="{
+                  editable: false,
+                  form: {
+                    name: '{{ item.name }}',
+                    description: `{{ item.description or '' }}`,
+                    price: {{ item.price }},
+                    qty: {{ item.qty_available }}
+                  },
+                  async updateItem() {
+                    const response = await fetch('/admin/menu-items/{{ item.id }}/inline-update', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(this.form)
+                    });
+                    if (response.ok) {
+                      this.editable = false;
+                    } else {
+                      alert('Failed to update item');
+                    }
+                  }
+                }"
+              >
+                <td>
+                  <template x-if="editable">
+                    <input x-model="form.name" class="form-control" />
+                  </template>
+                  <template x-if="!editable">
+                    <span x-text="form.name"></span>
+                  </template>
+                </td>
+                <td>
+                  <template x-if="editable">
+                    <input x-model="form.description" class="form-control" />
+                  </template>
+                  <template x-if="!editable">
+                    <span x-text="form.description || '—'"></span>
+                  </template>
+                </td>
+                <td>
+                  <template x-if="editable">
+                    <input x-model="form.price" type="number" step="0.01" class="form-control" />
+                  </template>
+                  <template x-if="!editable">
+                    $<span x-text="parseFloat(form.price).toFixed(2)"></span>
+                  </template>
+                </td>
+                <td>
+                  <template x-if="editable">
+                    <input x-model="form.qty" type="number" class="form-control" />
+                  </template>
+                  <template x-if="!editable">
+                    <span x-text="form.qty"></span>
+                  </template>
+                </td>
+                <td class="d-flex justify-content-center gap-2">
+                  <template x-if="editable">
+                    <button class="btn btn-sm btn-success" @click="updateItem">💾</button>
+                  </template>
+                  <button class="btn btn-sm btn-outline-primary" @click="editable = !editable" x-text="editable ? 'Cancel' : '✏️ Edit'"></button>
+                  <form method="post" action="/admin/menu-items/{{ item.id }}/delete" onsubmit="return confirm('Delete this item?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+
+            <!-- Render new rows -->
+            <template x-for="(item, index) in newItems" :key="index">
+              <tr>
+                <td><input x-model="item.name" class="form-control" required></td>
+                <td><input x-model="item.description" class="form-control"></td>
+                <td><input x-model.number="item.price" type="number" step="0.01" class="form-control" required></td>
+                <td><input x-model.number="item.qty" type="number" class="form-control" required></td>
+                <td><button class="btn btn-sm btn-danger" @click="newItems.splice(index, 1)">❌</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ✅ Controls moved to bottom -->
+      <div class="d-flex gap-2 mt-2">
+        <button class="btn btn-sm btn-secondary" @click="addRow">➕ Add Row</button>
+        <button class="btn btn-sm btn-primary" @click="submitNewItems('{{ menu.id }}')" :disabled="newItems.length === 0">💾 Save New Items</button>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

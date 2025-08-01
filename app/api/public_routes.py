@@ -5,6 +5,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.models.customer.customer import Customer
 
 from app.db import get_db
 from app.models.user import User
@@ -23,31 +24,41 @@ async def landing(request: Request):
 
 # Reuse this for both routes
 async def handle_pin_login(request, role, pin_code, db):
-    result = await db.execute(select(User).where(User.pin_code == pin_code, User.role == role))
-    user = result.scalar_one_or_none()
+    if role == "customer":
+        result = await db.execute(select(Customer).where(Customer.pin_code == pin_code))
+        customer = result.scalar_one_or_none()
 
-    if user:
-        request.session["user_id"] = user.id
-        request.session["role"] = user.role
+        if customer:
+            request.session["user_id"] = customer.id
+            request.session["role"] = "customer"
+            request.session["tenant_id"] = customer.tenant_id  # ✅ tenant scoping
+            return RedirectResponse(url="/customer/menu", status_code=302)
 
-        # 🔁 Redirect based on role
-        if role == "admin":
-            return RedirectResponse(url="/admin/dashboard", status_code=302)
-        elif role == "worker":
-            return RedirectResponse(url=f"/worker/{user.id}/shifts", status_code=302)
-        else:
-            return RedirectResponse(url="/", status_code=302)
     else:
-        return templates.TemplateResponse("landing.html", {
-            "request": request,
-            "error": "Invalid PIN or role.",
-        })
+        result = await db.execute(select(User).where(User.pin_code == pin_code, User.role == role))
+        user = result.scalar_one_or_none()
+
+        if user:
+            request.session["user_id"] = user.id
+            request.session["role"] = user.role
+            request.session["tenant_id"] = user.tenant_id
+
+            if role == "admin":
+                return RedirectResponse(url="/admin/dashboard", status_code=302)
+            elif role == "worker":
+                return RedirectResponse(url=f"/worker/{user.id}/shifts", status_code=302)
+
+    # If login fails
+    return templates.TemplateResponse("landing.html", {
+        "request": request,
+        "error": "Invalid PIN or role.",
+    })
 
 
 
 @router.get("/login/{role}", response_class=HTMLResponse)
 async def login_get(request: Request, role: str):
-    if role not in ["admin", "worker"]:
+    if role not in ["admin", "worker","customer"]:
         return RedirectResponse("/", status_code=302)
     return templates.TemplateResponse("login_pin.html", {"request": request, "role": role})
 
@@ -66,6 +77,9 @@ async def redirect_home(request: Request, db: AsyncSession = Depends(get_db)):
 
     if role == "admin":
         return RedirectResponse(url="/admin/dashboard", status_code=302)
+    
+    if role == "customer":
+        return RedirectResponse(url="/customer/menu", status_code=302)
 
     # If worker, redirect to their personal shift page
     result = await db.execute(select(User).where(User.id == user_id))

@@ -8,6 +8,7 @@ from sqlalchemy import delete
 from app.db import get_async_engine, async_session
 from app.models.user import User
 import uuid
+from app.models.tenant import Tenant  
 
 # 🎯 USERS TO SEED
 USERS_TO_SEED = [
@@ -21,6 +22,16 @@ USERS_TO_SEED = [
 
 async def seed_users():
     async with async_session() as session:
+        # 🔁 Step 1: Ensure a Tenant exists
+        result = await session.execute(select(Tenant).where(Tenant.name == "Chai and Biscuit"))
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            tenant = Tenant(name="Chai and Biscuit")
+            session.add(tenant)
+            await session.commit()  # Commit once so tenant.id gets populated
+            print(f"🏢 Created tenant: {tenant.name}")
+
+        # 🔁 Step 2: Seed Users linked to Tenant
         for user_data in USERS_TO_SEED:
             result = await session.execute(select(User).where(User.name == user_data["name"]))
             existing = result.scalar_one_or_none()
@@ -32,9 +43,11 @@ async def seed_users():
                 name=user_data["name"],
                 pin_code=user_data["pin_code"],
                 role=user_data["role"],
+                tenant_id=tenant.id,  # 🔐 Link user to tenant
             )
             session.add(user)
-            print(f"✅ Created: {user.name} ({user.role})")
+            print(f"✅ Created: {user.name} ({user.role}) — tenant: {tenant.name}")
+        
         await session.commit()
         print("✅ Done seeding users.\n")
 

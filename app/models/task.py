@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey, Enum, Boolean, Text, DateTime
+from sqlalchemy import Column, String, ForeignKey, Enum, Boolean, Text, DateTime, Integer
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
@@ -23,8 +23,13 @@ class TaskTemplate(Base):
 
     auto_assign_label = Column(String, nullable=True)
 
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    tenant = relationship("Tenant", back_populates="task_templates")
+
     items = relationship("TaskItem", back_populates="template")
     tasks = relationship("Task", back_populates="template")
+
+
 
 
 # -- Each step in a checklist (e.g. "Check freezer")
@@ -48,6 +53,10 @@ class Task(Base):
     template_id = Column(String, ForeignKey("task_templates.id"))
     is_completed = Column(Boolean, default=False)
 
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    tenant = relationship("Tenant", back_populates="tasks")
+
+
     shift = relationship("Shift", back_populates="tasks")
     template = relationship("TaskTemplate", back_populates="tasks")
     submissions = relationship("TaskSubmission", back_populates="task")
@@ -64,6 +73,9 @@ class TaskSubmission(Base):
     response_text = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     photo_filename = Column(String, nullable=True)  # 📸 New field
+
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    tenant = relationship("Tenant", back_populates="submissions")
 
     task = relationship("Task", back_populates="submissions")
     task_item = relationship("TaskItem") 

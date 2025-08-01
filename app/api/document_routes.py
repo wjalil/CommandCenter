@@ -2,7 +2,6 @@ from fastapi import APIRouter, Request, UploadFile, File, Form, Depends, HTTPExc
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.db import get_db
 from app.models.document import Document
@@ -10,12 +9,11 @@ import uuid
 import os
 import shutil
 from app.core.constants import UPLOAD_PATHS
+from app.utils.tenant import get_current_tenant_id  # ✅ New helper import
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
-
 UPLOAD_DIR = UPLOAD_PATHS['documents']
-
 
 # ---------- Admin: View All Uploaded Documents ----------
 @router.get("/admin/documents", name="view_documents")
@@ -24,7 +22,9 @@ async def view_documents(
     search: str = "",
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(Document)
+    tenant_id = get_current_tenant_id(request)
+
+    stmt = select(Document).where(Document.tenant_id == tenant_id)
     if search:
         stmt = stmt.where(Document.title.ilike(f"%{search}%"))
 
@@ -47,22 +47,23 @@ async def upload_document(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db)
 ):
+    tenant_id = get_current_tenant_id(request)
+
     # Generate safe filename
     original_filename = file.filename
     extension = os.path.splitext(original_filename)[1]
     new_filename = f"{uuid.uuid4()}{extension}"
     file_path = os.path.join(UPLOAD_DIR, new_filename)
 
-    # Save file to disk
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Store metadata in database
     doc = Document(
         title=title,
         filename=new_filename,
         original_filename=original_filename,
-        tags=tags
+        tags=tags,
+        tenant_id=tenant_id  # ✅ Assign to current tenant
     )
     db.add(doc)
     await db.commit()
@@ -73,20 +74,21 @@ async def upload_document(
     )
 
 
+# ---------- Worker: View Documents ----------
 @router.get("/worker/documents")
 async def worker_documents_view(
     request: Request,
     search: str = "",
     db: AsyncSession = Depends(get_db)
 ):
-    if search:
-        result = await db.execute(
-            Document.__table__.select().where(Document.title.ilike(f"%{search}%"))
-        )
-    else:
-        result = await db.execute(Document.__table__.select())
+    tenant_id = get_current_tenant_id(request)
 
-    documents = result.fetchall()
+    stmt = select(Document).where(Document.tenant_id == tenant_id)
+    if search:
+        stmt = stmt.where(Document.title.ilike(f"%{search}%"))
+
+    result = await db.execute(stmt)
+    documents = result.scalars().all()
 
     return templates.TemplateResponse("worker_documents.html", {
         "request": request,
@@ -95,21 +97,27 @@ async def worker_documents_view(
     })
 
 
-
+# ---------- Admin: Delete Document ----------
 @router.post("/admin/documents/delete/{doc_id}")
-async def delete_document(doc_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Document).where(Document.id == doc_id))
+async def delete_document(
+    doc_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    tenant_id = get_current_tenant_id(request)
+
+    result = await db.execute(
+        select(Document).where(Document.id == doc_id, Document.tenant_id == tenant_id)
+    )
     doc = result.scalars().first()
 
     if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail="Document not found or access denied")
 
-    # Remove file from disk
     file_path = os.path.join("static", "uploads", doc.filename)
     if os.path.exists(file_path):
         os.remove(file_path)
 
-    # Delete from DB
     await db.delete(doc)
     await db.commit()
 

@@ -11,6 +11,12 @@
     {% else %}
       <div class="alert alert-danger">No machine found.</div>
     {% endif %}
+    {% if request.query_params.get('success') %}
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        ✅ Thank you! Your report was submitted.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endif %}
 
     <!-- ➕ Submit New Log -->
     {% if machine %}

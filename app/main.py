@@ -1,14 +1,19 @@
 ### cookieops-backend/app/main.py
-from fastapi import FastAPI,Depends
+from fastapi import FastAPI,Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 import asyncio
 from fastapi.staticfiles import StaticFiles
+from app.middleware.tenant_middleware import TenantMiddleware
+from fastapi.middleware import Middleware
 import os
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.auth.routes import auth_backend, fastapi_users
 from app.models.user import User
 from app.api import shift_routes, task_routes, admin_routes, worker_routes,document_routes,public_routes
+from app.api.menu_routes import admin_menu_routes, admin_menu_item_routes
+from app.api import customer_routes
 from app.api.shortage_log_routes import router as shortage_router
 from app.db import create_db_and_tables,async_session
 from app.schemas.user import UserRead, UserCreate
@@ -25,6 +30,7 @@ from sqlalchemy.orm import configure_mappers
 configure_mappers()
 from fastapi.staticfiles import StaticFiles
 
+
 load_dotenv()
 
 # ⬇️ New correct static directory
@@ -32,12 +38,26 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 UPLOADS_DIR = os.path.join(STATIC_DIR, "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
+class TenantMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        user = request.scope.get("user")
+
+        # Fallback to default tenant for now
+        tenant_id = getattr(user, "tenant_id", 1) if user else 1
+
+        request.state.tenant_id = tenant_id
+        return await call_next(request)
+
+
 # Create the FastAPI app
 app = FastAPI()
 
 
 # ✅ Session middleware (required for PIN login sessions)
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "fallback-secret"))
+
+# ✅ Tenant middleware (injects request.state.tenant_id)
+app.add_middleware(TenantMiddleware)
 
 # ✅ Mount static files (e.g., for uploaded docs)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -140,3 +160,6 @@ app.include_router(vending_log_routes.router)
 app.include_router(internal_task_router)
 app.include_router(admin_routes.router)
 app.include_router(shortage_router)
+app.include_router(admin_menu_routes.router)
+app.include_router(admin_menu_item_routes.router)
+app.include_router(customer_routes.router)

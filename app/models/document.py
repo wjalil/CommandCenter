@@ -1,8 +1,9 @@
 # models/document.py
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime,Integer,ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
 
@@ -15,3 +16,5 @@ class Document(Base):
     original_filename = Column(String, nullable=False)  # name user uploaded
     tags = Column(String, nullable=True)  # comma-separated string of tags
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    tenant = relationship("Tenant", back_populates="documents")

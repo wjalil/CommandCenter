@@ -9,22 +9,26 @@ from datetime import timedelta
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 
-async def create_shift(db: AsyncSession, shift: ShiftCreate):
+async def create_shift(db: AsyncSession, shift: ShiftCreate, tenant_id: int):
     new_shift = Shift(
         id=str(uuid.uuid4()),
         label=shift.label,
         start_time=shift.start_time,
         end_time=shift.end_time,
         is_recurring=shift.is_recurring or False,
-        shift_type=shift.shift_type 
+        shift_type=shift.shift_type,
+        tenant_id=tenant_id
     )
     db.add(new_shift)
     await db.commit()
     await db.refresh(new_shift)
 
-    # ✅ Auto-assign TaskTemplates with matching auto_assign_label
+    # ✅ Auto-assign TaskTemplates with matching auto_assign_label scoped by tenant
     result = await db.execute(
-        select(TaskTemplate).where(TaskTemplate.auto_assign_label == new_shift.label)
+        select(TaskTemplate).where(
+            TaskTemplate.auto_assign_label == new_shift.label,
+            TaskTemplate.tenant_id == tenant_id
+        )
     )
     matching_templates = result.scalars().all()
 
@@ -32,19 +36,19 @@ async def create_shift(db: AsyncSession, shift: ShiftCreate):
         task = Task(
             shift_id=new_shift.id,
             template_id=template.id,
-            is_completed=False
+            is_completed=False,
+            tenant_id=tenant_id
         )
         db.add(task)
 
     await db.commit()
-
     return new_shift
 
-async def get_all_shifts(db: AsyncSession):
+async def get_all_shifts(db: AsyncSession, tenant_id: int):
     result = await db.execute(
-        select(Shift).options(
-            selectinload(Shift.tasks).selectinload(Task.template),
-        )
+        select(Shift)
+        .where(Shift.tenant_id == tenant_id)
+        .options(selectinload(Shift.tasks).selectinload(Task.template))
     )
     return result.scalars().all()
 
@@ -99,8 +103,10 @@ async def mark_shift_complete(db: AsyncSession, shift_id: str):
     await db.execute(stmt)
     await db.commit()
 
-async def clone_next_week_recurring_shifts(db: AsyncSession):
-    result = await db.execute(select(Shift).where(Shift.is_recurring == True))
+async def clone_next_week_recurring_shifts(db: AsyncSession, tenant_id: int):
+    result = await db.execute(
+        select(Shift).where(Shift.is_recurring == True, Shift.tenant_id == tenant_id)
+    )
     recurring_shifts = result.scalars().all()
 
     for shift in recurring_shifts:
@@ -113,14 +119,17 @@ async def clone_next_week_recurring_shifts(db: AsyncSession):
             is_filled=False,
             is_completed=False,
             assigned_worker_id=None,
-            shift_type=shift.shift_type  # ✅ preserve shift_type
+            shift_type=shift.shift_type,
+            tenant_id=tenant_id
         )
         db.add(new_shift)
-        await db.flush()  # Ensure new_shift.id is usable for task assignment
+        await db.flush()
 
-        # ✅ Auto-assign TaskTemplates just like in create_shift
         task_templates_result = await db.execute(
-            select(TaskTemplate).where(TaskTemplate.auto_assign_label == new_shift.label)
+            select(TaskTemplate).where(
+                TaskTemplate.auto_assign_label == new_shift.label,
+                TaskTemplate.tenant_id == tenant_id
+            )
         )
         matching_templates = task_templates_result.scalars().all()
 
@@ -128,8 +137,10 @@ async def clone_next_week_recurring_shifts(db: AsyncSession):
             task = Task(
                 shift_id=new_shift.id,
                 template_id=template.id,
-                is_completed=False
+                is_completed=False,
+                tenant_id=tenant_id
             )
             db.add(task)
 
     await db.commit()
+
