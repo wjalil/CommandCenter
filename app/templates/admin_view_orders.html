@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">📦 Customer Orders</h2>
+    <a href="/admin/dashboard" class="btn btn-outline-secondary">🏠 Home</a>
+  </div>
+
+  {% for order in orders %}
+    <div class="card mb-4 shadow border-0">
+      <!-- Softer header strip -->
+      <div class="card-header bg-light border-bottom">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <strong>{{ order.customer.name }}</strong>
+            <span class="text-muted small ms-2">
+              {{ order.timestamp.strftime('%b %d, %Y %I:%M %p') }}
+            </span>
+          </div>
+          <span class="badge 
+            {% if order.status.name == 'NEW' %}bg-warning text-dark
+            {% elif order.status.name == 'WORKING' %}bg-primary
+            {% elif order.status.name == 'COMPLETED' %}bg-success
+            {% endif %}">
+            {{ order.status.value }}
+          </span>
+        </div>
+      </div>
+
+      <div class="card-body">
+        {% if order.note %}
+          <p class="fst-italic text-muted mb-2">📝 {{ order.note }}</p>
+        {% endif %}
+
+        <div class="mb-3">
+          <strong>Items:</strong>
+          <ul class="list-group bg-light rounded">
+            {% set total = 0 %}
+            {% for item in order.items %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  {{ item.menu_item.name }}
+                  <span class="badge bg-secondary ms-2">x{{ item.quantity }}</span>
+                </div>
+                {% set subtotal = item.menu_item.price * item.quantity %}
+                <span>${{ '%.2f' % subtotal }}</span>
+                {% set total = total + subtotal %}
+              </li>
+            {% endfor %}
+            <li class="list-group-item d-flex justify-content-between align-items-center bg-light fw-bold">
+              Total:
+              <span>${{ '%.2f' % total }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <form method="post" action="/admin/orders/{{ order.id }}/update_status" class="d-flex align-items-center gap-2 mt-2">
+          <select name="status" class="form-select form-select-sm" style="max-width: 200px;">
+            {% for s in ["NEW", "WORKING", "COMPLETED"] %}
+              <option value="{{ s }}" {% if order.status.name == s %}selected{% endif %}>{{ s.title() }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-sm btn-outline-primary">Update</button>
+        </form>
+      </div>
+    </div>
+  {% else %}
+    <div class="alert alert-info">No orders submitted yet.</div>
+  {% endfor %}
+</div>
+{% endblock %}

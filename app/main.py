@@ -11,15 +11,13 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.auth.routes import auth_backend, fastapi_users
 from app.models.user import User
-from app.api import shift_routes, task_routes, admin_routes, worker_routes,document_routes,public_routes
+from app.api import shift_routes, task_routes, admin_routes, worker_routes,document_routes,public_routes,customer_routes
 from app.api.menu_routes import admin_menu_routes, admin_menu_item_routes
-from app.api import customer_routes
 from app.api.shortage_log_routes import router as shortage_router
 from app.db import create_db_and_tables,async_session
 from app.schemas.user import UserRead, UserCreate
 from app.models import shift, task, submission, user
 from app.models.user import User
-print("🧪 DEBUG: User has shortage_logs?", hasattr(User, "shortage_logs"))
 from app.auth.routes import get_current_user
 from app.api.custom_modules import inventory_routes, driver_order_routes,vending_log_routes
 from app.api.internal_task_routes import router as internal_task_router

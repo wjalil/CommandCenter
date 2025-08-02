@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="mb-4">👋 Welcome, {{ user.name or 'Customer' }}</h2>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <a href="/customer/menu" class="btn btn-lg btn-primary w-100">📋 View Menu / Place Order</a>
+    </div>
+    <div class="col-md-4">
+      <a href="#" class="btn btn-lg btn-outline-secondary w-100 disabled">📦 Track Orders (coming soon)</a>
+    </div>
+    <div class="col-md-4">
+      <a href="#" class="btn btn-lg btn-outline-secondary w-100 disabled">💬 Feedback (coming soon)</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -63,8 +63,43 @@
   <div class="container">
     {% block content %}{% endblock %}
   </div>
-  <!-- ✅ Add this -->
+
+  <!-- ✅ Alpine.js for cart logic -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  
+
+  <!-- ✅ Bootstrap JS for modal support -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    document.addEventListener('alpine:init', () => {
+      Alpine.data('orderCart', () => ({
+        cart: [],
+        note: '',
+        get total() {
+          return this.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        },
+        addToCart(id, name, price, qty) {
+          qty = parseInt(qty);
+          if (!qty || qty <= 0) return;
+
+          const existing = this.cart.find(i => i.id === id);
+          if (existing) {
+            existing.quantity += qty;
+          } else {
+            this.cart.push({ id, name, price: parseFloat(price), quantity: qty });
+          }
+        },
+        removeFromCart(index) {
+          this.cart.splice(index, 1);
+        },
+        prepareForm(event) {
+          if (this.cart.length === 0) {
+            event.preventDefault();
+            alert("Your cart is empty!");
+          }
+        }
+      }));
+    });
+  </script>
 </body>
 </html>

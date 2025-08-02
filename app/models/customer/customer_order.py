@@ -1,8 +1,14 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Text,Enum 
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.models.base import Base
-import uuid
+import uuid,enum
+
+class OrderStatus(enum.Enum):
+    NEW = "New"
+    WORKING = "Working"
+    COMPLETED = "Completed"
+
 
 class CustomerOrder(Base):
     __tablename__ = "customer_orders"
@@ -11,11 +17,14 @@ class CustomerOrder(Base):
     customer_id = Column(String, ForeignKey("customers.id"), nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
+    status = Column(Enum(OrderStatus), default=OrderStatus.NEW) 
+
     customer = relationship("Customer", back_populates="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     tenant = relationship("Tenant", back_populates="customer_orders")
+    note = Column(Text, nullable=True)
 
 
 class OrderItem(Base):

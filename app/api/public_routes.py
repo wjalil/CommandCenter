@@ -32,7 +32,7 @@ async def handle_pin_login(request, role, pin_code, db):
             request.session["user_id"] = customer.id
             request.session["role"] = "customer"
             request.session["tenant_id"] = customer.tenant_id  # ✅ tenant scoping
-            return RedirectResponse(url="/customer/menu", status_code=302)
+            return RedirectResponse(url="/customer/", status_code=302)
 
     else:
         result = await db.execute(select(User).where(User.pin_code == pin_code, User.role == role))
@@ -79,7 +79,7 @@ async def redirect_home(request: Request, db: AsyncSession = Depends(get_db)):
         return RedirectResponse(url="/admin/dashboard", status_code=302)
     
     if role == "customer":
-        return RedirectResponse(url="/customer/menu", status_code=302)
+        return RedirectResponse(url="/customer/customer_landing.html", status_code=302)
 
     # If worker, redirect to their personal shift page
     result = await db.execute(select(User).where(User.id == user_id))

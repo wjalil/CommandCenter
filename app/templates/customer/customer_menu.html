@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-5" x-data="orderCart">
+  <h2 class="text-center mb-4">🍪 Menu</h2>
+
+  {% if request.query_params.get("success") %}
+    <div class="alert alert-success">{{ request.query_params.get("success") }}</div>
+  {% endif %}
+
+  {% for menu in menus %}
+    <h4 class="mb-3">{{ menu.name }}</h4>
+    <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
+      {% for item in menu.items %}
+        <div class="col">
+          <div class="card h-100">
+            {% if item.photo_filename %}
+              <img src="/static/menu_items_photos/{{ item.photo_filename }}" class="card-img-top" style="height: 180px; object-fit: cover;">
+            {% endif %}
+            <div class="card-body d-flex flex-column">
+              <h5 class="card-title">{{ item.name }}</h5>
+              <p class="card-text">{{ item.description or 'No description available.' }}</p>
+              <p class="fw-bold text-success">${{ "%.2f"|format(item.price) }}</p>
+              <input type="number" min="1" max="{{ item.qty_available }}" value="1" class="form-control mb-2" x-ref="qty_{{ item.id }}">
+              <button class="btn btn-primary mt-auto"
+                @click='addToCart({{ item.id|tojson }}, {{ item.name|tojson }}, {{ item.price }}, $refs["qty_{{ item.id }}"].value)'>
+                ➕ Add to Cart
+              </button>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+
+  <!-- 🛒 Floating Cart -->
+  <div class="position-fixed bottom-0 end-0 m-4" style="z-index: 1055;" x-show="cart.length > 0" x-transition>
+    <div class="card shadow-lg border-0 rounded-4" style="width: 300px;">
+      <div class="card-body">
+        <h5 class="card-title">🛒 Cart</h5>
+        <ul class="list-group mb-3">
+          <template x-for="(item, index) in cart" :key="item.id">
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <span class="fw-semibold" x-text="item.name"></span>
+                <br>
+                <small class="text-muted">Qty: <span x-text="item.quantity"></span></small>
+              </div>
+              <button class="btn btn-sm btn-outline-danger" @click="removeFromCart(index)">✖</button>
+            </li>
+          </template>
+        </ul>
+        <p class="text-end mb-2">Total: <strong>$<span x-text="total.toFixed(2)"></span></strong></p>
+        <button class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#reviewModal">Review & Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📝 Modal for Order Review -->
+  <div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <form method="post" action="/customer/order/submit-full" @submit="prepareForm">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">🧾 Review Your Order</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <ul class="list-group mb-3">
+              <template x-for="item in cart" :key="item.id">
+                <li class="list-group-item d-flex justify-content-between">
+                  <span x-text="`${item.name} x${item.quantity}`"></span>
+                  <span>$<span x-text="(item.price * item.quantity).toFixed(2)"></span></span>
+                </li>
+              </template>
+            </ul>
+            <div class="mb-3">
+              <label for="note" class="form-label">Note (optional)</label>
+              <textarea name="note" x-model="note" class="form-control" rows="3"></textarea>
+            </div>
+            <input type="hidden" name="cart_json" :value="JSON.stringify(cart)">
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary w-100">📦 Submit Order</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ✅ Alpine Cart Logic -->
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('orderCart', () => ({
+      cart: [],
+      note: '',
+      initCart() {
+        console.log('🟢 Alpine cart component mounted');
+      },
+      get total() {
+        return this.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      },
+      addToCart(id, name, price, qty) {
+        console.log('➕ Adding to cart:', { id, name, price, qty });
+        qty = parseInt(qty);
+        if (!qty || qty <= 0) return;
+
+        const existing = this.cart.find(i => i.id === id);
+        if (existing) {
+          existing.quantity += qty;
+        } else {
+          this.cart.push({ id, name, price: parseFloat(price), quantity: qty });
+        }
+      },
+      removeFromCart(index) {
+        console.log('❌ Removing item at index', index);
+        this.cart.splice(index, 1);
+      },
+      prepareForm(event) {
+        if (this.cart.length === 0) {
+          event.preventDefault();
+          alert("Your cart is empty!");
+        } else {
+          console.log('📦 Submitting cart:', this.cart);
+        }
+      }
+    }));
+  });
+</script>
+{% endblock %}

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Form , Body
+from fastapi import APIRouter, Depends, Request, Form , Body , File , UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,9 +8,16 @@ from app.auth.dependencies import get_current_admin_user
 from app.models.menu.menu_item import MenuItem
 from app.models.menu.menu import Menu
 from sqlalchemy.orm import selectinload
+from app.core.constants import UPLOAD_PATHS
+import os
+import uuid
+from app.auth.dependencies import get_current_user
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+UPLOAD_DIR = UPLOAD_PATHS['menu_items_photos']
+
 
 # ----- Render Menu Builder Page
 @router.get("/admin/menu-items/create")
@@ -18,6 +25,42 @@ async def menu_builder_page(request: Request, db: AsyncSession = Depends(get_db)
     result = await db.execute(select(Menu).where(Menu.tenant_id == user.tenant_id))
     menus = result.scalars().all()
     return templates.TemplateResponse("menus/menu_builder.html", {"request": request, "menus": menus})
+
+@router.post("/admin/menu-items/create")
+async def create_menu_item(
+    request: Request,
+    name: str = Form(...),
+    description: str = Form(""),
+    price: float = Form(...),
+    quantity: int = Form(...),
+    menu_id: str = Form(...),
+    photo: UploadFile = File(None),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user)
+):
+
+    photo_filename = None
+    if photo:
+        ext = os.path.splitext(photo.filename)[1]
+        photo_filename = f"{uuid.uuid4()}{ext}"
+        photo_path = os.path.join(UPLOAD_DIR, photo_filename)
+        with open(photo_path, "wb") as f:
+            f.write(await photo.read())
+
+    new_item = MenuItem(
+        name=name,
+        description=description,
+        price=price,
+        qty_available=quantity,
+        menu_id=menu_id,
+        photo_filename=photo_filename
+    )
+
+    db.add(new_item)
+    await db.commit()
+
+    return RedirectResponse(url="/admin/menu-items?success=Item%20Created", status_code=303)
+
 
 
 # ----- Bulk Create Menu Items

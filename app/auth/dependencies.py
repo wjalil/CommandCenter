@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.db import get_db
 from app.models.user import User
+from app.models.customer.customer import Customer
 
 async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)):
     user_id = request.session.get("user_id")
@@ -22,3 +23,20 @@ async def get_current_admin_user(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access only")
     return user
 
+async def get_current_customer(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    user_id = request.session.get("user_id")
+    role = request.session.get("role")
+
+    if not user_id or role != "customer":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    result = await db.execute(select(Customer).where(Customer.id == user_id))
+    customer = result.scalar_one_or_none()
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    return customer
