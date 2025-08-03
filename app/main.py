@@ -17,6 +17,7 @@ from app.api.shortage_log_routes import router as shortage_router
 from app.db import create_db_and_tables,async_session
 from app.schemas.user import UserRead, UserCreate
 from app.models import shift, task, submission, user
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.auth.routes import get_current_user
 from app.api.custom_modules import inventory_routes, driver_order_routes,vending_log_routes
@@ -125,9 +126,20 @@ async def on_startup():
     print("🔧 Starting DB setup...")
     await create_db_and_tables()
     print("✅ DB schema created.")
-
-    # ⬇️ Seed default admin user if none exist
+    # ⬇️ Seed default tenant if it doesn't exist
     async with async_session() as db:
+        result = await db.execute(select(Tenant).where(Tenant.name == "Chai and Biscuit"))
+        tenant = result.scalar_one_or_none()
+
+        if not tenant:
+            tenant = Tenant(name="Chai and Biscuit")
+            db.add(tenant)
+            await db.commit()
+            print(f"🏢 Created tenant: {tenant.name}")
+        else:
+            print(f"🏢 Tenant '{tenant.name}' already exists.")
+
+    
         result = await db.execute(select(User).where(User.role == "admin"))
         existing_admin = result.scalars().first()
 
@@ -137,7 +149,8 @@ async def on_startup():
                 name="Admin",
                 pin_code="1234",
                 role="admin",
-                is_active=True
+                is_active=True,
+                tenant_id=tenant.id 
             )
             db.add(admin)
             await db.commit()
