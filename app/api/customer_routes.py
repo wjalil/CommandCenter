@@ -10,7 +10,7 @@ from app.models.menu.menu import Menu
 from app.models.menu.menu_item import MenuItem
 from sqlalchemy.orm import selectinload
 from app.models.customer.customer_order import CustomerOrder, OrderItem
-from app.utils.twilio_client import send_order_alert
+#from app.utils.twilio_client import send_order_alert
 import json
 
 templates = Jinja2Templates(directory="app/templates")
