@@ -10,6 +10,7 @@ from app.models.menu.menu import Menu
 from app.models.menu.menu_item import MenuItem
 from sqlalchemy.orm import selectinload
 from app.models.customer.customer_order import CustomerOrder, OrderItem
+from app.utils.twilio_client import send_order_alert
 import json
 
 templates = Jinja2Templates(directory="app/templates")
@@ -165,6 +166,8 @@ async def submit_full_order(
     db.add(order)
     await db.flush()  # populate order.id
 
+    #items_summary = []  # For SMS
+
     # 🛒 Add each item
     for item in cart:
         order_item = OrderItem(
@@ -180,7 +183,24 @@ async def submit_full_order(
         if menu_item:
             menu_item.qty_available -= item["quantity"]
 
+            ## Build item list for SMS
+            #items_summary.append({
+              #  "name": menu_item.name,
+              #  "qty": item["quantity"]
+            #})
+
     await db.commit()
+
+        # 📲 Send SMS alert via Twilio
+    #try:
+    #    send_order_alert(
+    #        to_phone="+17187757343",  # ⬅️ Replace with your target cell #
+     #       customer_name=customer.name,
+     #       items=items_summary,
+    #        customer_phone=customer.phone_number,
+     #   )
+    #except Exception as e:
+     #   print(f"❌ SMS alert failed: {e}")
 
     return RedirectResponse("/customer/menu?success=Order+submitted!", status_code=303)
 
@@ -194,7 +214,8 @@ async def admin_view_orders(request: Request, db: AsyncSession = Depends(get_db)
         .order_by(CustomerOrder.timestamp.desc())
     )
     orders = result.scalars().all()
-    return templates.TemplateResponse("admin_view_orders.html", {"request": request, "orders": orders, "user": user})
+    filter_param = request.query_params.get("filter", "ALL")
+    return templates.TemplateResponse("admin_view_orders.html", {"request": request, "orders": orders, "user": user,"filter": filter_param})
 
 
 @router.post("/admin/orders/{order_id}/update_status")
