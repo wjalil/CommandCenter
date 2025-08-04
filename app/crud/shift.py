@@ -17,7 +17,10 @@ async def create_shift(db: AsyncSession, shift: ShiftCreate, tenant_id: int):
         end_time=shift.end_time,
         is_recurring=shift.is_recurring or False,
         shift_type=shift.shift_type,
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
+        is_seed=shift.is_seed,  # ✅ Add this
+        recurring_until=shift.recurring_until,  # ✅ Add this
+        recurring_group_id=shift.recurring_group_id,  # optional, if you're supporting it
     )
     db.add(new_shift)
     await db.commit()
@@ -104,18 +107,34 @@ async def mark_shift_complete(db: AsyncSession, shift_id: str):
     await db.commit()
 
 async def clone_next_week_recurring_shifts(db: AsyncSession, tenant_id: int):
+    # ✅ Only clone from active recurring SEED shifts for this tenant
     result = await db.execute(
-        select(Shift).where(Shift.is_recurring == True, Shift.tenant_id == tenant_id)
+        select(Shift).where(
+            Shift.is_recurring == True,
+            Shift.is_seed == True,
+            Shift.tenant_id == tenant_id
+        )
     )
     recurring_shifts = result.scalars().all()
 
     for shift in recurring_shifts:
+        next_start = shift.start_time + timedelta(days=7)
+        next_end = shift.end_time + timedelta(days=7)
+
+        # ✅ Prevent infinite clones past cutoff
+        if shift.recurring_until and next_start > shift.recurring_until:
+            continue
+
+        # ✅ Clone the shift (preserves ALL original fields)
         new_shift = Shift(
             id=str(uuid.uuid4()),
             label=shift.label,
-            start_time=shift.start_time + timedelta(days=7),
-            end_time=shift.end_time + timedelta(days=7),
+            start_time=next_start,
+            end_time=next_end,
             is_recurring=True,
+            is_seed=False,  # ✅ critical: don't use this as future seed
+            recurring_until=shift.recurring_until,  # ✅ propagate
+            recurring_group_id=shift.recurring_group_id,
             is_filled=False,
             is_completed=False,
             assigned_worker_id=None,
@@ -125,6 +144,7 @@ async def clone_next_week_recurring_shifts(db: AsyncSession, tenant_id: int):
         db.add(new_shift)
         await db.flush()
 
+        # ✅ Attach any matching TaskTemplates (no logic changed)
         task_templates_result = await db.execute(
             select(TaskTemplate).where(
                 TaskTemplate.auto_assign_label == new_shift.label,
@@ -143,4 +163,5 @@ async def clone_next_week_recurring_shifts(db: AsyncSession, tenant_id: int):
             db.add(task)
 
     await db.commit()
+
 

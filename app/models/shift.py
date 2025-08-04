@@ -30,3 +30,8 @@ class Shift(Base):
     submissions = relationship("TaskSubmission",back_populates="shift",cascade="all, delete-orphan", passive_deletes=True)
 
     tasks = relationship("Task", back_populates="shift")
+
+    # ✅ New fields
+    recurring_until = Column(DateTime, nullable=True)
+    is_seed = Column(Boolean, default=True)
+    recurring_group_id = Column(String, nullable=True)

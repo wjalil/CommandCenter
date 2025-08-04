@@ -4,7 +4,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload, joinedload
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,date
 from typing import Optional
 from collections import defaultdict
 import uuid, shutil, os
@@ -77,6 +77,8 @@ async def create_shift_from_form(
     is_recurring: Optional[str] = Form(None),
     shift_type: str = Form(...),
     tenant_id: str = Form(...), 
+    is_seed: bool = Form(False),
+    recurring_until: Optional[date] = Form(None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
@@ -87,6 +89,10 @@ async def create_shift_from_form(
         is_recurring=bool(is_recurring),
         shift_type=shift_type,
         tenant_id=tenant_id,
+        # ✅ New fields passed into schema
+        is_seed=is_seed,
+        recurring_until=(
+            datetime.combine(recurring_until, datetime.min.time()) if recurring_until else None)
     )
     await shift.create_shift(db, shift_data, tenant_id)
     return RedirectResponse(url="/admin/shifts", status_code=303)

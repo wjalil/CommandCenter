@@ -8,6 +8,10 @@ class ShiftBase(BaseModel):
     end_time: datetime
     is_recurring: Optional[bool] = False  # ✅ Add here so it's supported in ShiftCreate
     shift_type: Optional[str] = None 
+    # ✅ New fields
+    recurring_until: Optional[datetime] = None
+    is_seed: Optional[bool] = True
+    recurring_group_id: Optional[str] = None
 
 class ShiftCreate(ShiftBase):
     tenant_id: str
