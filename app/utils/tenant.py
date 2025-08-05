@@ -5,4 +5,4 @@ def get_current_tenant_id(request: Request) -> int:
     tenant_id = getattr(request.state, "tenant_id", None)
     if tenant_id is None:
         raise HTTPException(status_code=401, detail="Tenant not found in request.")
-    return tenant_id
+    return int(tenant_id)
