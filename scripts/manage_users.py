@@ -9,15 +9,21 @@ from app.db import get_async_engine, async_session
 from app.models.user import User
 import uuid
 from app.models.tenant import Tenant  
+import sys
+import asyncio
 
 # 🎯 USERS TO SEED
 USERS_TO_SEED = [
     {"name": "Wahid", "pin_code": "9560", "role": "admin"},
-    {"name": "Jahir", "pin_code": "5678", "role": "admin"},
-    {"name": "Pema", "pin_code": "1111", "role": "worker"},
-    {"name": "Johan", "pin_code": "2222", "role": "worker"},
-    {"name": "Ridwan", "pin_code": "3333", "role": "worker"},
+    {"name": "Jahir", "pin_code": "6014", "role": "admin"},
+    {"name": "Pema", "pin_code": "0843", "role": "worker"},
+    {"name": "Johan", "pin_code": "2900", "role": "worker"},
+    {"name": "Ridwan", "pin_code": "2352", "role": "worker"},
 ]
+
+if sys.platform.startswith('win') and sys.version_info < (3, 10):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 
 
 async def seed_users():
