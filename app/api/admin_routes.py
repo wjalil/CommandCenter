@@ -82,6 +82,10 @@ async def create_shift_from_form(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
+    
+    is_recurring_bool = bool(is_recurring)
+    tenant_id_int = int(tenant_id)
+
     shift_data = ShiftCreate(
         label=label,
         start_time=datetime.fromisoformat(start_time),
@@ -92,9 +96,11 @@ async def create_shift_from_form(
         # ✅ New fields passed into schema
         is_seed=is_seed,
         recurring_until=(
-            datetime.combine(recurring_until, datetime.min.time()) if recurring_until else None)
-    )
-    await shift.create_shift(db, shift_data, tenant_id)
+            datetime.combine(recurring_until, datetime.min.time())
+            if is_recurring_bool and recurring_until else None
+            )
+        )
+    await shift.create_shift(db, shift_data, tenant_id_int)
     return RedirectResponse(url="/admin/shifts", status_code=303)
 
 @router.post("/admin/shifts/generate_next_week")

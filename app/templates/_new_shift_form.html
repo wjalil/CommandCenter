@@ -15,79 +15,93 @@
   </div>
   {% endif %}
 
-  <div class="row g-2 align-items-center mb-3">
-    <!-- Label Input -->
-    <div class="col-md-3">
-      <input type="text" class="form-control" name="label" id="labelInput" placeholder="Shift Label" required>
-    </div>
+  <div class="row g-2 align-items-end mb-3">
 
-    <!-- Date Picker -->
-    <div class="col-md-2">
-      <input type="date" class="form-control" name="date" id="dateInput" required>
-    </div>
+  <!-- Shift Label -->
+  <div class="col-md-3">
+    <label class="form-label">Shift Label</label>
+    <input type="text" class="form-control" name="label" id="labelInput" placeholder="Shift Label" required>
+  </div>
 
-    <!-- Start Time Dropdown (name= start_time) -->
-    <div class="col-md-2">
-      <select class="form-select" name="start_time" id="startTime" required>
-        <option value="">Start Time</option>
-        {% for hour in range(6, 24) %}
-          {% for minute in [0, 30] %}
-            {% set time_24 = "%02d:%02d"|format(hour, minute) %}
-            {% set suffix = "AM" if hour < 12 else "PM" %}
-            {% set hour_12 = (hour - 1) % 12 + 1 %}
-            {% set time_display = "%d:%02d %s"|format(hour_12, minute, suffix) %}
-            <option value="{{ date }}T{{ time_24 }}">{{ time_display }}</option>
-          {% endfor %}
+  <!-- Date Picker -->
+  <div class="col-md-2">
+    <label class="form-label">Shift Date</label>
+    <input type="date" class="form-control" name="date" id="dateInput" required>
+  </div>
+
+  <!-- Start Time -->
+  <div class="col-md-2">
+    <label class="form-label">Start Time</label>
+    <select class="form-select" name="start_time" id="startTime" required>
+      <option value="">Start Time</option>
+      {% for hour in range(6, 24) %}
+        {% for minute in [0, 30] %}
+          {% set time_24 = "%02d:%02d"|format(hour, minute) %}
+          {% set suffix = "AM" if hour < 12 else "PM" %}
+          {% set hour_12 = (hour - 1) % 12 + 1 %}
+          {% set time_display = "%d:%02d %s"|format(hour_12, minute, suffix) %}
+          <option value="{{ date }}T{{ time_24 }}">{{ time_display }}</option>
         {% endfor %}
-      </select>
-    </div>
+      {% endfor %}
+    </select>
+  </div>
 
-    <!-- End Time Dropdown (name= end_time) -->
-    <div class="col-md-2">
-      <select class="form-select" name="end_time" id="endTime" required>
-        <option value="">End Time</option>
-        {% for hour in range(6, 24) %}
-          {% for minute in [0, 30] %}
-            {% set time_24 = "%02d:%02d"|format(hour, minute) %}
-            {% set suffix = "AM" if hour < 12 else "PM" %}
-            {% set hour_12 = (hour - 1) % 12 + 1 %}
-            {% set time_display = "%d:%02d %s"|format(hour_12, minute, suffix) %}
-            <option value="{{ date }}T{{ time_24 }}">{{ time_display }}</option>
-          {% endfor %}
+  <!-- End Time -->
+  <div class="col-md-2">
+    <label class="form-label">End Time</label>
+    <select class="form-select" name="end_time" id="endTime" required>
+      <option value="">End Time</option>
+      {% for hour in range(6, 24) %}
+        {% for minute in [0, 30] %}
+          {% set time_24 = "%02d:%02d"|format(hour, minute) %}
+          {% set suffix = "AM" if hour < 12 else "PM" %}
+          {% set hour_12 = (hour - 1) % 12 + 1 %}
+          {% set time_display = "%d:%02d %s"|format(hour_12, minute, suffix) %}
+          <option value="{{ date }}T{{ time_24 }}">{{ time_display }}</option>
         {% endfor %}
-      </select>
-    </div>
+      {% endfor %}
+    </select>
+  </div>
 
-    <!-- Recurring -->
-    <div class="col-md-2 form-check mt-2">
-      <input class="form-check-input" type="checkbox" name="is_recurring" value="true" id="recurringCheck">
-      <label class="form-check-label" for="recurringCheck">Recurring</label>
-    </div>
-    <!-- Recurring Until -->
-    <div class="col-md-3">
-      <label class="form-label">Recurring Until</label>
-      <input type="date" class="form-control" name="recurring_until">
-    </div>
-
-    <!-- Is Seed Checkbox -->
-    <div class="col-md-2 form-check mt-4">
-      <input class="form-check-input" type="checkbox" name="is_seed" value="true" id="seedCheck" checked>
-      <label class="form-check-label" for="seedCheck">Seed</label>
-    </div>
-    <!-- Shift Type Dropdown -->
-    <div class="col-md-2">
-      <select class="form-select" name="shift_type" required>
-        <option value="">Shift Type</option>
-        <option value="Store">Store</option>
-        <option value="Driver">Driver</option>
-      </select>
-    </div>
-
-    <!-- Submit -->
-    <div class="col-md-1 mt-2">
-      <button type="submit" class="btn btn-primary">➕ Add</button>
+  <!-- Recurring & Seed Toggles -->
+  <div class="col-md-3">
+    <div class="d-flex gap-3 align-items-center mt-2">
+      <!-- Recurring -->
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="is_recurring" value="true" id="recurringCheck">
+        <label class="form-check-label" for="recurringCheck">Recurring</label>
+      </div>
+      <!-- Seed -->
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="is_seed" value="true" id="seedCheck" checked>
+        <label class="form-check-label" for="seedCheck">Seed</label>
+      </div>
     </div>
   </div>
+
+  <!-- Recurring Until -->
+  <div class="col-md-3" id="recurringUntilContainer" style="display: none;">
+    <label class="form-label">Recurring Until</label>
+    <input type="date" class="form-control" name="recurring_until">
+  </div>
+
+  <!-- Shift Type -->
+  <div class="col-md-2">
+    <label class="form-label">Shift Type</label>
+    <select class="form-select" name="shift_type" required>
+      <option value="">Shift Type</option>
+      <option value="Store">Store</option>
+      <option value="Driver">Driver</option>
+    </select>
+  </div>
+
+  <!-- Submit -->
+  <div class="col-md-1 d-grid">
+    <label class="form-label invisible">Submit</label>
+    <button type="submit" class="btn btn-primary">➕ Add</button>
+  </div>
+
+</div>
 </form>
 
 <script>
@@ -122,4 +136,20 @@
 
   // Trigger once on load
   dateInput.dispatchEvent(new Event("change"));
+
+    const recurringCheck = document.getElementById("recurringCheck");
+  const recurringUntilContainer = document.getElementById("recurringUntilContainer");
+
+  function toggleRecurringDateField() {
+    recurringUntilContainer.style.display = recurringCheck.checked ? "block" : "none";
+  }
+
+  recurringCheck.addEventListener("change", toggleRecurringDateField);
+
+  // Run once on load (in case the box is pre-checked)
+  toggleRecurringDateField();
+
+
+
+
 </script>
