@@ -50,8 +50,6 @@ async def submit_vending_log(
         with open(path, "wb") as buffer:
             shutil.copyfileobj(photo.file, buffer)
 
-    print("🔧 [DEBUG] Submitting internal vending log with issue_type='internal'")
-
     new_log = VendingLog(
         notes=notes,
         photo_filename=photo_filename,
@@ -60,10 +58,23 @@ async def submit_vending_log(
         issue_type="internal",
         source="internal"
     )
-    db.add(new_log)
-    await db.commit()
+    try:
+        db.add(new_log)
+        await db.commit()
+        success_msg = "Log submitted successfully!"
+        redirect_url = str(request.url_for("show_vending_log_form")) + f"?success={quote(success_msg)}"
+        print("🔁 Redirecting to:", redirect_url)  # ← sanity check in logs
+        return RedirectResponse(url=redirect_url, status_code=303)
+    except Exception:
+        await db.rollback()
+        err = "Could not save log. Please try again."
+        redirect_url = str(request.url_for("show_vending_log_form")) + f"?error={quote(err)}"
+        return RedirectResponse(url=redirect_url, status_code=303)
 
-    return RedirectResponse("/worker/shifts", status_code=302)
+    return RedirectResponse(
+    url=str(request.url_for("show_vending_log_form")) + "?success=Log%20submitted%20successfully!",
+    status_code=303,
+    )
 
 # 🌐 Public QR form: no login required
 @router.get("/vending/form", response_class=HTMLResponse)

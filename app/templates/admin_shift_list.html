@@ -55,6 +55,19 @@
 
 <div class="container mt-4">
 
+{% if request.query_params.get("success") %}
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ request.query_params.get("success") }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+{% endif %}
+{% if request.query_params.get("error") %}
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    {{ request.query_params.get("error") }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+{% endif %}  
+
   <!-- 🍬 Admin Ribbon -->
 <div class="toolbar-ribbon">
   <div class="row g-3 align-items-start">
@@ -63,9 +76,8 @@
       <div class="toolbar-buttons">
         <a href="/tasks/admin/task-templates" class="btn btn-sm btn-outline-primary" title="Manage reusable task templates">🧩 Task Templates</a>
         <a href="/documents/admin/documents" class="btn btn-sm btn-outline-success">📄 Documents</a>
-        <form method="post" action="/admin/shifts/generate_next_week">
-          <button class="btn btn-sm btn-outline-secondary">🔁 Generate Shifts</button>
-        </form>
+        <a href="/admin/shifts/bulk" class="btn btn-sm btn-outline-secondary">📋 Bulk Create</a>
+        <a href="/admin/shifts/clone" class="btn btn-sm btn-outline-secondary">🗓️ Clone Week</a>
         <a href="/admin/workers" class="btn btn-sm btn-outline-dark">👤 Create Workers</a>
         <a href="/home" class="btn btn-sm btn-outline-primary">🏠 Home</a>
       </div>

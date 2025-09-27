@@ -23,6 +23,8 @@ from app.models.custom_modules.machine import Machine
 from app.core.constants import UPLOAD_PATHS
 from app.schemas.shift import ShiftCreate
 from app.crud import shift, internal_task
+from app.api.admin.shifts_bulk import router as shifts_bulk_router
+from app.api.admin.shifts_clone import router as shifts_clone_router
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -299,3 +301,8 @@ async def admin_submit_vending_log(
     db.add(new_log)
     await db.commit()
     return RedirectResponse("/admin/vending-logs", status_code=302)
+
+
+# Keep everything under /admin
+router.include_router(shifts_bulk_router, prefix="/admin", tags=["admin"])
+router.include_router(shifts_clone_router, prefix="/admin", tags=["admin"])

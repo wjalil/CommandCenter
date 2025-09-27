@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4" x-data="bulkShift()">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">📋 Bulk Create Shifts</h4>
+    <a href="/admin/shifts" class="btn btn-sm btn-outline-secondary">← Back</a>
+  </div>
+
+  {% if request.query_params.get("success") %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+      {{ request.query_params.get("success") }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endif %}
+  {% if request.query_params.get("error") %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ request.query_params.get("error") }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endif %}
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-light d-flex gap-2">
+      <button class="btn btn-sm btn-outline-primary" type="button" @click="addRows(5)">+5 rows</button>
+      <button class="btn btn-sm btn-outline-secondary" type="button" @click="clearAll()">Clear</button>
+    </div>
+
+    <form method="post" action="/admin/shifts/bulk" class="card-body p-0" @paste.window="handlePaste($event)">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Label</th>
+              <th style="min-width: 140px;">Date</th>
+              <th style="min-width: 120px;">Start</th>
+              <th style="min-width: 120px;">End</th>
+              <th style="min-width: 120px;">Type</th>
+              <th class="text-center">Rec.</th>
+              <th style="min-width: 140px;">Until</th>
+              <th class="text-center">Seed</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(row, idx) in rows" :key="row.id">
+              <tr>
+                <td class="text-muted" x-text="idx+1"></td>
+
+                <td>
+                  <input class="form-control form-control-sm" :name="`label[]`" x-model="row.label" required>
+                </td>
+
+                <td>
+                  <input type="date" class="form-control form-control-sm" :name="`date[]`" x-model="row.date" required>
+                </td>
+
+                <td>
+                  <select class="form-select form-select-sm" :name="`start_time[]`" x-model="row.start_time" required>
+                    <option value="">Start</option>
+                    {% for h in range(6,24) %}
+                      {% for m in [0,30] %}
+                        {% set t = "%02d:%02d"|format(h,m) %}
+                        <option value="{{ t }}">{{ t }}</option>
+                      {% endfor %}
+                    {% endfor %}
+                  </select>
+                </td>
+
+                <td>
+                  <select class="form-select form-select-sm" :name="`end_time[]`" x-model="row.end_time" required>
+                    <option value="">End</option>
+                    {% for h in range(6,24) %}
+                      {% for m in [0,30] %}
+                        {% set t = "%02d:%02d"|format(h,m) %}
+                        <option value="{{ t }}">{{ t }}</option>
+                      {% endfor %}
+                    {% endfor %}
+                  </select>
+                </td>
+
+                <td>
+                  <select class="form-select form-select-sm" :name="`shift_type[]`" x-model="row.shift_type" required>
+                    <option value="">—</option>
+                    <option value="Store">Store</option>
+                    <option value="Driver">Driver</option>
+                  </select>
+                </td>
+
+                <td class="text-center">
+                  <input class="form-check-input" type="checkbox" :name="`is_recurring[]`" x-model="row.is_recurring" value="true">
+                </td>
+
+                <td>
+                  <input type="date" class="form-control form-control-sm" :name="`recurring_until[]`" x-model="row.recurring_until" :disabled="!row.is_recurring">
+                </td>
+
+                <td class="text-center">
+                  <input class="form-check-input" type="checkbox" :name="`is_seed[]`" x-model="row.is_seed" value="true" checked>
+                </td>
+
+                <td>
+                  <button class="btn btn-sm btn-outline-danger" type="button" @click="remove(idx)">×</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="p-3 text-end">
+        <button class="btn btn-primary">Create Shifts</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function bulkShift(){
+  const today = new Date().toISOString().slice(0,10);
+  return {
+    rows: [{ id: crypto.randomUUID(), label:'', date: today, start_time:'', end_time:'', shift_type:'', is_recurring:false, recurring_until:'', is_seed:true }],
+    addRows(n=1){ for(let i=0;i<n;i++){ this.rows.push({ id: crypto.randomUUID(), label:'', date: today, start_time:'', end_time:'', shift_type:'', is_recurring:false, recurring_until:'', is_seed:true }); } },
+    remove(i){ this.rows.splice(i,1); },
+    clearAll(){ this.rows = []; },
+    handlePaste(e){
+      const text=(e.clipboardData||window.clipboardData)?.getData('text'); if(!text) return;
+      if(!e.target.closest('[x-data]')) return;
+      e.preventDefault();
+      const lines=text.trim().split(/\r?\n/);
+      lines.forEach(line=>{
+        const cols=line.includes('\t')?line.split('\t'):line.split(',');
+        const [label='', d='', st='', et='', typ='', rec='', until='', seed='']=cols.map(c=>c.trim());
+        this.rows.push({
+          id:crypto.randomUUID(),
+          label,
+          date: d || today,
+          start_time: st,
+          end_time: et,
+          shift_type: typ,
+          is_recurring: /^(true|1|yes|y)$/i.test(rec),
+          recurring_until: until || '',
+          is_seed: /^(true|1|yes|y)$/i.test(seed) || seed === ''
+        });
+      });
+    }
+  }
+}
+</script>
+{% endblock %}

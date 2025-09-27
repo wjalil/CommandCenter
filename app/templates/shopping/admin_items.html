@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<div class="container py-3" x-data="{ q:'', bl:'', cat:'' }">
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <h3 class="mb-0">Shopping · Create List</h3>
+    <input class="form-control" style="max-width:320px" placeholder="Search items…" x-model="q">
+    <select class="form-select" style="max-width:200px" x-model="bl">
+      <option value="">All lines</option>
+      {% for b in business_lines %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+    </select>
+    <select class="form-select" style="max-width:200px" x-model="cat">
+      <option value="">All categories</option>
+      {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+    </select>
+  </div>
+
+  <div class="row g-3">
+    {% for item in items %}
+    <div class="col-12 col-md-6 col-lg-4"
+         x-show="
+           ('{{ item.name|lower }}'.includes(q.toLowerCase())) &&
+           ('{{ item.business_line_id or '' }}' == bl || bl=='') &&
+           ('{{ item.category_id or '' }}' == cat || cat=='')
+         ">
+      <div class="card shadow-sm h-100">
+        <div class="card-body d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <strong>{{ item.name }}</strong>
+              <div class="small text-muted">
+                {% if item.business_line %}{{ item.business_line.name }} · {% endif %}
+                {% if item.category %}{{ item.category.name }}{% endif %}
+                {% if item.unit %} · {{ item.unit }}{% endif %}
+              </div>
+            </div>
+            {% if item.default_supplier %}
+              <span class="badge text-bg-light">{{ item.default_supplier.name }}</span>
+            {% endif %}
+          </div>
+
+          <div class="mt-3 d-flex align-items-center gap-2"
+               x-data="{ qty: {{ item.par_level or 1 }}, sup: '{{ item.default_supplier_id or '' }}', notes:'', ok:false, busy:false }">
+            <div class="btn-group">
+              <button class="btn btn-outline-secondary btn-sm" @click="qty=Math.max(1,qty-1)">–</button>
+              <input type="number" min="1" class="form-control form-control-sm" style="width:80px" x-model.number="qty">
+              <button class="btn btn-outline-secondary btn-sm" @click="qty++">+</button>
+            </div>
+            <select class="form-select form-select-sm" style="max-width:200px" x-model="sup">
+              <option value="">Supplier…</option>
+              {% for s in suppliers %}
+              <option value="{{ s.id }}" {% if item.default_supplier_id==s.id %}selected{% endif %}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-sm" :class="ok?'btn-success':'btn-primary'" :disabled="busy"
+              @click="busy=true; ok=false;
+                fetch('/admin/shopping/toggle',{method:'POST',headers:{'Content-Type':'application/json'},
+                  body: JSON.stringify({item_id:'{{ item.id }}', needed:true, quantity:qty, supplier_id: sup?Number(sup):null, notes:notes})})
+                .then(r=>{ if(!r.ok) throw new Error(); ok=true; })
+                .catch(()=>alert('Could not add. Try again.'))
+                .finally(()=>busy=false)">
+              <span x-show="!ok">Add</span><span x-show="ok">✓</span>
+            </button>
+          </div>
+          <textarea class="form-control form-control-sm mt-2" rows="1" placeholder="Notes (optional)" x-model="notes"></textarea>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

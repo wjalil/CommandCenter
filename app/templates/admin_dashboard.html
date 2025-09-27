@@ -208,21 +208,15 @@
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #ffb347;">
         <div>
           <div class="section-label">Inventory Insights</div>
-          <h5 class="card-title">📦 Shortage Log</h5>
-          {% if unresolved_logs %}
-            <ul class="list-group list-group-flush mb-3">
-              {% for log in unresolved_logs[:5] %}
-              <li class="list-group-item px-0 border-0">
-                <div class="fw-semibold text-dark">⚠️ {{ log.note }}</div>
-                <div class="text-muted small"><em>{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</em></div>
-              </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <div class="text-muted">No active shortages right now 🎉</div>
-          {% endif %}
+          <h5 class="card-title">📦 Inventory Management</h5>
         </div>
-        <a href="/admin/shortages" class="btn btn-outline-warning btn-sm w-auto">🔍 View All</a>
+        <p class="text-muted small">Create and view shopping lists/items.</p>
+        <ul class="list-unstyled">
+          <li class="mb-1">
+            <a href="/admin/shopping/items" class="card-link">🛒💰 Create Shopping Cart</a>
+            <a href="/admin/shopping/view" class="card-link">📋 View Shopping Cart</a>
+          </li>
+        </ul>
       </div>
     </div>
 

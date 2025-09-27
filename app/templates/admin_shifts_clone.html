@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">🗓️ Clone Week</h4>
+    <a href="/admin/shifts" class="btn btn-sm btn-outline-secondary">← Back</a>
+  </div>
+
+  {% if request.query_params.get("success") %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+      {{ request.query_params.get("success") }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endif %}
+  {% if request.query_params.get("error") %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ request.query_params.get("error") }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endif %}
+
+  <form method="post" action="/admin/shifts/clone" class="card p-3 shadow-sm">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Source week (choose any date that week)</label>
+        <input type="date" name="source_week_start" class="form-control" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Weeks forward</label>
+        <input type="number" name="weeks_forward" class="form-control" min="1" max="12" value="1" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Shift type (opt)</label>
+        <select name="filter_shift_type" class="form-select">
+          <option value="">All</option>
+          <option value="Store">Store</option>
+          <option value="Driver">Driver</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Label contains (opt)</label>
+        <input type="text" name="filter_label_contains" class="form-control" placeholder="e.g. Morning">
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="keep_workers" id="keep_workers">
+          <label class="form-check-label" for="keep_workers">Keep workers</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-3 d-flex justify-content-end">
+      <button class="btn btn-primary">Clone</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

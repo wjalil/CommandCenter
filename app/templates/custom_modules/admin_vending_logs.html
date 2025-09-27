@@ -7,37 +7,53 @@
     <a href="/admin/dashboard" class="btn btn-sm btn-outline-secondary">🏠 Home</a>
   </div>
 
-  <!-- 📥 Log Submission Form -->
-  <div class="card mb-5 shadow-sm">
-    <div class="card-header bg-light">
-      <h5 class="mb-0">🧊 Submit Vending Machine Log</h5>
-    </div>
-    <div class="card-body">
-      <form method="post" enctype="multipart/form-data">
-        <div class="mb-3">
-          <label for="machine_id" class="form-label">Machine Location</label>
-          <select name="machine_id" class="form-select" required>
-            <option disabled selected value="">Select a machine</option>
-            {% for machine in machines %}
-              <option value="{{ machine.id }}">{{ machine.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="mb-3">
-          <label for="notes" class="form-label">Notes</label>
-          <textarea name="notes" class="form-control" rows="2" placeholder="E.g. Restock Kit-Kats, grab Pelligrino"></textarea>
-        </div>
-
-        <div class="mb-3">
-          <label for="photos" class="form-label">Photos (Snack + Beverage)</label>
-          <input type="file" name="photos" class="form-control" multiple>
-        </div>
-
-        <button type="submit" class="btn btn-primary">Submit Log</button>
-      </form>
-    </div>
+<!-- 📥 Log Submission Form -->
+<div class="card mb-5 shadow-sm">
+  <div class="card-header bg-light">
+    <h5 class="mb-0">🧊 Submit Vending Machine Log</h5>
   </div>
+  <div class="card-body">
+
+    <!-- ✅ Success / Error Alerts -->
+    {% if request.query_params.get("success") %}
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ request.query_params.get("success") }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endif %}
+    {% if request.query_params.get("error") %}
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ request.query_params.get("error") }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label for="machine_id" class="form-label">Machine Location</label>
+        <select name="machine_id" class="form-select" required>
+          <option disabled selected value="">Select a machine</option>
+          {% for machine in machines %}
+            <option value="{{ machine.id }}">{{ machine.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label for="notes" class="form-label">Notes</label>
+        <textarea name="notes" class="form-control" rows="2" placeholder="E.g. Restock Kit-Kats, grab Pelligrino"></textarea>
+      </div>
+
+      <div class="mb-3">
+        <label for="photos" class="form-label">Photos (Snack + Beverage)</label>
+        <input type="file" name="photos" class="form-control" multiple>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Submit Log</button>
+    </form>
+  </div>
+</div>
+
 
   <!-- 📦 Logs by Machine -->
   {% for machine_name, sources in grouped_logs.items() %}

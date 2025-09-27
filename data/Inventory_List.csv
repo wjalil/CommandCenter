@@ -1,0 +1,92 @@
+Item,Category,Supplier,Business Line
+Triple Chocolate Chip,Cookie,Sysco,Cafe
+Smores,Cookie,Sysco,Cafe
+Cookies and Cream,Cookie,Sysco,Cafe
+M&M,Cookie,Sysco,Cafe
+Red Velvet,Cookie,Sysco,Cafe
+Salted Caramel,Cookie,Sysco,Cafe
+Oatmeal Raisen,Cookie,Sysco,Cafe
+Lemon Blueberry,Cookie,Sysco,Cafe
+Reeses Peanut Butter,Cookie,Sysco,Cafe
+Pumpkin Pecan,Cookie,Sysco,Cafe
+Chocolate Chip Brownie,Brownie,Sysco,Cafe
+Oreos Brownie,Brownie,Sysco,Cafe
+Rocky Road Brownie,Brownie,Sysco,Cafe
+Cheesecake,Brownie,Sysco,Cafe
+Strawberry,Produce,Jetro,Cafe
+Banana,Produce,Jetro,Cafe
+Nutella,Spread,Jetro,Cafe
+Knafa,Spread,Ad Hoc,Cafe
+Pistachio Butter,Spread,Ad Hoc,Cafe
+Callebut Chocolate,Chocolate,Ad Hoc,Cafe
+Dark Callebut Chocolate,Chocolate,Ad Hoc,Cafe
+Vanilla,Icecream,Sysco,Cafe
+Chocolate,Icecream,Sysco,Cafe
+Strawberry Icecream,Icecream,Sysco,Cafe
+Cookies and Cream Icecream,Icecream,Sysco,Cafe
+Mint Chocolate Icecream,Icecream,Sysco,Cafe
+Monin Vanilla ,Syrup,Bartlett,Cafe
+Monin Caramel,Syrup,Bartlett,Cafe
+Simple Syrup,Syrup,Jetro,Cafe
+Milk Gallon,Dairy,Bartlett,Cafe
+Milk 8oz Carton,Dairy,Bartlett,Catering
+Oat Milk,Dairy,Bartlett,Cafe
+Almond Milk,Dairy,Bartlett,Cafe
+Espresso Beans,Coffee,Jetro,Cafe
+Drip Beans,Coffee,Jetro,Cafe
+Mango Smoothie,Smoothie,Jetro,Cafe
+Strawberry Smoothie,Smoothie,Jetro,Cafe
+Peach Smoothie,Smoothie,Jetro,Cafe
+Pina Colada,Smoothie,Jetro,Cafe
+Passion Fruit,Smoothie,Jetro,Cafe
+Brown Boxes,Supplies,Jetro,Cafe
+Brown Bags,Supplies,Jetro,Cafe
+Plastic Cups 16 oz,Supplies,Jetro,Cafe
+Plastic Cups 24oz,Supplies,Jetro,Cafe
+Plastic Lids,Supplies,Jetro,Cafe
+Chicken Empanada,Empanada,Jetro,Cafe
+Beef Empanada,Empanada,Jetro,Cafe
+Spinach and Cheese Empanada,Empanada,Jetro,Cafe
+Bacon,Meat,Jetro,Cafe
+Eggs,Egg,Jetro,Cafe
+Cream Cheese,Dairy,Bartlett,Cafe
+Croissant,Pastry,Jetro,Cafe
+Chocolate Croissant,Pastry,Jetro,Cafe
+Apple Turnover,Pastry,Jetro,Cafe
+Brioche Bread,Bread,Jetro,Cafe
+Panini Bread,Bread,Jetro,Cafe
+Grilled Chicken,Meat,Jetro,Catering
+Chicken Cutlet,Meat,Jetro,Catering
+Beef Meatballs,Meat,Jetro,Catering
+Chicken Nuggets,Meat,Jetro,Catering
+Beef Chilli,Meat,Jetro,Catering
+Mac and Cheese,Meat,Jetro,Catering
+Chicken Chunks,Meat,Jetro,Catering
+Chicken Patty,Meat,Jetro,Catering
+Mozarella Sticks,Meat,Jetro,Catering
+Beef Ravioli,Meat,Jetro,Catering
+Popcorn Chicken ,Meat,Jetro,Catering
+Chicken Dumplings,Meat,Jetro,Catering
+Misc Veggie Cans,Veggies,Jetro,Catering
+Rice,Carb,Jetro,Catering
+Pasta,Carb,Jetro,Catering
+Tortilla,Carb,Jetro,Catering
+WW Bread,Bread,Jetro,Catering
+Burger Buns,Bread,Jetro,Catering
+Orange,Produce,Jetro,Catering
+Suncup,Juice,Bartlett,Catering
+Vegan Meatballs,Vegan,Sysco,Catering
+Vegan Nuggets,Vegan,Sysco,Catering
+Eggplant,Vegan,Sysco,Catering
+Garbanzo Beans,Vegan,Sysco,Catering
+Vegan Chilli,Vegan,Sysco,Catering
+Waffle,Breakfast,Costco,Catering
+Pancake,Breakfast,Jetro,Catering
+French Toast,Breakfast,Jetro,Catering
+Raisin Bran,Breakfast,Jetro,Catering
+Rice Crispy,Breakfast,Jetro,Catering
+Hashbrown,Breakfast,Triple AAA,Catering
+English Muffin,Breakfast,Jetro,Catering
+Aluminum Trays,Supplies,Triple AAA,Catering
+Aluminum Lids,Supplies,Triple AAA,Catering
+Mini Croissant,Breakfast,Triple AAA,Catering

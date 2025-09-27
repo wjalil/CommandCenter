@@ -22,6 +22,7 @@ from app.models.user import User
 from app.auth.routes import get_current_user
 from app.api.custom_modules import inventory_routes, driver_order_routes,vending_log_routes
 from app.api.internal_task_routes import router as internal_task_router
+from app.api.shopping_routes import router as shopping_router
 from sqlalchemy.future import select
 from dotenv import load_dotenv
 import app.models  # registers all models via models/__init__.py
@@ -174,3 +175,4 @@ app.include_router(shortage_router)
 app.include_router(admin_menu_routes.router)
 app.include_router(admin_menu_item_routes.router)
 app.include_router(customer_routes.router)
+app.include_router(shopping_router)
