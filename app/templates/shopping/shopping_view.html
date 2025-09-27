@@ -2,7 +2,7 @@
 {% block content %}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-    [x-cloak] { display: none !important; }
+  [x-cloak] { display: none !important; }
   :root{
     --ink:#0f172a;            /* deep slate */
     --ink-2:#1f2937;
@@ -35,7 +35,7 @@
   .btn-teal:hover{ background: var(--teal-2); color:#fff; }
   .chip{
     border:1px dashed #d1d5db; padding:2px 8px; border-radius:999px; font-size:.8rem; color:var(--ink-2);
-    white-space: nowrap;
+    white-space: normal; /* allow wrap on mobile */
   }
   .qty-pill{
     font-variant-numeric: tabular-nums;
@@ -46,6 +46,7 @@
   .row-card{
     border:1px solid var(--line); border-radius: 16px; background: var(--card);
     padding: 14px 16px; transition: transform .12s ease, box-shadow .12s ease;
+    overflow: hidden; /* prevent horizontal scroll */
   }
   .row-card:hover{ transform: translateY(-1px); box-shadow: 0 8px 24px rgba(2,6,23,.06); }
   .row-divider{ height: 1px; background: var(--line); margin: 10px 0; }
@@ -68,9 +69,28 @@
   }
   .badge-light{
     background: #f3f4f6; color: #111827; border:1px solid #e5e7eb;
+    white-space: normal; display: inline-block; margin-top: 4px; /* allow wrap */
   }
   .help-kb{
     font-size: .85rem; color: var(--muted);
+  }
+
+  /* Let flex children shrink to avoid overflow on small screens */
+  .row-card * { min-width: 0; }
+
+  /* Mobile layout for the action cluster */
+  @media (max-width: 576px) {
+    .row-card { padding: 12px; }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: 100%;
+    }
+    .actions .qty-pill { order: 1; justify-self: start; }
+    .actions .btn-group { order: 3; justify-self: start; }
+    .actions .btn-success { order: 2; width: 100%; justify-self: end; }
+    .actions .dropdown { order: 4; justify-self: end; }
   }
 </style>
 
@@ -79,6 +99,7 @@
   <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
     <h2 class="page-title mb-2 mb-md-0">🛒 Shopping · View</h2>
     <div class="d-flex gap-2">
+      <a href="/admin/dashboard" class="btn btn-ghost">🏠 Home</a>
       <a href="/admin/shopping/items" class="btn btn-ghost">Create Shopping Cart</a>
     </div>
   </div>
@@ -142,8 +163,9 @@
            @keydown.stop.prevent.p="mark('PURCHASED')">
 
         <!-- Top row -->
-        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-          <div class="me-2">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2">
+          <!-- Left info: allow shrinking -->
+          <div class="me-md-2 flex-fill">
             <div class="d-flex align-items-center flex-wrap gap-2">
               <h5 class="mb-0" style="font-weight:800;color:var(--ink);">
                 {{ need.item.name }}
@@ -172,7 +194,8 @@
             </div>
           </div>
 
-          <div class="d-flex align-items-center gap-3">
+          <!-- Actions: stacks/responsive -->
+          <div class="actions d-flex align-items-center gap-3 flex-wrap flex-md-nowrap mt-2 mt-md-0">
             <span class="qty-pill" x-text="'Qty: ' + qty"></span>
 
             <!-- Quantity controls -->
@@ -183,15 +206,14 @@
             </div>
 
             <!-- Primary action -->
-            <button class="btn btn-success btn-sm" type="button"
+            <button class="btn btn-success btn-sm flex-shrink-0" type="button"
                     @click="mark('PURCHASED')"
                     :disabled="loading">
               <span x-show="!loading">Purchased</span>
-              </span>
             </button>
 
             <!-- More -->
-            <div class="dropdown">
+            <div class="dropdown flex-shrink-0">
               <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" :disabled="loading">
                 More
               </button>

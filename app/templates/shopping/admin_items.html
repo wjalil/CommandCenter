@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<div class="container page-wrap">
+  <!-- Header / Actions -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <h2 class="page-title mb-2 mb-md-0">🛒 Shopping · View</h2>
+    <div class="d-flex gap-2">
+      <a href="/admin/dashboard" class="btn btn-ghost">🏠 Home</a>
+      <a href="/admin/shopping/items" class="btn btn-ghost">Create Shopping Cart</a>
+    </div>
+</div>
+
 <div class="container py-3" x-data="{ q:'', bl:'', cat:'' }">
   <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <h3 class="mb-0">Shopping · Create List</h3>
