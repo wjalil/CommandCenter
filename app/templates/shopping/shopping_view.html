@@ -55,10 +55,13 @@
     min-width: 42px; text-align:center; border:1px solid var(--line); border-radius: 10px; padding: 4px 8px;
     font-variant-numeric: tabular-nums; font-weight: 600; background:#fff;
   }
-  .toolbar{
-    position: sticky; top: 8px; z-index: 10;
-    background: transparent;
+
+  /* Toolbar: not sticky on mobile; sticky on md+ */
+  .toolbar{ background: transparent; position: static; }
+  @media (min-width: 768px){
+    .toolbar{ position: sticky; top: 8px; z-index: 10; }
   }
+
   /* Simple toast */
   #toast{
     position: fixed; right: 16px; bottom: 16px; z-index: 1080;
@@ -100,47 +103,55 @@
     <h2 class="page-title mb-2 mb-md-0">🛒 Shopping · View</h2>
     <div class="d-flex gap-2">
       <a href="/admin/dashboard" class="btn btn-ghost">🏠 Home</a>
+      <!-- Mobile-only: Filters toggle -->
+      <button class="btn btn-ghost d-inline-flex d-md-none" type="button"
+              data-bs-toggle="collapse" data-bs-target="#filtersPanel"
+              aria-expanded="false" aria-controls="filtersPanel">
+        🔎 Filters
+      </button>
       <a href="/admin/shopping/items" class="btn btn-ghost">Create Shopping Cart</a>
     </div>
   </div>
 
-  <!-- Filters (sticky) -->
-  <div class="toolbar">
-    <form class="filter-card mb-3" method="get">
-      <div class="row g-2 align-items-end">
-        <div class="col-12 col-md-4">
-          <label class="form-label">Supplier</label>
-          <select class="form-select" name="supplier_id">
-            <option value="">All suppliers</option>
-            {% for s in suppliers %}
-              <option value="{{ s.id }}" {% if active_supplier_id and s.id==active_supplier_id %}selected{% endif %}>{{ s.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-12 col-md-4">
-          <label class="form-label">Business Line</label>
-          <select class="form-select" name="business_line_id">
-            <option value="">All lines</option>
-            {% for b in business_lines %}
-              <option value="{{ b.id }}" {% if active_business_line_id and b.id==active_business_line_id %}selected{% endif %}>{{ b.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-12 col-md-4">
-          <label class="form-label">Search</label>
-          <div class="input-group">
-            <input class="form-control" name="q" value="{{ q or '' }}" placeholder="Name, SKU, notes...">
-            <button class="btn btn-teal" type="submit">Filter</button>
-            {% if q or active_supplier_id or active_business_line_id %}
-              <a class="btn btn-ghost" href="/admin/shopping/view">Clear</a>
-            {% endif %}
+  <!-- Filters (collapsible on mobile, visible on md+) -->
+  <div class="toolbar mb-3">
+    <div id="filtersPanel" class="collapse d-md-block">
+      <form class="filter-card" method="get">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-md-4">
+            <label class="form-label">Supplier</label>
+            <select class="form-select" name="supplier_id">
+              <option value="">All suppliers</option>
+              {% for s in suppliers %}
+                <option value="{{ s.id }}" {% if active_supplier_id and s.id==active_supplier_id %}selected{% endif %}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Business Line</label>
+            <select class="form-select" name="business_line_id">
+              <option value="">All lines</option>
+              {% for b in business_lines %}
+                <option value="{{ b.id }}" {% if active_business_line_id and b.id==active_business_line_id %}selected{% endif %}>{{ b.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Search</label>
+            <div class="input-group">
+              <input class="form-control" name="q" value="{{ q or '' }}" placeholder="Name, SKU, notes...">
+              <button class="btn btn-teal" type="submit">Filter</button>
+              {% if q or active_supplier_id or active_business_line_id %}
+                <a class="btn btn-ghost" href="/admin/shopping/view">Clear</a>
+              {% endif %}
+            </div>
           </div>
         </div>
-      </div>
-      <div class="mt-2 help-kb">
-        Pro tip: Use <kbd>+</kbd> and <kbd>–</kbd> to adjust quantity on the focused row • Press <kbd>P</kbd> to mark Purchased
-      </div>
-    </form>
+        <div class="mt-2 help-kb">
+          Pro tip: Use <kbd>+</kbd> and <kbd>–</kbd> to adjust quantity on the focused row • Press <kbd>P</kbd> to mark Purchased
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- Empty state -->

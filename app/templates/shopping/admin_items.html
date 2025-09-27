@@ -2,31 +2,140 @@
 {% block content %}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<div class="container page-wrap">
+<style>
+  [x-cloak] { display: none !important; }
+  :root{
+    --ink:#0f172a;            /* deep slate */
+    --ink-2:#1f2937;
+    --muted:#6b7280;
+    --line:#e5e7eb;
+    --bg:#f8fafc;
+    --card:#ffffff;
+    --teal:#0ea5a6;           /* accent */
+    --teal-2:#14b8a6;
+    --rose:#ef4444;
+    --amber:#f59e0b;
+    --success:#22c55e;
+  }
+  body{ background: var(--bg); }
+  .page-wrap{ padding-top: 12px; }
+
+  .page-title{
+    font-weight: 800; letter-spacing: .2px; color: var(--ink);
+  }
+  .subtext{ color: var(--muted); }
+
+  /* Filters / buttons */
+  .filter-card{
+    background: var(--card); border:1px solid var(--line); border-radius: 16px; padding: 16px;
+  }
+  .btn-ghost{
+    border: 1px solid var(--line); background:#fff; color:var(--ink); border-radius: 12px;
+  }
+  .btn-ghost:hover{ background:#f3f4f6; }
+  .btn-teal{
+    background: var(--teal); color: #fff; border:none; border-radius:12px; box-shadow: 0 4px 12px rgba(14,165,166,.2);
+  }
+  .btn-teal:hover{ background: var(--teal-2); color:#fff; }
+
+  .badge-light{
+    background: #f3f4f6; color: #111827; border:1px solid #e5e7eb;
+    white-space: normal; display: inline-block; margin-top: 4px;
+  }
+
+  /* Toolbar: collapsible on mobile, gently sticky on md+ */
+  .toolbar{ background: transparent; position: static; }
+  @media (min-width: 768px){
+    .toolbar{ position: sticky; top: 8px; z-index: 10; }
+  }
+
+  /* Card polish + more breathing room */
+  .item-card{
+    border:1px solid var(--line); border-radius: 16px; background: var(--card);
+    box-shadow: 0 1px 4px rgba(2,6,23,.04);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .item-card:hover{ transform: translateY(-1px); box-shadow: 0 8px 24px rgba(2,6,23,.06); }
+
+  /* Increase inner padding */
+  .item-card .card-body{ padding: 16px; }
+  @media (min-width: 768px){
+    .item-card .card-body{ padding: 20px; }
+  }
+
+  /* Round inputs for a softer look */
+  .form-control, .form-select{ border-radius: 10px; }
+
+  /* Prevent layout overflow on small screens */
+  .item-card * { min-width: 0; }
+
+  /* Grid gutters: a bit wider on md+ so boxes aren't cramped */
+  .grid-wrap{ --bs-gutter-x: 1rem; --bs-gutter-y: 1rem; }
+  @media (min-width: 768px){
+    .grid-wrap{ --bs-gutter-x: 1.25rem; --bs-gutter-y: 1.25rem; }
+  }
+  @media (min-width: 992px){
+    .grid-wrap{ --bs-gutter-x: 1.5rem; --bs-gutter-y: 1.5rem; }
+  }
+
+  /* Give the top header a touch more breathing room on mobile */
+  .header-wrap{ margin-bottom: 12px; }
+  @media (min-width:768px){
+    .header-wrap{ margin-bottom: 16px; }
+  }
+</style>
+
+<div class="container page-wrap" x-data="{ q:'', bl:'', cat:'' }">
   <!-- Header / Actions -->
-  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
-    <h2 class="page-title mb-2 mb-md-0">🛒 Shopping · View</h2>
+  <div class="d-flex flex-wrap align-items-center justify-content-between header-wrap">
+    <h2 class="page-title mb-2 mb-md-0">🛒 Shopping · Create List</h2>
     <div class="d-flex gap-2">
       <a href="/admin/dashboard" class="btn btn-ghost">🏠 Home</a>
-      <a href="/admin/shopping/items" class="btn btn-ghost">Create Shopping Cart</a>
-    </div>
-</div>
 
-<div class="container py-3" x-data="{ q:'', bl:'', cat:'' }">
-  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-    <h3 class="mb-0">Shopping · Create List</h3>
-    <input class="form-control" style="max-width:320px" placeholder="Search items…" x-model="q">
-    <select class="form-select" style="max-width:200px" x-model="bl">
-      <option value="">All lines</option>
-      {% for b in business_lines %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
-    </select>
-    <select class="form-select" style="max-width:200px" x-model="cat">
-      <option value="">All categories</option>
-      {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
-    </select>
+      <!-- Mobile-only: Filters toggle -->
+      <button class="btn btn-ghost d-inline-flex d-md-none" type="button"
+              data-bs-toggle="collapse" data-bs-target="#filtersPanel"
+              aria-expanded="false" aria-controls="filtersPanel">
+        🔎 Filters
+      </button>
+
+      <a href="/admin/shopping/view" class="btn btn-ghost">📋 View Shopping Cart</a>
+    </div>
   </div>
 
-  <div class="row g-3">
+  <!-- Filters (collapsible on mobile, visible on md+) -->
+  <div class="toolbar mb-3">
+    <div id="filtersPanel" class="collapse d-md-block">
+      <div class="filter-card">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-md-4">
+            <label class="form-label">Search</label>
+            <input class="form-control" placeholder="Search items…" x-model="q">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Business Line</label>
+            <select class="form-select" x-model="bl">
+              <option value="">All lines</option>
+              {% for b in business_lines %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">Category</label>
+            <select class="form-select" x-model="cat">
+              <option value="">All categories</option>
+              {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="mt-2 subtext">
+          Tip: Fill in notes before tapping <strong>Add</strong> to save fewer clicks later.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid -->
+  <div class="row grid-wrap">
     {% for item in items %}
     <div class="col-12 col-md-6 col-lg-4"
          x-show="
@@ -34,11 +143,11 @@
            ('{{ item.business_line_id or '' }}' == bl || bl=='') &&
            ('{{ item.category_id or '' }}' == cat || cat=='')
          ">
-      <div class="card shadow-sm h-100">
+      <div class="item-card h-100">
         <div class="card-body d-flex flex-column">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <strong>{{ item.name }}</strong>
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="me-2">
+              <strong style="color:var(--ink)">{{ item.name }}</strong>
               <div class="small text-muted">
                 {% if item.business_line %}{{ item.business_line.name }} · {% endif %}
                 {% if item.category %}{{ item.category.name }}{% endif %}
@@ -46,24 +155,26 @@
               </div>
             </div>
             {% if item.default_supplier %}
-              <span class="badge text-bg-light">{{ item.default_supplier.name }}</span>
+              <span class="badge badge-light rounded-pill">{{ item.default_supplier.name }}</span>
             {% endif %}
           </div>
 
-          <div class="mt-3 d-flex align-items-center gap-2"
+          <div class="mt-3 d-flex flex-wrap align-items-center gap-2"
                x-data="{ qty: {{ item.par_level or 1 }}, sup: '{{ item.default_supplier_id or '' }}', notes:'', ok:false, busy:false }">
-            <div class="btn-group">
+            <div class="btn-group" role="group" aria-label="Quantity">
               <button class="btn btn-outline-secondary btn-sm" @click="qty=Math.max(1,qty-1)">–</button>
-              <input type="number" min="1" class="form-control form-control-sm" style="width:80px" x-model.number="qty">
+              <input type="number" min="1" class="form-control form-control-sm" style="width:84px" x-model.number="qty">
               <button class="btn btn-outline-secondary btn-sm" @click="qty++">+</button>
             </div>
-            <select class="form-select form-select-sm" style="max-width:200px" x-model="sup">
+
+            <select class="form-select form-select-sm" style="max-width:230px" x-model="sup">
               <option value="">Supplier…</option>
               {% for s in suppliers %}
               <option value="{{ s.id }}" {% if item.default_supplier_id==s.id %}selected{% endif %}>{{ s.name }}</option>
               {% endfor %}
             </select>
-            <button class="btn btn-sm" :class="ok?'btn-success':'btn-primary'" :disabled="busy"
+
+            <button class="btn btn-sm btn-teal" :class="ok?'btn-success btn-teal':''" :disabled="busy"
               @click="busy=true; ok=false;
                 fetch('/admin/shopping/toggle',{method:'POST',headers:{'Content-Type':'application/json'},
                   body: JSON.stringify({item_id:'{{ item.id }}', needed:true, quantity:qty, supplier_id: sup?Number(sup):null, notes:notes})})
@@ -73,6 +184,7 @@
               <span x-show="!ok">Add</span><span x-show="ok">✓</span>
             </button>
           </div>
+
           <textarea class="form-control form-control-sm mt-2" rows="1" placeholder="Notes (optional)" x-model="notes"></textarea>
         </div>
       </div>
