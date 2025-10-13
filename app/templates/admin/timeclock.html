@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Time Clock · Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body { background: #f6f8fb; }
+    .toolbar { position: sticky; top: 0; z-index: 1010; background: #fff; border-bottom: 1px solid #e9eef5; }
+    .kpi-card { border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.05); }
+    .table th { font-weight: 600; color: #445; }
+    .status-badge { font-size: .8rem; }
+    .offcanvas-lg { width: 520px; }
+    .btn-preset { white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar py-3">
+  <div class="container d-flex flex-wrap align-items-end gap-3">
+    <div>
+      <h4 class="mb-0">⏱️ Time Clock — Admin</h4>
+      <small class="text-muted">All times shown in Eastern (America/New_York)</small>
+    </div>
+
+    <!-- Presets -->
+    <div class="ms-auto d-flex flex-wrap gap-2">
+      <div class="d-flex align-items-end gap-2">
+        <button id="presetThisWeek" class="btn btn-outline-primary btn-sm btn-preset">This Week (ET)</button>
+        <button id="presetLastWeek" class="btn btn-outline-secondary btn-sm btn-preset">Last Week (ET)</button>
+      </div>
+
+      <form class="d-flex flex-wrap gap-2" method="get">
+        <div>
+          <label class="form-label mb-1 small">Start</label>
+          <input id="startInput" type="date" class="form-control" name="start" value="{{ start }}"/>
+        </div>
+        <div>
+          <label class="form-label mb-1 small">End</label>
+          <input id="endInput" type="date" class="form-control" name="end" value="{{ end }}"/>
+        </div>
+        <div>
+          <label class="form-label mb-1 small">Status</label>
+          <select class="form-select" name="status">
+            {% for s in ['all','unpaid','closed','approved','paid','open'] %}
+              <option value="{{ s }}" {{ 'selected' if status==s else '' }}>{{ s|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label mb-1 small">User</label>
+          <select class="form-select" name="q_user">
+            <option value="">All</option>
+            {% for u in users %}
+              <option value="{{ u.id }}" {{ 'selected' if q_user==u.id else '' }}>{{ u.name or u.id }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="d-flex align-items-end">
+          <button class="btn btn-primary">Apply</button>
+        </div>
+      </form>
+
+      <div class="d-flex align-items-end">
+        <a class="btn btn-outline-secondary"
+           href="/admin/timeclock/export?start={{ start }}&end={{ end }}&status={{ status }}">Export CSV</a>
+      </div>
+      <div class="d-flex align-items-end">
+        <form id="autocloseForm" method="post" action="/admin/timeclock/autoclose-stale">
+          <input type="hidden" name="max_hours" value="16"/>
+          <button class="btn btn-warning">Autoclose 16h+</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container my-4">
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-3">
+      <div class="card kpi-card">
+        <div class="card-body">
+          <div class="text-muted small">Total Hours</div>
+          <div class="h3 mb-0">{{ kpi_total_hours }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card kpi-card">
+        <div class="card-body">
+          <div class="text-muted small">Gross Payroll ($)</div>
+          <div class="h3 mb-0">{{ kpi_gross_total }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card kpi-card">
+        <div class="card-body">
+          <div class="text-muted small">Unpaid ($)</div>
+          <div class="h3 mb-0">{{ kpi_unpaid_total }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card kpi-card">
+        <div class="card-body">
+          <div class="text-muted small">Open Entries</div>
+          <div class="h3 mb-0">{{ kpi_open_count }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk actions -->
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <button id="markPaidBtn" class="btn btn-success btn-sm" disabled>Mark Selected Paid</button>
+    <span class="text-muted small">Range: <span id="rangeLabel"></span> (end exclusive)</span>
+  </div>
+
+  <!-- Per-user table -->
+  <div class="table-responsive">
+    <table class="table table-hover align-middle bg-white">
+      <thead>
+        <tr>
+          <th style="width:36px;"><input class="form-check-input" type="checkbox" id="checkAll"/></th>
+          <th>Worker</th>
+          <th class="text-end">Hours</th>
+          <th class="text-end">Gross ($)</th>
+          <th class="text-end text-danger">Unpaid ($)</th>
+          <th class="text-center">Entries</th>
+          <th>Last Shift (ET)</th>
+          <th style="width:120px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        {% set mins = r.minutes or 0 %}
+        {% set hours = (mins/60) | round(2) %}
+        <tr data-user="{{ r.user_id }}">
+          <td><input class="form-check-input row-check" type="checkbox"/></td>
+          <td><strong>{{ r.user_name or r.user_id }}</strong></td>
+          <td class="text-end">{{ hours }}</td>
+          <td class="text-end">{{ (r.gross or 0.0) | float | round(2) }}</td>
+          <td class="text-end text-danger">{{ (r.unpaid_gross or 0.0) | float | round(2) }}</td>
+          <td class="text-center">{{ r.entries }}</td>
+          <td>
+            {% if r.last_clock_in %}
+              <span class="ts-et" data-iso="{{ r.last_clock_in.isoformat() }}Z">—</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            <button class="btn btn-outline-primary btn-sm view-entries"
+                    data-user="{{ r.user_id }}" data-name="{{ r.user_name or r.user_id }}">
+              View entries
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not rows %}
+        <tr><td colspan="8" class="text-center text-muted py-4">No data for the selected filters.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Right-side entries drawer -->
+<div class="offcanvas offcanvas-end offcanvas-lg" tabindex="-1" id="entriesDrawer">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="drawerTitle">Entries</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div id="entriesContainer" class="vstack gap-2"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Constants from server
+  const START = "{{ start }}"; // YYYY-MM-DD (UTC date, end exclusive)
+  const END = "{{ end }}";
+  const STATUS = "{{ status }}";
+
+  // Format helpers for Eastern time
+  const ET = "America/New_York";
+  const fmtDate = new Intl.DateTimeFormat('en-US', { timeZone: ET, year:'numeric', month:'short', day:'2-digit' });
+  const fmtDateTime = new Intl.DateTimeFormat('en-US', {
+    timeZone: ET, year:'numeric', month:'short', day:'2-digit', hour:'numeric', minute:'2-digit'
+  });
+
+  // Render Last Shift cells as ET
+  document.querySelectorAll('.ts-et').forEach(el => {
+    const iso = el.getAttribute('data-iso');
+    if (!iso) return;
+    const d = new Date(iso);
+    el.textContent = fmtDateTime.format(d);
+  });
+
+  // Label for range (ET)
+  (function setRangeLabel(){
+    const s = new Date(START + "T00:00:00Z");
+    const eMinus = new Date(new Date(END + "T00:00:00Z").getTime() - 24*3600*1000); // end exclusive -> show end-1
+    const span = document.getElementById('rangeLabel');
+    if (span) span.textContent = `${fmtDate.format(s)} → ${fmtDate.format(eMinus)}`;
+  })();
+
+  // Select all checkboxes
+  const checkAll = document.getElementById('checkAll');
+  const markBtn = document.getElementById('markPaidBtn');
+  function refreshBulkButton() {
+    const anyChecked = !!document.querySelector('.row-check:checked');
+    markBtn.disabled = !anyChecked;
+  }
+  checkAll?.addEventListener('change', () => {
+    document.querySelectorAll('.row-check').forEach(cb => cb.checked = checkAll.checked);
+    refreshBulkButton();
+  });
+  document.querySelectorAll('.row-check').forEach(cb => cb.addEventListener('change', refreshBulkButton));
+
+  // Bulk mark paid
+  markBtn?.addEventListener('click', async () => {
+    const ids = Array.from(document.querySelectorAll('tbody tr .row-check:checked'))
+      .map(cb => cb.closest('tr').getAttribute('data-user'));
+    if (!ids.length) return;
+    const fd = new FormData();
+    fd.append('start', START);
+    fd.append('end', END);
+    fd.append('user_ids', ids.join(','));
+    const resp = await fetch('/admin/timeclock/mark-paid-bulk', { method: 'POST', body: fd });
+    if (resp.ok) location.reload();
+  });
+
+  // Autoclose stale
+  document.getElementById('autocloseForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const resp = await fetch('/admin/timeclock/autoclose-stale', { method: 'POST', body: fd });
+    if (resp.ok) location.reload();
+  });
+
+  // Drawer logic
+  const drawerEl = document.getElementById('entriesDrawer');
+  const drawer = new bootstrap.Offcanvas(drawerEl);
+  document.querySelectorAll('.view-entries').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const userId = btn.getAttribute('data-user');
+      const name = btn.getAttribute('data-name');
+      document.getElementById('drawerTitle').textContent = name ? `Entries · ${name}` : 'Entries';
+      document.getElementById('entriesContainer').innerHTML = '<div class="text-muted">Loading…</div>';
+      drawer.show();
+      const url = `/admin/timeclock/entries?user_id=${encodeURIComponent(userId)}&start=${START}&end=${END}&status=${STATUS}`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      const list = (data.entries || []).map(e => entryCard(e)).join('');
+      document.getElementById('entriesContainer').innerHTML = list || '<div class="text-muted">No entries.</div>';
+    });
+  });
+
+  function entryCard(e) {
+    const gross = (e.gross_pay ?? 0).toFixed(2);
+    const rate = (e.hourly_rate ?? 0).toFixed(2);
+    const statusColor = (s) => ({ OPEN:'secondary', CLOSED:'info', APPROVED:'primary', PAID:'success' }[s] || 'secondary');
+    const dt = (iso) => iso ? fmtDateTime.format(new Date(iso)) : '—';
+    return `
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <div>
+              <div class="fw-semibold">Clock In: ${dt(e.clock_in)}</div>
+              <div class="text-muted small">Clock Out: ${dt(e.clock_out)}</div>
+            </div>
+            <span class="badge bg-${statusColor(e.status)} status-badge">${e.status}</span>
+          </div>
+          <div class="row mt-2">
+            <div class="col-4"><div class="text-muted small">Minutes</div><div class="fw-semibold">${e.minutes ?? 0}</div></div>
+            <div class="col-4"><div class="text-muted small">Rate</div><div class="fw-semibold">$${rate}</div></div>
+            <div class="col-4"><div class="text-muted small">Gross</div><div class="fw-semibold">$${gross}</div></div>
+          </div>
+          ${e.notes ? `<div class="mt-2 text-muted small">Notes: ${escapeHtml(e.notes)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+  function escapeHtml(s){return (s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+
+  // ---- Preset buttons (ET week boundaries, Monday start) ----
+  const startInput = document.getElementById('startInput');
+  const endInput = document.getElementById('endInput');
+
+  function toYMD(d){ // date -> 'YYYY-MM-DD'
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function mondayOfWeekET(d){
+    // get ET date from UTC Date by formatting then reconstructing a date (keeps ET wall date)
+    const et = new Date(new Intl.DateTimeFormat('en-CA',{ timeZone: ET, year:'numeric', month:'2-digit', day:'2-digit'}).format(d));
+    const dow = new Intl.DateTimeFormat('en-US',{ timeZone: ET, weekday:'short'}).format(d);
+    const idx = {Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6}[dow];
+    const ms = et.getTime() - idx*24*3600*1000;
+    return new Date(ms);
+  }
+  function addDays(d, n){ return new Date(d.getTime() + n*24*3600*1000); }
+
+  function applyPreset(startDate, endExclusive){
+    const s = toYMD(startDate);
+    const e = toYMD(endExclusive);
+    // update inputs and navigate
+    startInput.value = s;
+    endInput.value = e;
+    const url = new URL(window.location.href);
+    url.searchParams.set('start', s);
+    url.searchParams.set('end', e);
+    window.location.href = url.toString();
+  }
+
+  document.getElementById('presetThisWeek')?.addEventListener('click', () => {
+    const now = new Date();
+    const mon = mondayOfWeekET(now);
+    const nextMon = addDays(mon, 7); // end exclusive
+    applyPreset(mon, nextMon);
+  });
+
+  document.getElementById('presetLastWeek')?.addEventListener('click', () => {
+    const now = new Date();
+    const thisMon = mondayOfWeekET(now);
+    const lastMon = addDays(thisMon, -7);
+    const lastSunPlusOne = thisMon; // end exclusive is this Monday
+    applyPreset(lastMon, lastSunPlusOne);
+  });
+</script>
+</body>
+</html>

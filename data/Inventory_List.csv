@@ -1,92 +1,179 @@
 Item,Category,Supplier,Business Line
-Triple Chocolate Chip,Cookie,Sysco,Cafe
-Smores,Cookie,Sysco,Cafe
-Cookies and Cream,Cookie,Sysco,Cafe
-M&M,Cookie,Sysco,Cafe
-Red Velvet,Cookie,Sysco,Cafe
-Salted Caramel,Cookie,Sysco,Cafe
-Oatmeal Raisen,Cookie,Sysco,Cafe
-Lemon Blueberry,Cookie,Sysco,Cafe
-Reeses Peanut Butter,Cookie,Sysco,Cafe
-Pumpkin Pecan,Cookie,Sysco,Cafe
-Chocolate Chip Brownie,Brownie,Sysco,Cafe
-Oreos Brownie,Brownie,Sysco,Cafe
-Rocky Road Brownie,Brownie,Sysco,Cafe
-Cheesecake,Brownie,Sysco,Cafe
-Strawberry,Produce,Jetro,Cafe
-Banana,Produce,Jetro,Cafe
-Nutella,Spread,Jetro,Cafe
-Knafa,Spread,Ad Hoc,Cafe
-Pistachio Butter,Spread,Ad Hoc,Cafe
 Callebut Chocolate,Chocolate,Ad Hoc,Cafe
 Dark Callebut Chocolate,Chocolate,Ad Hoc,Cafe
-Vanilla,Icecream,Sysco,Cafe
-Chocolate,Icecream,Sysco,Cafe
-Strawberry Icecream,Icecream,Sysco,Cafe
-Cookies and Cream Icecream,Icecream,Sysco,Cafe
-Mint Chocolate Icecream,Icecream,Sysco,Cafe
-Monin Vanilla ,Syrup,Bartlett,Cafe
-Monin Caramel,Syrup,Bartlett,Cafe
-Simple Syrup,Syrup,Jetro,Cafe
-Milk Gallon,Dairy,Bartlett,Cafe
-Milk 8oz Carton,Dairy,Bartlett,Catering
-Oat Milk,Dairy,Bartlett,Cafe
+Knafa,Spread,Ad Hoc,Cafe
+Pistachio Butter,Spread,Ad Hoc,Cafe
+Cookie Packaging,Supplies,Amazon,Cafe
+Dubai Chocolate Packaing,Supplies,Amazon,Cafe
+Label maker Labels,Supplies,Amazon,Cafe
+Parchment Paper,Supplies,Amazon,Cafe
+Printer Toner,Supplies,Amazon,Cafe
+Vanilla Extract,Toppings,Amazon,Cafe
 Almond Milk,Dairy,Bartlett,Cafe
-Espresso Beans,Coffee,Jetro,Cafe
-Drip Beans,Coffee,Jetro,Cafe
-Mango Smoothie,Smoothie,Jetro,Cafe
-Strawberry Smoothie,Smoothie,Jetro,Cafe
-Peach Smoothie,Smoothie,Jetro,Cafe
-Pina Colada,Smoothie,Jetro,Cafe
-Passion Fruit,Smoothie,Jetro,Cafe
-Brown Boxes,Supplies,Jetro,Cafe
+Cream Cheese,Dairy,Bartlett,Cafe
+Milk 8oz Carton,Dairy,Bartlett,Catering
+Milk Gallon,Dairy,Bartlett,Cafe
+Monin Caramel,Syrup,Bartlett,Cafe
+Monin Vanilla ,Syrup,Bartlett,Cafe
+Oat Milk,Dairy,Bartlett,Cafe
+Suncup,Juice,Bartlett,Catering
+CPET Containers,Supplies,Bloostone,Catering
+Krusteaz pancake mix,Baking Ingredients,Costco,Cafe
+Matcha Powder,Coffee,Costco,Cafe
+Printer Paper,Supplies,Costco,Catering
+Waffle,Breakfast,Costco,Catering
+American Cheese,Dairy,Jetro,Cafe
+Apple,Produce,Jetro,Catering
+Apple Turnover,Pastry,Jetro,Cafe
+Bacon,Meat,Jetro,Cafe
+Banana,Produce,Jetro,Cafe
+BBQ Sauce,Sauce,Jetro,Catering
+Beef Chilli,Meat,Jetro,Catering
+Beef Empanada,Empanada,Jetro,Cafe
+Beef Meatballs,Meat,Jetro,Catering
+Beef Ravioli,Meat,Jetro,Catering
+Black Garbage Bags,Supplies,Jetro,Cafe
+Black Gloves,Supplies,Jetro,Cafe
+Black Paper Bag,Supplies,Jetro,Cafe
+Blackberries,Produce,Jetro,Cafe
+Blue Garbage Bags,Supplies,Jetro,Cafe
+Blueberries,Produce,Jetro,Cafe
+Bread,Carb,Jetro,Catering
+Brioche Bread,Bread,Jetro,Cafe
 Brown Bags,Supplies,Jetro,Cafe
+Brown Boxes,Supplies,Jetro,Cafe
+Brown Paper Bag,Supplies,Jetro,Cafe
+Brown Sugar,Coffee,Jetro,Cafe
+Burger Buns,Bread,Jetro,Catering
+Butter,Dairy,Jetro,Cafe
+Chicken Chunks,Meat,Jetro,Catering
+Chicken Cutlet,Meat,Jetro,Catering
+Chicken Dumplings,Meat,Jetro,Catering
+Chicken Empanada,Empanada,Jetro,Cafe
+Chicken Nuggets,Meat,Jetro,Catering
+Chicken Patty,Meat,Jetro,Catering
+Chocolate Chips,Toppings,Jetro,Cafe
+Chocolate Croissant,Pastry,Jetro,Cafe
+Clamshell Containers,Supplies,Jetro,Cafe
+Cookie Sleeves,Supplies,Jetro,Cafe
+Corn Muffin,Snack,Jetro,Catering
+Croissant,Pastry,Jetro,Cafe
+Drip Beans,Coffee,Jetro,Cafe
+Eggs,Dairy,Jetro,Cafe
+English Muffin,Breakfast,Jetro,Catering
+Espresso Beans,Coffee,Jetro,Cafe
+French Toast,Breakfast,Jetro,Catering
+French Toast Sticks,Breakfast,Jetro,Catering
+Goldfish,Snack,Jetro,Catering
+Granulated Sugar,Coffee,Jetro,Cafe
+Grilled Chicken,Meat,Jetro,Catering
+Half and Half,Dairy,Jetro,Cafe
+Icecream Cone,Icecream,Jetro,Cafe
+Ketchup,Sauce,Jetro,Cafe
+Mac and Cheese,Meat,Jetro,Catering
+Mango Smoothie,Smoothie,Jetro,Cafe
+Mash Potatoes,Carb,Jetro,Catering
+Mayo,Sauce,Jetro,Cafe
+Mayo Ketchup,Sauce,Jetro,Cafe
+Misc Veggie Cans,Veggies,Jetro,Catering
+Mozarella Cheese,Dairy,Jetro,Cafe
+Mozarella Sticks,Meat,Jetro,Catering
+Nutella,Spread,Jetro,Cafe
+NY Cheese Cake,Cake,Jetro,Cafe
+Oats,Toppings,Jetro,Cafe
+Orange,Produce,Jetro,Catering
+Orange Sauce,Sauce,Jetro,Catering
+Oreos,Toppings,Jetro,Cafe
+Pancake,Breakfast,Jetro,Catering
+Panini Bread,Bread,Jetro,Cafe
+Paper Cups 16oz,Supplies,Jetro,Cafe
+Paper Cups 24oz,Supplies,Jetro,Cafe
+Paper Lids,Supplies,Jetro,Cafe
+Paper Towels,Supplies,Jetro,Cafe
+Passion Fruit,Smoothie,Jetro,Cafe
+Pasta,Carb,Jetro,Catering
+Pasta Sauce,Sauce,Jetro,Catering
+Peach Smoothie,Smoothie,Jetro,Cafe
+Pesto,Sauce,Jetro,Cafe
+Pina Colada,Smoothie,Jetro,Cafe
 Plastic Cups 16 oz,Supplies,Jetro,Cafe
 Plastic Cups 24oz,Supplies,Jetro,Cafe
 Plastic Lids,Supplies,Jetro,Cafe
-Chicken Empanada,Empanada,Jetro,Cafe
-Beef Empanada,Empanada,Jetro,Cafe
-Spinach and Cheese Empanada,Empanada,Jetro,Cafe
-Bacon,Meat,Jetro,Cafe
-Eggs,Egg,Jetro,Cafe
-Cream Cheese,Dairy,Bartlett,Cafe
-Croissant,Pastry,Jetro,Cafe
-Chocolate Croissant,Pastry,Jetro,Cafe
-Apple Turnover,Pastry,Jetro,Cafe
-Brioche Bread,Bread,Jetro,Cafe
-Panini Bread,Bread,Jetro,Cafe
-Grilled Chicken,Meat,Jetro,Catering
-Chicken Cutlet,Meat,Jetro,Catering
-Beef Meatballs,Meat,Jetro,Catering
-Chicken Nuggets,Meat,Jetro,Catering
-Beef Chilli,Meat,Jetro,Catering
-Mac and Cheese,Meat,Jetro,Catering
-Chicken Chunks,Meat,Jetro,Catering
-Chicken Patty,Meat,Jetro,Catering
-Mozarella Sticks,Meat,Jetro,Catering
-Beef Ravioli,Meat,Jetro,Catering
+Plastic Straws,Supplies,Jetro,Cafe
 Popcorn Chicken ,Meat,Jetro,Catering
-Chicken Dumplings,Meat,Jetro,Catering
-Misc Veggie Cans,Veggies,Jetro,Catering
+Raisin,Toppings,Jetro,Cafe
+Raisin Bran,Breakfast,Jetro,Catering
+Red Velvet Cake,Cake,Jetro,Cafe
 Rice,Carb,Jetro,Catering
-Pasta,Carb,Jetro,Catering
+Rice Crispy,Breakfast,Jetro,Catering
+Salad,Veggies,Jetro,Cafe
+Simple Syrup,Syrup,Jetro,Cafe
+Spinach and Cheese Empanada,Empanada,Jetro,Cafe
+Spoon Kit,Supplies,Jetro,Cafe
+Spring Rolls,Vegan,Jetro,Catering
+Strawberry,Produce,Jetro,Cafe
+Strawberry Smoothie,Smoothie,Jetro,Cafe
+Syrup,Sauce,Jetro,Catering
+Tea Bags,Coffee,Jetro,Cafe
+Tiramisu,Cake,Jetro,Cafe
+Tomato,Produce,Jetro,Cafe
 Tortilla,Carb,Jetro,Catering
+Tres Leches,Cake,Jetro,Cafe
+Turkey Slices,Meat,Jetro,Catering
+Whipped Cream,Dairy,Jetro,Cafe
+White Wax Paper,Supplies,Jetro,Cafe
 WW Bread,Bread,Jetro,Catering
-Burger Buns,Bread,Jetro,Catering
-Orange,Produce,Jetro,Catering
-Suncup,Juice,Bartlett,Catering
-Vegan Meatballs,Vegan,Sysco,Catering
-Vegan Nuggets,Vegan,Sysco,Catering
+Oliver Paper Seal,Supplies,Oliver,Catering
+Animal Crackers,Snack,Sysco,Catering
+Cheesecake Brownie,Brownie,Sysco,Cafe
+Chocolate Chip Brownie,Brownie,Sysco,Cafe
+Chocolate Icecream,Icecream,Sysco,Cafe
+Cookies and Cream,Cookie,Sysco,Cafe
+Cookies and Cream Icecream,Icecream,Sysco,Cafe
+Egg Patty,Breakfast,Sysco,Catering
 Eggplant,Vegan,Sysco,Catering
 Garbanzo Beans,Vegan,Sysco,Catering
+Lemon Blueberry,Cookie,Sysco,Cafe
+M&M,Cookie,Sysco,Cafe
+Macadamia Nuts,Toppings,Sysco,Cafe
+Mint Chocolate Icecream,Icecream,Sysco,Cafe
+Muffin,Pastry,Sysco,Cafe
+Oatmeal Raisen,Cookie,Sysco,Cafe
+Oreos Brownie,Brownie,Sysco,Cafe
+Pistacho Icecream,Icecream,Sysco,Cafe
+Pumpkin Pecan,Cookie,Sysco,Cafe
+Red Velvet,Cookie,Sysco,Cafe
+Reeses Peanut Butter,Cookie,Sysco,Cafe
+Rocky Road Brownie,Brownie,Sysco,Cafe
+Salted Caramel,Cookie,Sysco,Cafe
+Smores,Cookie,Sysco,Cafe
+Strawberry Icecream,Icecream,Sysco,Cafe
+Triple Chocolate Chip,Cookie,Sysco,Cafe
+Vanilla Icecream,Icecream,Sysco,Cafe
 Vegan Chilli,Vegan,Sysco,Catering
-Waffle,Breakfast,Costco,Catering
-Pancake,Breakfast,Jetro,Catering
-French Toast,Breakfast,Jetro,Catering
-Raisin Bran,Breakfast,Jetro,Catering
-Rice Crispy,Breakfast,Jetro,Catering
-Hashbrown,Breakfast,Triple AAA,Catering
-English Muffin,Breakfast,Jetro,Catering
-Aluminum Trays,Supplies,Triple AAA,Catering
+Vegan Meatballs,Vegan,Sysco,Catering
+Vegan Nuggets,Vegan,Sysco,Catering
+White Chocolate Chips,Toppings,Sysco,Cafe
+Yogurt,Dairy,Sysco,Catering
 Aluminum Lids,Supplies,Triple AAA,Catering
+Aluminum Trays,Supplies,Triple AAA,Catering
+Cheeze Its,Snack,Triple AAA,Catering
+Hashbrown,Breakfast,Triple AAA,Catering
+Logan Sandwhich Paper,Supplies,Triple AAA,Cafe
 Mini Croissant,Breakfast,Triple AAA,Catering
+Cookie Boxes,Supplies,Webstaurant,Cafe
+Spork Kit,Supplies,Webstaurant,Catering
+Baking Powder,Baking Ingredients,Jetro,Cafe
+Baking Soda,Baking Ingredients,Jetro,Cafe
+Biscoff Cookies,Toppings,Jetro,Cafe
+Cinnamon,Baking Ingredients,Jetro,Cafe
+Cornstarch,Baking Ingredients,Jetro,Cafe
+Dark Brown Sugar,Baking Ingredients,Jetro,Cafe
+Flour,Baking Ingredients,Jetro,Cafe
+Kinder Bar,Toppings,Jetro,Cafe
+Oil,Baking Ingredients,Jetro,Cafe
+Pepper,Baking Ingredients,Jetro,Cafe
+Powdered Sugar,Baking Ingredients,Jetro,Cafe
+Salt,Baking Ingredients,Jetro,Cafe
+Vinegar,Baking Ingredients,Jetro,Cafe
+Yeast,Baking Ingredients,Jetro,Cafe

@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+:root{
+  --tl-border:#e5e7eb; --tl-muted:#6b7280; --tl-strong:#111827;
+  --tl-accent:#0ea5e9; --tl-accent-600:#0284c7;
+  --tl-surface:#ffffff; --tl-soft:#f8fafc;
+  --tl-weekend:#fff7ed; --tl-today:#fde68a;
+
+  --time-w: 120px;       /* first column width */
+  --col-w: 180px;        /* day column width (a bit wider to fit names) */
+  --row-h: 36px;         /* slot row height for 60m */
+  --row-h-30: 28px;      /* slot row height for 30m */
+
+  --bar-bg:#eef2ff;      --bar-border:#c7d2fe;  --bar-text:#3730a3;  /* indigo palette */
+  --bar-bg-alt:#e0f2fe;  --bar-border-alt:#bae6fd; --bar-text-alt:#075985; /* sky palette */
+}
+
+.timeline-card{ background:var(--tl-surface); border:1px solid var(--tl-border); border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,.06); overflow:hidden; }
+.timeline-toolbar{ padding:10px 12px; border-bottom:1px solid var(--tl-border); background:linear-gradient(180deg,#fff,#fbfbfc); }
+.btn-outline{ border:1px solid var(--tl-border); color:#111827; background:#fff; padding:6px 10px; }
+.btn-outline:hover{ border-color:var(--tl-accent); color:var(--tl-accent-600); background:#f0f9ff; }
+.select{ border:1px solid var(--tl-border); border-radius:8px; height:32px; padding:2px 8px; }
+.switch{ display:inline-flex; gap:8px; align-items:center; font-size:.9rem; color:var(--tl-muted); }
+
+.timeline-wrap{ max-width:100%; overflow:auto; background:#fff; }
+
+/* Grid canvas */
+.timeline-grid{
+  display:grid;
+  grid-template-columns: var(--time-w) repeat(7, var(--col-w));
+  grid-auto-rows: var(--row-h);
+  position:relative;
+}
+.timeline-grid.compact-rows{ grid-auto-rows: var(--row-h-30); }
+
+/* Header / time cells */
+.tl-header{ position:sticky; top:0; z-index:5; background:var(--tl-soft); border-bottom:1px solid var(--tl-border);
+  display:flex; align-items:center; padding:8px 10px; font-weight:700; box-shadow:0 2px 0 rgba(0,0,0,.03); }
+.tl-time,.tl-header.time{ position:sticky; left:0; z-index:4; background:inherit; border-right:1px solid var(--tl-border); }
+.time-label{ font-weight:700; color:var(--tl-strong); padding:8px 10px; }
+
+/* Day x slot background cells */
+.tl-cell{ border-right:1px solid var(--tl-border); border-bottom:1px solid var(--tl-border); position:relative; }
+.tl-weekend{ background:var(--tl-weekend); }
+.tl-today{ outline:2px dashed var(--tl-today); outline-offset:-2px; }
+.tl-hour-line{ box-shadow: inset 0 -2px 0 var(--tl-border); }
+
+/* Shift bars (now multiline + side-by-side lanes) */
+.shift-bar{
+  position:absolute;
+  top:2px; bottom:2px;
+  border:1px solid var(--bar-border);
+  background:var(--bar-bg);
+  color:var(--bar-text);
+  border-radius:10px;
+  padding:6px 8px;
+  font-size:.9rem;
+  line-height:1.2;
+  display:flex; flex-direction:column; align-items:flex-start; justify-content:center;
+  overflow:hidden; /* keep inside lane */
+}
+.shift-bar.alt{ border-color:var(--bar-border-alt); background:var(--bar-bg-alt); color:var(--bar-text-alt); }
+.bar-name{ font-weight:800; white-space:normal; overflow:visible; text-overflow:unset; }
+.bar-time{ font-weight:600; opacity:.8; font-size:.85rem; }
+
+/* Today badge in header */
+.tl-day-badge{ font-weight:700; }
+</style>
+
+<div x-data="timelineView()" x-init="init('{{ week_start }}')" class="container-fluid">
+  <div class="timeline-card">
+    <div class="timeline-toolbar d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div><h4 class="mb-0">Time-Slot View · Week of <span x-text="fmtDate(weekStart)"></span></h4></div>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <a href="/admin/schedule/grid" class="btn btn-outline">⬅️ Grid View</a>
+        <button class="btn btn-outline" @click="prevWeek()">← Prev</button>
+        <button class="btn btn-outline" @click="nextWeek()">Next →</button>
+
+        <span class="switch">Slot:
+          <select class="select" x-model.number="slotMinutes" @change="recompute()">
+            <option :value="60">60 min</option>
+            <option :value="30">30 min</option>
+          </select>
+        </span>
+
+        <span class="switch">Hours:
+          <select class="select" x-model.number="dayStart" @change="recompute()">
+            <option :value="6">6</option><option :value="7">7</option><option :value="8">8</option><option :value="9">9</option>
+          </select>
+          —
+          <select class="select" x-model.number="dayEnd" @change="recompute()">
+            <option :value="18">18</option><option :value="20">20</option>
+            <option :value="21">21</option><option :value="22">22</option><option :value="23">23</option>
+          </select>
+        </span>
+
+        <span class="switch">Worker Type:
+          <select class="select" x-model="roleFilter" @change="recompute()">
+            <option value="__ALL__">All types</option>
+            <template x-for="r in roles" :key="r"><option x-text="r"></option></template>
+          </select>
+        </span>
+      </div>
+    </div>
+
+    <div class="timeline-wrap">
+      <div :class="['timeline-grid', slotMinutes===30 ? 'compact-rows' : '']">
+        <!-- Header -->
+        <div class="tl-header time" style="grid-column:1/2; grid-row:1;">Time</div>
+        <template x-for="(d, idx) in days" :key="'h'+d">
+          <div class="tl-header" :class="{'tl-today': isToday(d)}" :style="`grid-column:${idx+2}/${idx+3}; grid-row:1;`">
+            <span class="tl-day-badge" x-text="weekdayLabel(d)"></span>
+          </div>
+        </template>
+
+        <!-- Time labels -->
+        <template x-for="(slot, r) in slots" :key="'t'+slot.iso">
+          <div class="tl-time" :style="`grid-column:1/2; grid-row:${r+2};`">
+            <div class="time-label" x-text="slot.label"></div>
+          </div>
+        </template>
+
+        <!-- Background cells -->
+        <template x-for="(d, c) in days" :key="'c'+d">
+          <template x-for="(slot, r) in slots" :key="'b'+d+slot.iso">
+            <div class="tl-cell"
+                 :class="[{ 'tl-weekend': (c===5 || c===6) }, { 'tl-today': isToday(d) }, hourSeparator(slot.iso)]"
+                 :style="`grid-column:${c+2}; grid-row:${r+2};`">
+            </div>
+          </template>
+        </template>
+
+        <!-- Shift bars with lane packing -->
+        <template x-for="bar in bars" :key="bar.key">
+          <div class="shift-bar" :class="bar.alt ? 'alt' : ''" :style="barStyle(bar)">
+            <span class="bar-name" x-text="bar.name"></span>
+            <span class="bar-time" x-text="bar.span"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function isoToLocalDate(iso){ const [y,m,d]=iso.split("-").map(Number); return new Date(y,m-1,d); }
+function toISODateLocal(dt){ const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; }
+Date.prototype.addDays=function(n){ const d=new Date(this); d.setDate(d.getDate()+n); return d; };
+
+function fmt12(hhmm){ const [H,M]=hhmm.split(':').map(Number); const ap=H>=12?'PM':'AM'; const h=((H+11)%12)+1; return `${h}:${String(M).padStart(2,'0')} ${ap}`; }
+function toMinutes(hhmm){ const [h,m]=hhmm.split(':').map(Number); return h*60+m; }
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+function timelineView(){
+  return {
+    weekStart:null, days:[], workers:[], rawCells:{}, roles:[], roleFilter:'__ALL__',
+    slots:[], bars:[],
+    slotMinutes:60, dayStart:6, dayEnd:22,
+
+    async init(weekStartISO){
+      this.weekStart = toISODateLocal(isoToLocalDate(weekStartISO));
+      await this.fetch();
+    },
+
+    async fetch(){
+      const res = await fetch(`/admin/schedule/data?week_start=${this.weekStart}`);
+      const data = await res.json();
+      this.days = data.days;
+      this.workers = data.workers;
+      this.rawCells = data.cells || {};
+      const rs=new Set(); for (const w of this.workers){ if (w.role) rs.add(w.role); }
+      this.roles = Array.from(rs).sort((a,b)=>a.localeCompare(b));
+      this.recompute();
+    },
+
+    recompute(){
+      // Build slots
+      this.slots = [];
+      for (let t=this.dayStart*60; t < this.dayEnd*60; t+=this.slotMinutes){
+        const H=Math.floor(t/60), M=t%60;
+        const iso=`${String(H).padStart(2,'0')}:${String(M).padStart(2,'0')}`;
+        this.slots.push({ iso, label: fmt12(iso) });
+      }
+      const windowStart = this.dayStart*60, windowEnd = this.dayEnd*60;
+
+      // Build bars per day, with lane packing for overlaps
+      const byId = {}; for (const w of this.workers) byId[w.id]=w;
+      const bars = [];
+
+      for (let c=0; c<this.days.length; c++){
+        const d = this.days[c];
+
+        // collect all visible shifts for the day
+        const shifts=[];
+        for (const wid in this.rawCells){
+          const cell = this.rawCells[wid]?.[d];
+          if (!cell) continue;
+          const w = byId[wid]; if (!w) continue;
+          if (this.roleFilter !== '__ALL__' && (w.role||'') !== this.roleFilter) continue;
+
+          const startMin = toMinutes(cell.start);
+          const endMin   = toMinutes(cell.end);
+          const clipStart = clamp(startMin, windowStart, windowEnd);
+          const clipEnd   = clamp(endMin,   windowStart, windowEnd);
+          if (clipEnd <= clipStart) continue;
+
+          shifts.push({
+            wid, name: w.name || '—',
+            span: `${fmt12(cell.start)}–${fmt12(cell.end)}`,
+            startMin: clipStart, endMin: clipEnd
+          });
+        }
+
+        // sort by start then name
+        shifts.sort((a,b)=> a.startMin - b.startMin || a.name.localeCompare(b.name));
+
+        // lane packing (greedy interval graph coloring)
+        const lanes = []; // each lane keeps the endMin of the last placed bar
+        const placed = []; // store lane index for each shift
+
+        for (const s of shifts){
+          let laneIdx = -1;
+          for (let i=0;i<lanes.length;i++){
+            if (lanes[i] <= s.startMin){ laneIdx = i; break; }
+          }
+          if (laneIdx === -1){ laneIdx = lanes.length; lanes.push(0); }
+          lanes[laneIdx] = s.endMin;
+          placed.push({ s, laneIdx });
+        }
+
+        const laneCount = Math.max(1, lanes.length);
+
+        // convert to bars (grid row spans + horizontal lane width)
+        for (let i=0;i<placed.length;i++){
+          const { s, laneIdx } = placed[i];
+          const relStart = (s.startMin - windowStart) / this.slotMinutes;
+          const relEnd   = (s.endMin   - windowStart) / this.slotMinutes;
+          const rowStart = Math.floor(relStart) + 2; // +2: header row and 1-based index
+          const rowEnd   = Math.ceil(relEnd)   + 2;
+
+          bars.push({
+            key: `${d}-${s.wid}-${i}`,
+            name: s.name,
+            span: s.span,
+            col: c + 2,
+            rowStart, rowEnd,
+            laneIdx, laneCount,
+            alt: (laneIdx % 2) === 1 // alternate color by lane for clarity
+          });
+        }
+      }
+
+      this.bars = bars;
+    },
+
+    // absolutely position bar within its day column, dividing width into lanes
+    barStyle(bar){
+      const gapPx = 6; // small gap between lanes
+      const laneW = 100 / bar.laneCount;          // percentage of column width
+      const leftPct = laneW * bar.laneIdx;
+      // convert gap into percentage assuming column width ~ var(--col-w)
+      // we approximate by subtracting a few px from each lane via calc
+      return `
+        grid-column:${bar.col}/${bar.col+1};
+        grid-row:${bar.rowStart}/${bar.rowEnd};
+        left: calc(${leftPct}% + ${gapPx}px);
+        width: calc(${laneW}% - ${gapPx * (bar.laneCount + 1) / bar.laneCount}px);
+      `;
+    },
+
+    fmtDate(iso){ return isoToLocalDate(iso).toLocaleDateString(); },
+    weekdayLabel(d){
+      const dt=isoToLocalDate(d);
+      const m=String(dt.getMonth()+1).padStart(2,'0'), day=String(dt.getDate()).padStart(2,'0');
+      return `${dt.toLocaleDateString(undefined,{weekday:'short'})} ${m}/${day}`;
+    },
+    isToday(dISO){ return dISO === toISODateLocal(new Date()); },
+    hourSeparator(hhmm){ if (this.slotMinutes!==30) return ''; return hhmm.endsWith(':00') ? 'tl-hour-line' : ''; },
+
+    prevWeek(){ const d=isoToLocalDate(this.weekStart).addDays(-7); this.weekStart=toISODateLocal(d); this.fetch(); },
+    nextWeek(){ const d=isoToLocalDate(this.weekStart).addDays(7);  this.weekStart=toISODateLocal(d); this.fetch(); },
+  }
+}
+</script>
+{% endblock %}

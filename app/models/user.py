@@ -4,6 +4,7 @@ from app.models.base import Base
 import uuid
 from app.models.shortage_log import ShortageLog
 from app.models.custom_modules.vending_log import VendingLog
+from sqlalchemy import Numeric
 
 class User(Base):
     __tablename__ = "users"
@@ -22,3 +23,4 @@ class User(Base):
     shifts = relationship("Shift", back_populates="worker")
     submissions = relationship("TaskSubmission", back_populates="worker")
     vending_logs = relationship("VendingLog", back_populates="submitter", cascade="all, delete-orphan")
+    hourly_rate = Column(Numeric(10,2), nullable=True) # per-tenant rate

@@ -25,6 +25,7 @@ from app.schemas.shift import ShiftCreate
 from app.crud import shift, internal_task
 from app.api.admin.shifts_bulk import router as shifts_bulk_router
 from app.api.admin.shifts_clone import router as shifts_clone_router
+from app.api.admin.schedule_grid_routes import schedule_grid_page
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")

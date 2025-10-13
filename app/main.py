@@ -29,7 +29,8 @@ import app.models  # registers all models via models/__init__.py
 from sqlalchemy.orm import configure_mappers
 configure_mappers()
 from fastapi.staticfiles import StaticFiles
-
+from app.api.admin import admin_timeclock_routes
+from app.api.admin import schedule_grid_routes
 
 load_dotenv()
 
@@ -176,3 +177,5 @@ app.include_router(admin_menu_routes.router)
 app.include_router(admin_menu_item_routes.router)
 app.include_router(customer_routes.router)
 app.include_router(shopping_router)
+app.include_router(admin_timeclock_routes.router)
+app.include_router(schedule_grid_routes.router)

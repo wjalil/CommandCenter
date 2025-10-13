@@ -1,225 +1,298 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="120">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="refresh" content="120" />
   <title>My Shifts</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <style>
-    body {
-      background: linear-gradient(to bottom, #f9fbfe, #edf1f5);
-      font-family: 'Segoe UI', sans-serif;
-      color: #2b2f42;
-      padding-bottom: 3rem;
+    :root{
+      --ink:#0f172a; --muted:#64748b; --border:#e2e8f0; --soft:#f8fafc; --soft2:#eef2ff;
+      --brand:#0d6efd; --success:#16a34a; --info:#0ea5e9;
     }
-
-    .navbar {
-      background-color: #ffffff;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    body{ background: radial-gradient(1200px 600px at 0% 0%, #f3f6fb 0%, #eef2f7 40%, #e9eef5 100%); color:var(--ink); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; padding-bottom:3rem; }
+    .navbar{ background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.05); }
+    .navbar-brand{ font-weight:800; font-size:1.1rem; color:#0d6efd!important; letter-spacing:.2px; }
+    .header-actions .btn{ border-radius:10px; }
+    .toolbar{ background:#fff; border:1px solid var(--border); border-radius:14px; padding:12px; box-shadow:0 6px 18px rgba(0,0,0,.05); }
+    .segmented{ border:1px solid var(--border); border-radius:12px; overflow:hidden; display:inline-flex; }
+    .segmented .btn{ border:0; padding:.45rem .8rem; }
+    .segmented .btn.active{ background:#0d6efd; color:#fff; }
+    .segmented .btn + .btn{ border-left:1px solid var(--border); }
+    .hint{ color:var(--muted); font-size:.9rem; }
+    .week-header{
+      background: linear-gradient(180deg, #eef3ff, #e7edff);
+      border:1px solid #d9e2ff; border-left-width: 6px; border-left-color: #0d6efd;
+      padding:.6rem .8rem; border-radius:12px; font-weight:700; color:#0b3a86;
+      display:flex; justify-content:space-between; align-items:center;
+      box-shadow:0 2px 8px rgba(0,0,0,.04);
+      cursor:pointer; position: sticky; top: 64px; z-index: 1;
     }
-
-    .navbar-brand {
-      font-weight: 700;
-      font-size: 1.3rem;
-      color: #0d6efd !important;
-    }
-
-    .week-divider {
-      background-color: #dce8ff;
-      border-left: 6px solid #0d6efd;
-      padding: 0.75rem 1.25rem;
-      border-radius: 0.5rem;
-      font-weight: 600;
-      color: #0d3c72;
-      margin-bottom: 1rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-    }
-
-    .shift-card {
-      border-radius: 14px;
-      padding: 1.25rem;
-      margin-bottom: 1.25rem;
-      background: #ffffff;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
-      transition: box-shadow 0.3s ease;
-    }
-
-    .shift-card:hover {
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-    }
-
-    .shift-label {
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: #0d6efd;
-    }
-
-    .time-box {
-      background-color: #eef5ff;
-      padding: 0.8rem 1rem;
-      border-radius: 10px;
-      margin-bottom: 1rem;
-    }
-
-    .badge-filled {
-      background-color: #0d6efd;
-      font-weight: 500;
-    }
-
-    .badge-unfilled {
-      background-color: #ffc107;
-      color: #212529;
-      font-weight: 500;
-    }
-
-    .badge-completed {
-      background-color: #20c997;
-      font-weight: 500;
-    }
-
-    .btn {
-      border-radius: 8px;
-    }
-
-    .btn-outline-primary:hover {
-      background-color: #0d6efd;
-      color: #fff;
-    }
-
-    .btn-outline-secondary:hover {
-      background-color: #6c757d;
-      color: #fff;
-    }
-
-    .no-shifts {
-      font-size: 1rem;
-      color: #6c757d;
-      padding: 2rem;
-      text-align: center;
-      background: #ffffff;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-    }
-    /* ✨ Fade + Slide Animation */
-    .shift-card {
-      opacity: 0;
-      transform: translateY(20px);
-      animation: fadeSlideUp 0.6s ease-out forwards;
-    }
-
-    .shift-card:nth-child(1) { animation-delay: 0.1s; }
-    .shift-card:nth-child(2) { animation-delay: 0.2s; }
-    .shift-card:nth-child(3) { animation-delay: 0.3s; }
-    .shift-card:nth-child(4) { animation-delay: 0.4s; }
-    .shift-card:nth-child(5) { animation-delay: 0.5s; }
-
-    @keyframes fadeSlideUp {
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    .btn {
-        transition: all 0.2s ease-in-out;
-      }
-
-      .btn:hover {
-        transform: scale(1.04);
-      }
-      .card-title {
-        text-shadow: 0 1px 1px rgba(168, 39, 39, 0.05);
-      }
-      .flash-badge {
-        animation: pulse 1.2s ease-in-out infinite;
-      }
-
-      @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(255,193,7, 0.6); }
-        70% { box-shadow: 0 0 0 10px rgba(255,193,7, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(255,193,7, 0); }
-      }
+    @media (max-width:576px){ .week-header{ top: 56px; } }
+    .week-hours{ color:var(--muted); font-weight:700; }
+    .shift-card{ border:1px solid var(--border); border-radius:14px; background:#fff; box-shadow:0 4px 10px rgba(0,0,0,.05); padding:14px; }
+    .rail{ min-width:84px; background:var(--soft); border:1px dashed var(--border); border-radius:12px; text-align:center; padding:.6rem .4rem; }
+    .rail .dow{ font-weight:900; } .rail .md{ color:var(--muted); font-weight:700; }
+    .timebox{ font-weight:800; }
+    .label-sub{ color:var(--muted); font-size:.92rem; }
+    .status-pill{ border-radius:999px; padding:.25rem .6rem; font-weight:700; font-size:.78rem; }
+    .status-complete{ background:#dcfce7; color:#166534; }
+    .status-info{ background:#eff6ff; color:#1e40af; }
+    .progress{ height:10px; border-radius:999px; background:#e5e7eb; }
+    .progress-bar{ background: linear-gradient(90deg, #60a5fa, #38bdf8); }
+    .btn-soft{ border:1px solid var(--border); background:#fff; }
+    .btn-soft:hover{ background:#f8fafc; }
   </style>
 </head>
 <body>
 
-<!-- 👤 Worker Header -->
-<nav class="navbar navbar-expand-lg navbar-light shadow-sm px-4 mb-4">
+<nav class="navbar navbar-expand-lg navbar-light shadow-sm px-4 mb-3">
   <div class="container-fluid d-flex justify-content-between align-items-center">
     <span class="navbar-brand">👋 Welcome, {{ worker_name }}</span>
-    <div class="d-flex gap-2">
-      <a href="/documents/worker/documents" class="btn btn-outline-primary btn-sm">
-        📄 Recipes / SOPs
-      </a>
-      <a href="/modules/driver_order" class="btn btn-outline-dark btn-sm">
-        🚚 Driver Logs
-      </a>
-        <a href="/logout" class="btn btn-outline-danger btn-sm">🔓 Logout</a>
+    <div class="header-actions d-flex gap-2">
+      <a href="/documents/worker/documents" class="btn btn-outline-primary btn-sm">📄 Recipes / SOPs</a>
+      <a href="/modules/driver_order" class="btn btn-outline-dark btn-sm">🚚 Driver Logs</a>
+      <a href="/modules/shopping_cart" class="btn btn-outline-success btn-sm">🛒 Shopping Cart</a>
+      <a href="/worker/today" class="btn btn-soft btn-sm">⚡ Today</a>
+      <a href="/logout" class="btn btn-outline-danger btn-sm">🔓 Logout</a>
     </div>
   </div>
 </nav>
 
 <div class="container">
-  {% if weekly_shifts %}
-    {% for week_label, shifts in weekly_shifts.items() %}
 
-      <!-- 💡 Week Divider -->
-      <div class="week-divider">
-        🗓️ Week of {{ week_label }}
-        <span class="text-muted small">🕒 {{ weekly_hours[week_label]|round(2) }} hrs scheduled</span>
+  <div class="toolbar d-flex flex-wrap justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center gap-3">
+      <div class="segmented" id="viewToggle">
+        <button class="btn btn-sm active" data-view="upcoming">Upcoming</button>
+        <button class="btn btn-sm" data-view="past">Past</button>
       </div>
-
-      {% for shift in shifts %}
-      <div class="shift-card">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <div class="text-dark fw-semibold" style="font-size: 1.1rem;">
-              {{ shift.start_time.strftime('%a %b %d') }} — {{ shift.start_time.strftime('%I:%M %p') }} to {{ shift.end_time.strftime('%I:%M %p') }}
-            </div>
-            <div class="text-muted small">🧱 {{ shift.label }}</div>
-          </div>
-
-          <div class="text-end">
-            {% set alert = shift_alerts.get(shift.id) %}
-            {% if alert and alert.total > 0 %}
-              {% if alert.pending > 0 %}
-                <span class="badge bg-warning text-dark flash-badge mt-1">🆕 {{ alert.pending }} Task{{ 's' if alert.pending > 1 else '' }}</span>
-              {% else %}
-                <span class="badge bg-success mt-1">✅ All Tasks Done</span>
-              {% endif %}
-            {% else %}
-              <span class="badge bg-secondary mt-1">No Tasks</span>
-            {% endif %}
-
-            {% if shift.is_completed %}
-              <div><span class="badge badge-completed mt-1">✅ Completed</span></div>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="d-flex flex-wrap gap-2">
-          <a href="/tasks/shift/{{ shift.id }}/tasks" class="btn btn-outline-primary btn-sm">
-            📋 View Tasks
-          </a>
-          <a href="/shortage-form?shift_id={{ shift.id }}" class="btn btn-outline-secondary btn-sm">
-            📦 Report Shortage
-          </a>
-        </div>
-      </div>
-      {% endfor %}
-
-
-    {% endfor %}
-  {% else %}
-    <div class="no-shifts">
-      You don't have any assigned shifts yet. Check back soon!
+      <span class="hint">Auto-refreshes every 2 minutes</span>
     </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-soft btn-sm" id="collapseAll">Collapse All</button>
+      <button class="btn btn-soft btn-sm" id="expandAll">Expand All</button>
+      <button class="btn btn-soft btn-sm" onclick="location.reload()">🔄 Refresh</button>
+    </div>
+  </div>
+
+  {% if weekly_shifts %}
+    {% set upcoming = {} %}{% set past = {} %}
+    {% for week_label, shifts in weekly_shifts.items() %}
+      {% set u = [] %}{% set p = [] %}
+      {% for shift in shifts %}
+        {% if shift.end_time >= (datetime.utcnow()) %}{% set _ = u.append(shift) %}{% else %}{% set _ = p.append(shift) %}{% endif %}
+      {% endfor %}
+      {% if u %}{% set _ = upcoming.update({week_label: u}) %}{% endif %}
+      {% if p %}{% set _ = past.update({week_label: p}) %}{% endif %}
+    {% endfor %}
+
+    <!-- Upcoming -->
+    <div id="section-upcoming">
+      {% if upcoming %}
+        {% for week_label, shifts in upcoming.items() %}
+          <div class="mb-2 week-header" data-bs-toggle="collapse" data-bs-target="#wk-u-{{ loop.index }}" aria-expanded="true">
+            <div>🗓️ Week of {{ week_label }}</div>
+            <div class="week-hours">🕒 {{ weekly_hours.get(week_label, 0)|round(2) }} hrs scheduled</div>
+          </div>
+          <div class="collapse show mb-3" id="wk-u-{{ loop.index }}">
+            <div class="vstack gap-3">
+              {% for shift in shifts %}
+                {% set alert = shift_alerts.get(shift.id) %}
+                {% set total = alert.total if alert else 0 %}
+                {% set pending = alert.pending if alert else 0 %}
+                {% set done = (total - pending) if total else 0 %}
+                {% set pct = ( (done / total) * 100 ) if total else 0 %}
+                <div class="shift-card">
+                  <div class="d-flex gap-3 align-items-start flex-wrap">
+                    <div class="rail">
+                      <div class="dow">{{ shift.start_time.strftime('%a') }}</div>
+                      <div class="md">{{ shift.start_time.strftime('%b %d') }}</div>
+                    </div>
+                    <div class="flex-grow-1">
+                      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                        <div>
+                          <div class="timebox">
+                            <span class="fw-bold">{{ shift.start_time.strftime('%I:%M %p') }} → {{ shift.end_time.strftime('%I:%M %p') }}</span>
+                          </div>
+                          <div class="label-sub mt-1">🧱 {{ shift.label }}</div>
+                        </div>
+                        <div class="text-end d-flex flex-column align-items-end gap-1">
+                          {% if total > 0 %}
+                            <div style="width:220px;max-width:100%;">
+                              <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-muted">Tasks</span>
+                                <span class="text-muted">{{ done }}/{{ total }}</span>
+                              </div>
+                              <div class="progress">
+                                <div class="progress-bar" role="progressbar"
+                                     data-pct="{{ pct|round(0) }}"
+                                     aria-valuenow="{{ pct|round(0) }}" aria-valuemin="0" aria-valuemax="100"></div>
+                              </div>
+                            </div>
+                          {% else %}
+                            <span class="badge bg-secondary">No Tasks</span>
+                          {% endif %}
+                        </div>
+                      </div>
+                      <div class="d-flex flex-wrap gap-2 mt-3">
+                        <a href="/tasks/shift/{{ shift.id }}/tasks" class="btn btn-outline-primary btn-sm">{{ 'Start Tasks' if pending > 0 else 'View Tasks' }}</a>
+                        <a class="btn btn-outline-secondary btn-sm" href="#" data-ics="shift" data-title="{{ shift.label|e }}" data-start="{{ shift.start_time.isoformat() }}Z" data-end="{{ shift.end_time.isoformat() }}Z">➕ Add to Calendar</a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-muted">No upcoming shifts.</div>
+      {% endif %}
+    </div>
+
+    <!-- Past -->
+    <div id="section-past" class="d-none">
+      {% if past %}
+        {% for week_label, shifts in past.items() %}
+          <div class="mb-2 week-header collapsed" data-bs-toggle="collapse" data-bs-target="#wk-p-{{ loop.index }}" aria-expanded="false">
+            <div>🗓️ Week of {{ week_label }}</div>
+            <div class="week-hours">⏱ {{ weekly_hours.get(week_label, 0)|round(2) }} hrs worked</div>
+          </div>
+          <div class="collapse mb-3" id="wk-p-{{ loop.index }}">
+            <div class="vstack gap-3">
+              {% for shift in shifts %}
+                {% set alert = shift_alerts.get(shift.id) %}
+                {% set total = alert.total if alert else 0 %}
+                {% set pending = alert.pending if alert else 0 %}
+                {% set done = (total - pending) if total else 0 %}
+                {% set pct = ( (done / total) * 100 ) if total else 0 %}
+                <div class="shift-card">
+                  <div class="d-flex gap-3 align-items-start flex-wrap">
+                    <div class="rail">
+                      <div class="dow">{{ shift.start_time.strftime('%a') }}</div>
+                      <div class="md">{{ shift.start_time.strftime('%b %d') }}</div>
+                    </div>
+                    <div class="flex-grow-1">
+                      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                        <div>
+                          <div class="timebox">
+                            <span class="fw-bold">{{ shift.start_time.strftime('%I:%M %p') }} → {{ shift.end_time.strftime('%I:%M %p') }}</span>
+                          </div>
+                          <div class="label-sub mt-1">🧱 {{ shift.label }}</div>
+                        </div>
+                        <div class="text-end d-flex flex-column align-items-end gap-1">
+                          {% if total > 0 %}
+                            <div style="width:220px;max-width:100%;">
+                              <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-muted">Tasks</span>
+                                <span class="text-muted">{{ done }}/{{ total }}</span>
+                              </div>
+                              <div class="progress">
+                                <div class="progress-bar" role="progressbar"
+                                     data-pct="{{ pct|round(0) }}"
+                                     aria-valuenow="{{ pct|round(0) }}" aria-valuemin="0" aria-valuemax="100"></div>
+                              </div>
+                            </div>
+                          {% endif %}
+                          {% if shift.is_completed %}
+                            <span class="status-pill status-complete">Completed</span>
+                          {% else %}
+                            <span class="status-pill status-info">Ended</span>
+                          {% endif %}
+                        </div>
+                      </div>
+                      <div class="d-flex flex-wrap gap-2 mt-3">
+                        <a href="/tasks/shift/{{ shift.id }}/tasks" class="btn btn-outline-primary btn-sm">View Tasks</a>
+                        <a class="btn btn-outline-secondary btn-sm" href="#" data-ics="shift" data-title="{{ shift.label|e }}" data-start="{{ shift.start_time.isoformat() }}Z" data-end="{{ shift.end_time.isoformat() }}Z">➕ Add to Calendar</a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-muted">No past shifts.</div>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="no-shifts">You don't have any assigned shifts yet. Check back soon!</div>
   {% endif %}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Progress widths from data-pct (keeps linters happy)
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.progress-bar[data-pct]').forEach(el => {
+      const v = Math.max(0, Math.min(100, parseInt(el.dataset.pct || '0', 10)));
+      el.style.width = v + '%';
+    });
+  });
+
+  // View toggle
+  (function(){
+    const toggle = document.getElementById('viewToggle');
+    const upcoming = document.getElementById('section-upcoming');
+    const past = document.getElementById('section-past');
+    const key = 'workerViewTab';
+    function apply(view){
+      if(view === 'past'){ upcoming.classList.add('d-none'); past.classList.remove('d-none'); }
+      else{ past.classList.add('d-none'); upcoming.classList.remove('d-none'); }
+      [...toggle.querySelectorAll('.btn')].forEach(b=> b.classList.toggle('active', b.dataset.view === view));
+      localStorage.setItem(key, view);
+    }
+    toggle.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-view]'); if(!btn) return; apply(btn.dataset.view);
+    });
+    apply(localStorage.getItem(key) || 'upcoming');
+  })();
+
+  // Collapse/Expand all in current tab
+  (function(){
+    const collapseAll = document.getElementById('collapseAll');
+    const expandAll = document.getElementById('expandAll');
+    function visibleRoot(){
+      return document.getElementById(
+        document.getElementById('section-past').classList.contains('d-none') ? 'section-upcoming' : 'section-past'
+      );
+    }
+    collapseAll.addEventListener('click', ()=>{
+      const root = visibleRoot();
+      root.querySelectorAll('.collapse.show').forEach(el => new bootstrap.Collapse(el, {toggle:false}).hide());
+    });
+    expandAll.addEventListener('click', ()=>{
+      const root = visibleRoot();
+      root.querySelectorAll('.collapse').forEach(el => new bootstrap.Collapse(el, {toggle:false}).show());
+    });
+  })();
+
+  // Add-to-Calendar (.ics)
+  (function(){
+    function dt(dt){ const d = new Date(dt); return d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z'); }
+    function makeICS(title, startISO, endISO){
+      const uid = Math.random().toString(36).slice(2) + "@cookieops";
+      const body = [
+        "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//CookieOps//Shifts//EN",
+        "BEGIN:VEVENT","UID:"+uid,"DTSTAMP:"+dt(new Date()),
+        "DTSTART:"+dt(startISO),"DTEND:"+dt(endISO),
+        "SUMMARY:"+(title||"Shift"),
+        "END:VEVENT","END:VCALENDAR"
+      ].join("\r\n");
+      return "data:text/calendar;charset=utf-8,"+encodeURIComponent(body);
+    }
+    document.addEventListener('click', (e)=>{
+      const a = e.target.closest('a[data-ics="shift"]'); if(!a) return;
+      e.preventDefault();
+      const href = makeICS(a.dataset.title, a.dataset.start, a.dataset.end);
+      a.setAttribute('href', href);
+      a.setAttribute('download', (a.dataset.title || 'shift') + ".ics");
+      a.click();
+    });
+  })();
+</script>
 </body>
 </html>

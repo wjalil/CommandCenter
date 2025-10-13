@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="refresh" content="300" />
+  <title>Worker · Home</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body { background: linear-gradient(to bottom, #f9fbfe, #edf1f5); font-family: 'Segoe UI', sans-serif; color: #2b2f42; padding-bottom: 3rem; }
+    .navbar { background-color: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+    .navbar-brand { font-weight: 700; font-size: 1.3rem; color: #0d6efd !important; }
+    .clock-panel { border-left: 6px solid #0d6efd; border-radius: 12px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.05); padding: 1rem 1.25rem; }
+    .quick-actions .card { border-radius: 14px; box-shadow: 0 4px 10px rgba(0,0,0,.05); transition: transform .15s ease, box-shadow .2s ease; }
+    .quick-actions .card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,.08); }
+    .btn { border-radius: 8px; transition: all .2s ease-in-out; }
+    .btn:hover { transform: scale(1.03); }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<nav class="navbar navbar-expand-lg navbar-light shadow-sm px-4 mb-4">
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <span class="navbar-brand">👋 Welcome, {{ worker_name }}</span>
+    <div class="d-flex gap-2">
+      <a href="/logout" class="btn btn-outline-danger btn-sm">🔓 Logout</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- ⏱ Clock In/Out panel -->
+<div class="clock-panel mb-4">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div>
+      {% if open_entry %}
+        <div class="fw-semibold">✅ You clocked in at
+          {% set est_time = open_entry.clock_in.astimezone(pytz.timezone('America/New_York')) %}
+          <span id="clockInTime">{{ est_time.strftime('%I:%M %p') }}</span>
+        </div>
+        <div class="text-muted small">
+          Elapsed: <span id="elapsed" data-start="{{ open_entry.clock_in.isoformat() }}Z">--:--:--</span>
+        </div>
+      {% else %}
+        <div class="fw-semibold">⏱ You are currently clocked out.</div>
+        <div class="text-muted small">Tap “Clock In” to start your shift timer.</div>
+      {% endif %}
+    </div>
+
+    <div class="d-flex gap-2">
+      {% if open_entry %}
+        <form id="clockOutForm" method="post" action="/worker/clock-out">
+          <button class="btn btn-danger btn-lg">Clock Out</button>
+        </form>
+      {% else %}
+        <form id="clockInForm" method="post" action="/worker/clock-in">
+          {# Only include shift_id when we actually have one #}
+          {% if default_shift_id %}
+            <input type="hidden" name="shift_id" value="{{ default_shift_id }}" />
+          {% endif %}
+          <button class="btn btn-primary btn-lg">Clock In</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+  <!-- ⚡ Quick Actions -->
+  <div class="quick-actions row g-3">
+    <div class="col-12 col-md-6 col-lg-3">
+      <a href="/worker/shifts" class="text-decoration-none text-dark">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="fs-3 mb-2">🗓️</div>
+            <h5 class="card-title mb-1">View Schedule</h5>
+            <p class="text-muted mb-0 small">See all your assigned shifts</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-3">
+      <a href="/shopping/items" class="text-decoration-none text-dark">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="fs-3 mb-2">📦</div>
+            <h5 class="card-title mb-1">Report Missing Items</h5>
+            <p class="text-muted mb-0 small">Open the shopping module</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-3">
+      <a href="/documents/worker/documents" class="text-decoration-none text-dark">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="fs-3 mb-2">📄</div>
+            <h5 class="card-title mb-1">View Recipes</h5>
+            <p class="text-muted mb-0 small">Recipes & SOP repository</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-3">
+      <a href="/modules/driver_order" class="text-decoration-none text-dark">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="fs-3 mb-2">📝</div>
+            <h5 class="card-title mb-1">Driver Log</h5>
+            <p class="text-muted mb-0 small">Submit delivery notes & photo</p>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Intercept clock forms to POST via fetch and reload on success
+  function hookAjax(formId){
+    const f = document.getElementById(formId);
+    if(!f) return;
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const resp = await fetch(f.action, { method:'POST', body: new FormData(f) });
+      // ignore body; just reload so state toggles
+      if (resp.ok) window.location.reload();
+    });
+  }
+  hookAjax('clockInForm');
+  hookAjax('clockOutForm');
+
+  // Live elapsed timer from ISO start
+  (function(){
+    const el = document.getElementById('elapsed');
+    if (!el) return;
+    const startISO = el.getAttribute('data-start');
+    const startedAt = startISO ? new Date(startISO) : null;
+    if (!startedAt) return;
+
+    function pad(n){ return n.toString().padStart(2,'0'); }
+    function tick(){
+      const diff = Math.max(0, (Date.now() - startedAt.getTime()) / 1000);
+      const h = Math.floor(diff/3600);
+      const m = Math.floor((diff%3600)/60);
+      const s = Math.floor(diff%60);
+      el.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,575 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+/* ---------- Schedule Grid Aesthetic (Compact-friendly) ---------- */
+:root{
+  --sg-border: #e5e7eb;
+  --sg-muted: #6b7280;
+  --sg-accent: #0ea5e9;
+  --sg-accent-600: #0284c7;
+  --sg-surface: #ffffff;
+  --sg-soft: #f8fafc;
+  --sg-soft-2: #f1f5f9;
+  --sg-success-soft: #ecfdf5;
+  --sg-error: #ef4444;
+  --sg-weekend: #fff7ed;
+  --sg-today: #fde68a;
+
+  /* width + spacing vars (normal density) */
+  --sg-worker-w: 180px;
+  --sg-col-w: 120px;       /* day column width */
+  --sg-pad-y: 8px;
+  --sg-pad-x: 8px;
+  --sg-font: 0.95rem;
+  --sg-input-h: 34px;
+  --sg-input-radius: 10px;
+}
+
+/* Super compact mode when .dense is added to the card */
+.schedule-grid-card.dense{
+  --sg-worker-w: 150px;
+  --sg-col-w: 108px;
+  --sg-pad-y: 6px;
+  --sg-pad-x: 6px;
+  --sg-font: 0.9rem;
+  --sg-input-h: 30px;
+  --sg-input-radius: 8px;
+}
+
+.schedule-grid-card{
+  background: var(--sg-surface);
+  border: 1px solid var(--sg-border);
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.06);
+  overflow: hidden;
+}
+
+.schedule-toolbar{
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--sg-border);
+  background: linear-gradient(180deg, #ffffff, #fbfbfc);
+}
+
+.schedule-legend{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--sg-muted);
+  font-size: .8rem;
+  flex-wrap: wrap;
+}
+
+.legend-dot{
+  width: 10px; height: 10px; border-radius: 999px; display: inline-block; margin-right: 6px;
+  border: 1px solid var(--sg-border);
+}
+.legend-filled{ background: var(--sg-success-soft); }
+.legend-weekend{ background: var(--sg-weekend); }
+.legend-today{ background: transparent; border: 2px dashed var(--sg-today); }
+
+.table-wrap{
+  max-width: 100%;
+  overflow: auto; /* fallback if screen is very small */
+}
+
+.table.schedule-table{
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--sg-font);
+  table-layout: fixed; /* respect column widths */
+}
+
+.schedule-table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--sg-soft);
+  border-bottom: 1px solid var(--sg-border) !important;
+  box-shadow: 0 2px 0 rgba(0,0,0,.03);
+  font-weight: 600;
+  padding: var(--sg-pad-y) var(--sg-pad-x) !important;
+}
+
+.schedule-table th,
+.schedule-table td{
+  border-right: 1px solid var(--sg-border);
+  vertical-align: middle;
+  padding: var(--sg-pad-y) var(--sg-pad-x) !important;
+}
+
+.schedule-table th:first-child,
+.schedule-table td:first-child{
+  width: var(--sg-worker-w);
+  min-width: var(--sg-worker-w);
+  max-width: var(--sg-worker-w);
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: inherit;
+  border-right: 1px solid var(--sg-border);
+}
+
+.schedule-table th:not(:first-child),
+.schedule-table td:not(:first-child){
+  width: var(--sg-col-w);
+  min-width: var(--sg-col-w);
+  max-width: var(--sg-col-w);
+}
+
+.schedule-table tr:nth-child(even) td:first-child{ background: var(--sg-soft-2); }
+.schedule-table tr:nth-child(odd)  td:first-child{ background: var(--sg-soft); }
+
+.schedule-table td{
+  background: #fff;
+  overflow: hidden; /* keep inputs contained */
+}
+
+.schedule-table td.weekend{ background: var(--sg-weekend); }
+.schedule-table td.filled{ background: var(--sg-success-soft); }
+.schedule-table th.today,
+.schedule-table td.today{ outline: 2px dashed var(--sg-today); outline-offset: -2px; }
+
+.sg-worker-name{
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sg-worker-role{
+  color: var(--sg-muted);
+  font-size: .75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* inputs */
+.sg-input{
+  height: var(--sg-input-h);
+  font-size: inherit;
+  border-radius: var(--sg-input-radius);
+  border: 1px solid var(--sg-border);
+  padding: 4px 8px;
+  width: 100%;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  background: #fff;
+}
+.sg-input:focus{
+  border-color: var(--sg-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14,165,233,.15);
+  background: #ffffff;
+}
+.sg-input.is-invalid{
+  border-color: var(--sg-error);
+  box-shadow: 0 0 0 3px rgba(239,68,68,.12);
+}
+.sg-hint{
+  font-size: .72rem;
+  color: var(--sg-error);
+  margin-top: 2px;
+}
+
+/* buttons */
+.btn-outline-sg{
+  border: 1px solid var(--sg-border);
+  color: #111827;
+  background: #fff;
+  padding: 6px 10px;
+}
+.btn-outline-sg:hover{
+  border-color: var(--sg-accent);
+  color: var(--sg-accent-600);
+  background: #f0f9ff;
+}
+.btn-primary-sg{
+  background: var(--sg-accent);
+  border: 1px solid var(--sg-accent);
+  padding: 6px 12px;
+}
+.btn-primary-sg:hover{
+  background: var(--sg-accent-600);
+  border-color: var(--sg-accent-600);
+}
+.compact-toggle{
+  display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--sg-muted);
+}
+</style>
+
+<div x-data="scheduleGrid()" x-init="init('{{ week_start }}')" class="container-fluid">
+  <div :class="['schedule-grid-card', compact ? 'dense' : '']">
+
+    <!-- Toolbar -->
+    <div class="schedule-toolbar d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div>
+        <h4 class="mb-0">Schedule · Week of <span x-text="fmtDate(weekStart)"></span></h4>
+        <div class="schedule-legend mt-2">
+          <span><span class="legend-dot legend-filled"></span> Filled</span>
+          <span><span class="legend-dot legend-weekend"></span> Weekend</span>
+          <span><span class="legend-dot legend-today"></span> Today</span>
+        </div>
+      </div>
+      <div class="d-flex flex-column align-items-end gap-2" style="min-width: 360px;">
+        <div class="d-flex flex-wrap gap-2">
+          <a href="/admin/dashboard" class="btn btn-outline-sg">🏠 Home</a>
+          <a href="/admin/schedule/timeslots" class="btn btn-outline-sg">🗓️ Time-Slot View</a>
+          <button class="btn btn-outline-sg" @click="prevWeek()">← Prev</button>
+          <button class="btn btn-outline-sg" @click="nextWeek()">Next →</button>
+          <button class="btn btn-outline-sg" @click="duplicateToNextWeek()">⎘ Duplicate → Next</button>
+          <button class="btn btn-primary-sg text-white" @click="save()">💾 Save</button>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center w-100 justify-content-end">
+          <label class="compact-toggle">
+            <input type="checkbox" x-model="compact"> Compact mode
+          </label>
+          <div class="d-flex align-items-center gap-2">
+            <span style="font-size:.85rem;color:var(--sg-muted)">Sort:</span>
+            <select class="sg-input" style="height:30px; width:220px" x-model="sortMode" @change="applySort()">
+              <option value="name">Name (A–Z)</option>
+              <option value="week">Earliest start – whole week</option>
+              <template x-for="(d, idx) in days" :key="d">
+                <option :value="`day:${idx}`" x-text="`By day: ${weekdayShort(d)}`"></option>
+              </template>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table class="table schedule-table align-middle">
+        <thead>
+          <tr>
+            <th>Worker</th>
+            <template x-for="(d, idx) in days" :key="d">
+              <th :class="{'today': isToday(d)}" x-text="weekdayLabel(d)"></th>
+            </template>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="w in workers" :key="w.id">
+            <tr>
+              <td>
+                <div class="sg-worker-name" :title="w.name" x-text="w.name"></div>
+                <div class="sg-worker-role" :title="w.role || ''" x-text="w.role || ''"></div>
+              </td>
+              <template x-for="(d, idx) in days" :key="w.id + d">
+                <td :class="cellDecor(w.id, d, idx)">
+                  <input type="text"
+                         class="sg-input"
+                         :class="cellClass(w.id, d)"
+                         x-model="cells[w.id][d].display"
+                         @blur="normalize(w.id, d)"
+                         @keydown.enter.prevent="commitCell(w.id, d)"
+                         placeholder="">
+                  <div class="sg-hint" x-show="cells[w.id][d].error" x-text="cells[w.id][d].error"></div>
+                </td>
+              </template>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// --- Local date helpers ---
+function isoToLocalDate(iso){ const [y,m,d] = iso.split("-").map(Number); return new Date(y, m-1, d); }
+function toISODateLocal(dt){ const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; }
+Date.prototype.addDays = function(n){ const d=new Date(this); d.setDate(d.getDate()+n); return d; };
+function addDaysISO(iso, n){ return toISODateLocal(isoToLocalDate(iso).addDays(n)); }
+
+// --- time helpers ---
+function pad2(n){ return String(n).padStart(2,'0'); }
+function hhmmTo12(hm){ const [H,M]=hm.split(':').map(Number); const ampm=H>=12?'PM':'AM'; const h=((H+11)%12)+1; return `${h}:${pad2(M)} ${ampm}`; }
+
+function scheduleGrid(){
+  return {
+    compact: true,     // start compact so 7 days fit on common screens
+    sortMode: 'name',
+    originalWorkers: [],
+
+    weekStart: null,
+    days: [],
+    workers: [],
+    cells: {},     // {wid: {dateISO: {shift_id, display, error, normStart?, normEnd?}}}
+    snapshot: {},  // initial normalized state
+
+    async init(weekStartISO){
+      this.weekStart = toISODateLocal(isoToLocalDate(weekStartISO));
+      await this.fetch();
+    },
+
+    async fetch(){
+      const res = await fetch(`/admin/schedule/data?week_start=${this.weekStart}`);
+      const data = await res.json();
+      this.days = data.days;
+      this.workers = data.workers;
+      this.originalWorkers = [...this.workers];  // keep a copy for sorting baselines
+
+      this.cells = {};
+      this.snapshot = {};
+      for (const w of this.workers){
+        this.cells[w.id] = {};
+        this.snapshot[w.id] = {};
+        for (const d of this.days){
+          const existing = data.cells[w.id]?.[d] || null;
+          let disp = "";
+          let normStart = null, normEnd = null;
+          if (existing){
+            normStart = existing.start;
+            normEnd = existing.end;
+            disp = `${hhmmTo12(normStart)}-${hhmmTo12(normEnd)}`;
+          }
+          this.cells[w.id][d] = { shift_id: existing?.shift_id || null, display: disp, error: null, normStart, normEnd };
+          this.snapshot[w.id][d] = { shift_id: existing?.shift_id || null, normStart, normEnd };
+        }
+      }
+
+      // Apply current sort after fetching
+      this.applySort();
+    },
+
+    fmtDate(iso){ return isoToLocalDate(iso).toLocaleDateString(); },
+    weekdayShort(d){ return isoToLocalDate(d).toLocaleDateString(undefined,{weekday:'short'}); },
+    weekdayLabel(d){
+      const dt=isoToLocalDate(d);
+      const m = String(dt.getMonth()+1).padStart(2,'0');
+      const day = String(dt.getDate()).padStart(2,'0');
+      return `${dt.toLocaleDateString(undefined,{weekday:'short'})} ${m}/${day}`;
+    },
+
+    // column decorators
+    isToday(dISO){ const todayISO = toISODateLocal(new Date()); return dISO === todayISO; },
+    cellDecor(wid, d, idx){
+      const classes = [];
+      if (idx === 5 || idx === 6) classes.push('weekend');
+      if (this.isToday(d)) classes.push('today');
+      const c = this.cells[wid][d];
+      if (c && c.normStart && c.normEnd) classes.push('filled');
+      return classes.join(' ');
+    },
+
+    // ---- Sorting helpers ----
+    minutesOrInf(hhmm){
+      if (!hhmm) return Infinity;
+      const [h,m] = hhmm.split(':').map(Number);
+      return h*60 + m;
+    },
+    startForDay(wid, dayIdx){
+      const d = this.days[dayIdx];
+      const cell = this.cells[wid][d];
+      // prefer normalized current edit; fall back to snapshot
+      return this.minutesOrInf(cell?.normStart || this.snapshot[wid][d]?.normStart || null);
+    },
+    startForWeek(wid){
+      let best = Infinity;
+      for (let i=0; i<this.days.length; i++){
+        const v = this.startForDay(wid, i);
+        if (v < best) best = v;
+      }
+      return best;
+    },
+    applySort(){
+      // Base list to sort: name A–Z
+      let arr = [...this.originalWorkers].sort((a,b)=> a.name.localeCompare(b.name));
+
+      if (this.sortMode === 'name'){
+        this.workers = arr;
+        return;
+      }
+      if (this.sortMode === 'week'){
+        this.workers = arr.sort((a,b)=> this.startForWeek(a.id) - this.startForWeek(b.id) || a.name.localeCompare(b.name));
+        return;
+      }
+      if (this.sortMode.startsWith('day:')){
+        const idx = parseInt(this.sortMode.split(':')[1], 10);
+        this.workers = arr.sort((a,b)=> this.startForDay(a.id, idx) - this.startForDay(b.id, idx) || a.name.localeCompare(b.name));
+        return;
+      }
+    },
+
+    // ---- Parsing / validation ----
+    parseTimeFlexible(t){
+      if (!t) return null;
+      let s = t.trim().toLowerCase();
+      let mer = null;
+      if (s.endsWith('am') || s.endsWith('pm')) { mer = s.slice(-2); s = s.slice(0,-2).trim(); }
+      else if (s.endsWith('a') || s.endsWith('p')) { mer = s.slice(-1)+'m'; s=s.slice(0,-1).trim(); }
+      s = s.replace(/[^0-9:]/g,'');
+      if (!s) return null;
+      let hh=0, mm=0;
+      if (s.includes(':')){
+        const [h,m] = s.split(':'); if (h===''||m===''||isNaN(h)||isNaN(m)) return null;
+        hh=parseInt(h,10); mm=parseInt(m,10);
+      } else {
+        if (s.length<=2){ hh=parseInt(s,10); mm=0; }
+        else { const body=s.slice(0,-2), tail=s.slice(-2); if (isNaN(body)||isNaN(tail)) return null; hh=parseInt(body,10); mm=parseInt(tail,10); }
+      }
+      if (isNaN(hh)||isNaN(mm)||hh<0||hh>23||mm<0||mm>59) return null;
+      if (mer){
+        if (hh>12) return null;
+        if (mer==='pm' && hh<12) hh+=12;
+        if (mer==='am' && hh===12) hh=0;
+      }
+      return `${pad2(hh)}:${pad2(mm)}`;
+    },
+
+    parseRangeFlexible(v){
+      const parts=(v||"").split("-").map(s=>s.trim()).filter(Boolean);
+      if (parts.length!==2) return null;
+      let a=this.parseTimeFlexible(parts[0]);
+      let b=this.parseTimeFlexible(parts[1]);
+      if (!a||!b) return null;
+
+      const noMerA=!/[ap]m?$/i.test(parts[0]);
+      const noMerB=!/[ap]m?$/i.test(parts[1]);
+      if (noMerA && noMerB){
+        const [ah,am]=a.split(':').map(Number), [bh,bm]=b.split(':').map(Number);
+        const aMin=ah*60+am; let bMin=bh*60+bm;
+        if (bMin<=aMin && bh<=12){ bMin += 12*60; const nh=Math.floor(bMin/60)%24, nm=bMin%60; b=`${pad2(nh)}:${pad2(nm)}`; }
+      }
+      return { start:a, end:b };
+    },
+
+    normalize(wid, d){
+      const cell=this.cells[wid][d];
+      const v=(cell.display||"").trim();
+      if (!v){ cell.error=null; cell.normStart=null; cell.normEnd=null; return; }
+      const norm=this.parseRangeFlexible(v);
+      if (!norm){ cell.error="Enter times like 9-5, 9a-5p, 9:30-5:15"; return; }
+      const [ah,am]=norm.start.split(':').map(Number), [bh,bm]=norm.end.split(':').map(Number);
+      const aMin=ah*60+am, bMin=bh*60+bm;
+      if (bMin<=aMin){ cell.error="End must be after start"; return; }
+      cell.normStart=norm.start; cell.normEnd=norm.end;
+      cell.display=`${hhmmTo12(norm.start)}-${hhmmTo12(norm.end)}`;
+      cell.error=null;
+    },
+
+    commitCell(wid,d){ this.normalize(wid,d); },  // Enter behavior; Save also diffs
+
+    prevWeek(){ const d=isoToLocalDate(this.weekStart).addDays(-7); this.weekStart=toISODateLocal(d); this.fetch(); },
+    nextWeek(){ const d=isoToLocalDate(this.weekStart).addDays(7); this.weekStart=toISODateLocal(d); this.fetch(); },
+
+    cellClass(wid,d){ return this.cells[w.id]?.[d]?.error ? 'is-invalid' : ''; },
+
+    // Build changes with discriminated union ops
+    buildChanges(){
+      const ops=[];
+      for (const w of this.originalWorkers){ // use original list to diff consistently
+        const wid=w.id;
+        for (const d of this.days){
+          const now=this.cells[wid][d];
+          const before=this.snapshot[wid][d];
+
+          const nowHas=!!(now.normStart && now.normEnd);
+          const beforeHas=!!(before.normStart && before.normEnd);
+
+          if (!beforeHas && nowHas){
+            ops.push({ op:"create", worker_id: wid, date: d, start: now.normStart, end: now.normEnd });
+          } else if (beforeHas && !nowHas){
+            if (before.shift_id){ ops.push({ op:"delete", shift_id: before.shift_id }); }
+          } else if (beforeHas && nowHas){
+            if (now.normStart!==before.normStart || now.normEnd!==before.normEnd){
+              const sid = now.shift_id || before.shift_id;
+              if (sid){
+                ops.push({ op:"update", shift_id: sid, worker_id: wid, date: d, start: now.normStart, end: now.normEnd });
+              } else {
+                ops.push({ op:"create", worker_id: wid, date: d, start: now.normStart, end: now.normEnd });
+              }
+            }
+          }
+        }
+      }
+      return ops;
+    },
+
+    async save(){
+      // Normalize everything first
+      for (const w of this.originalWorkers){
+        for (const d of this.days){
+          this.normalize(w.id,d);
+          if (this.cells[w.id][d].error){
+            alert(`Fix invalid time for ${w.name} on ${this.weekdayShort(d)}.`);
+            return;
+          }
+        }
+      }
+      const changes=this.buildChanges();
+      if (!changes.length){ alert("No changes to save"); return; }
+
+      const payload={ week_start: this.weekStart, changes };
+      const res=await fetch('/admin/schedule/bulk_upsert',{
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+      });
+      if (!res.ok){ const err=await res.json().catch(()=>({detail:'Save failed'})); alert(`Save failed: ${JSON.stringify(err.detail || err)}`); return; }
+      await this.fetch();
+      alert("Schedule saved.");
+    },
+
+    // --- Duplicate this week → next week ---
+    async duplicateToNextWeek(){
+      // Normalize current week first
+      for (const w of this.originalWorkers){
+        for (const d of this.days){
+          this.normalize(w.id, d);
+          if (this.cells[w.id][d].error){
+            alert(`Fix invalid time for ${w.name} on ${this.weekdayShort(d)} before duplicating.`);
+            return;
+          }
+        }
+      }
+      if (!confirm("Duplicate all filled cells to NEXT week?\nExisting shifts next week will be updated.")) return;
+
+      const nextWeekStart = toISODateLocal(isoToLocalDate(this.weekStart).addDays(7));
+      const res = await fetch(`/admin/schedule/data?week_start=${nextWeekStart}`);
+      if (!res.ok){ alert("Could not load next week to check conflicts."); return; }
+      const nextData = await res.json();
+      const nextCells = nextData.cells || {};
+
+      const ops = [];
+      for (const w of this.originalWorkers){
+        const wid = w.id;
+        for (let i=0;i<this.days.length;i++){
+          const d = this.days[i];
+          const srcCell = this.cells[wid][d];
+          const has = !!(srcCell.normStart && srcCell.normEnd);
+          if (!has) continue;
+
+          const targetDate = addDaysISO(d, 7);
+          const targetExisting = (nextCells[wid] && nextCells[wid][targetDate]) ? nextCells[wid][targetDate] : null;
+
+          if (targetExisting && targetExisting.shift_id){
+            ops.push({ op: "update", shift_id: targetExisting.shift_id, worker_id: wid, date: targetDate, start: srcCell.normStart, end: srcCell.normEnd });
+          } else {
+            ops.push({ op: "create", worker_id: wid, date: targetDate, start: srcCell.normStart, end: srcCell.normEnd });
+          }
+        }
+      }
+
+      if (!ops.length){ alert("Nothing to duplicate (no filled cells)."); return; }
+
+      const payload = { week_start: nextWeekStart, changes: ops };
+      const saveRes = await fetch('/admin/schedule/bulk_upsert', {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+      });
+      if (!saveRes.ok){
+        const err = await saveRes.json().catch(()=>({detail:'Duplicate failed'}));
+        alert(`Duplicate failed: ${JSON.stringify(err.detail || err)}`);
+        return;
+      }
+      this.weekStart = nextWeekStart;
+      await this.fetch();
+      alert("Duplicated to next week.");
+    }
+  }
+}
+</script>
+{% endblock %}

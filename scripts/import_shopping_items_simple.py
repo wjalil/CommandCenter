@@ -5,7 +5,8 @@ Accepts CSV or TSV; handles header variants like 'Catergory' and 'Business Line'
 
 Usage:
   ENV=development python -m scripts.import_shopping_items_simple --tenant 1 --path ./data/items.csv --dry-run
-  ENV=production  python -m scripts.import_shopping_items_simple --tenant 1 --path ./data/items.csv
+  set ENV=production  
+  python -m scripts.import_shopping_items_simple --tenant 1 --path ./data/Inventory_List.csv
 """
 
 import argparse, csv, os, sys, io
