@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block content %}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  :root{
+    --bg1:#f7f9fc; --bg2:#eef3f9; --ink:#1f2937;
+    --brand:#0d6efd; --brand-soft:#eaf2ff;
+    --border: rgba(2,6,23,.08);
+    --ok:#10b981; --danger:#ef4444; --muted:#6b7280;
+    --card:#fff; --shadow:0 6px 18px rgba(0,0,0,.06); --shadow-lg:0 12px 28px rgba(0,0,0,.10);
+    --radius:16px;
+  }
+  body{ background: linear-gradient(180deg,var(--bg1),var(--bg2)); }
+  .panel{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); }
+  .chip{ display:inline-flex; gap:.4rem; align-items:center; border:1px solid var(--border); background:#f5f7fb; color:#111827; border-radius:999px; padding:.2rem .6rem; font-size:.78rem; font-weight:600;}
+  .chip.blue{ background:var(--brand-soft); border-color:rgba(13,110,253,.25); color:#0b4db3;}
+
+  /* Quick add breathing room */
+  .panel .card-body{ padding: 18px 20px; }
+  .quick-add{
+    background:#f9fbff; border:1px solid var(--border); border-radius:12px;
+    padding:12px; margin-top:6px;
+  }
+  .quick-add .form-control{ border-radius:10px; }
+
+  /* Task rows – clearer separation */
+  .task-row{
+    position:relative;
+    border-bottom:1px dashed rgba(2,6,23,.08);
+    padding:14px 12px;
+    background:#ffffff;
+  }
+  .task-row:last-child{ border-bottom:0; }
+  .list-group .task-row:nth-child(odd){ background:#fbfdff; } /* light zebra */
+  .task-row::before{
+    content:"";
+    position:absolute; left:0; top:0; bottom:0; width:6px;
+    border-top-left-radius:8px; border-bottom-left-radius:8px;
+    background:var(--brand); opacity:.25;
+  }
+  .task-row.done::before{ background:var(--ok); opacity:.35; }
+  .task-row:hover{
+    background:linear-gradient(180deg, rgba(13,110,253,.04), rgba(13,110,253,.02));
+  }
+
+  /* Inputs/labels */
+  .title-input{ font-weight:700; letter-spacing:.15px; }
+  .title-complete{ text-decoration: line-through; color:#94a3b8 !important; }
+  .meta small{ color:var(--muted); }
+  .save-status{ min-height:1rem; }
+  .toggle-btn{ border-radius:12px; box-shadow:0 1px 0 rgba(0,0,0,.04); }
+  .form-control.form-control-sm{ border-radius:10px; }
+</style>
+
+<div class="container page-wrap py-3" x-data="taskBoard()">
+  <!-- Header -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <div class="d-flex align-items-center gap-2">
+      <span class="chip blue">🛠 Admin</span>
+      <h2 class="page-title mb-2 mb-md-0">Daily Task Board</h2>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="/admin/dashboard" class="btn btn-ghost">🏠 Home</a>
+      <a href="/admin/taskboard?day={{ day }}" class="btn btn-outline-secondary">Refresh</a>
+      <a href="/admin/taskboard/create?day={{ day }}" class="btn btn-primary">➕ Create</a>
+    </div>
+  </div>
+
+  <!-- Filters / Quick Add -->
+  <div class="panel mb-3">
+    <div class="card-body">
+      <form class="row g-3 align-items-end" method="get" action="/admin/taskboard">
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-semibold">Date</label>
+          <input type="date" name="day" value="{{ day }}" class="form-control">
+        </div>
+        <div class="col-12 col-md-2">
+          <button class="btn btn-outline-primary w-100" type="submit">Apply</button>
+        </div>
+      </form>
+
+      <hr class="my-3">
+
+      <!-- Inline quick add -->
+      <form class="row g-3 quick-add" method="post" action="/admin/taskboard/create" id="quickAddForm">
+        <div class="col-12 col-lg-3">
+          <input type="text" class="form-control" name="title" placeholder="Quick add title…" required>
+        </div>
+        <div class="col-12 col-lg-3">
+          <input type="text" class="form-control" name="details" placeholder="Details (optional)">
+        </div>
+        <div class="col-6 col-lg-2">
+          <input type="date" class="form-control" name="task_date" id="qaDate" value="{{ day }}">
+          <input type="hidden" name="day_of_week" id="qaDOW" value="">
+        </div>
+        <div class="col-6 col-lg-1">
+          <input type="number" class="form-control" name="order_index" value="0" title="Order">
+        </div>
+        <div class="col-6 col-lg-1">
+          <input type="text" class="form-control" name="shift_label" placeholder="Shift">
+        </div>
+        <div class="col-6 col-lg-1">
+          <input type="text" class="form-control" name="role" placeholder="Role">
+        </div>
+        <div class="col-6 col-lg-1">
+          <input type="number" class="form-control" name="target_qty" min="0" placeholder="Target">
+        </div>
+        <div class="col-6 col-lg-1">
+          <input type="number" class="form-control" name="progress_qty" min="0" placeholder="Start">
+        </div>
+        <div class="col-12 col-lg-3">
+          <input type="text" class="form-control" name="progress_note" placeholder="Note (optional)">
+        </div>
+        <div class="col-12 col-md-auto">
+          <button class="btn btn-success" type="submit">Add</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tasks List -->
+  <div class="panel">
+    <div class="card-body">
+      {% if tasks|length == 0 %}
+        <div class="text-muted">No tasks for {{ day }} yet. Add some above.</div>
+      {% else %}
+        <ul class="list-group list-group-flush">
+          {% for task in tasks|sort(attribute='order_index') %}
+            <li class="list-group-item task-row {{ 'done' if task.is_completed }}" id="task-{{ task.id }}">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <!-- Left: toggle + title/details -->
+                <div class="d-flex align-items-start gap-3">
+                  <form method="post" action="/taskboard/toggle/{{ task.id }}?next=admin"
+                        onsubmit="return toggleSubmit(event, '{{ task.id }}')">
+                    <button class="btn btn-sm toggle-btn {{ 'btn-success' if task.is_completed else 'btn-outline-secondary' }}">✓</button>
+                  </form>
+
+                  <div class="w-100">
+                    <input type="text" class="form-control form-control-sm title-input js-title {{ 'title-complete' if task.is_completed }}"
+                           value="{{ task.title }}" placeholder="Title" data-field="title" data-id="{{ task.id }}">
+                    <div class="mt-1">
+                      <input type="text" class="form-control form-control-sm js-details"
+                             value="{{ task.details or '' }}" placeholder="Details (optional)"
+                             data-field="details" data-id="{{ task.id }}">
+                    </div>
+
+                    <div class="meta small mt-1 d-flex flex-wrap gap-2 align-items-center">
+                      <span class="chip">📅 {{ task.task_date or '' }}</span>
+                      <span class="d-flex align-items-center gap-1">
+                        <span class="text-secondary">Shift:</span>
+                        <input type="text" class="form-control form-control-sm js-shift w-auto"
+                               value="{{ task.shift_label or '' }}" placeholder="Shift"
+                               data-field="shift_label" data-id="{{ task.id }}">
+                      </span>
+                      <span class="d-flex align-items-center gap-1">
+                        <span class="text-secondary">Role:</span>
+                        <input type="text" class="form-control form-control-sm js-role w-auto"
+                               value="{{ task.role or '' }}" placeholder="Role"
+                               data-field="role" data-id="{{ task.id }}">
+                      </span>
+                      <span class="d-flex align-items-center gap-1">
+                        <span class="text-secondary">Order:</span>
+                        <input type="number" class="form-control form-control-sm js-order w-auto"
+                               value="{{ task.order_index or 0 }}" data-field="order_index" data-id="{{ task.id }}" style="max-width:90px">
+                      </span>
+                      {# SAFE: avoid lazy loading relationship in template #}
+                      {% if task.is_completed and task.completed_by_id %}
+                        <span class="chip">✓ by {{ user_by_id.get(task.completed_by_id, '—') }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right: qty + note + status -->
+                <div class="ms-auto" style="min-width:300px; max-width:540px;">
+                  <div class="row g-2">
+                    <div class="col-4">
+                      <label class="form-label small mb-1">Target</label>
+                      <input type="number" class="form-control form-control-sm js-target"
+                             min="0" placeholder="—"
+                             value="{{ task.target_qty if task.target_qty is not none else '' }}"
+                             data-field="target_qty" data-id="{{ task.id }}">
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small mb-1">Progress</label>
+                      <input type="number" class="form-control form-control-sm js-progress"
+                             min="0" placeholder="—"
+                             value="{{ task.progress_qty if task.progress_qty is not none else '' }}"
+                             data-field="progress_qty" data-id="{{ task.id }}">
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label small mb-1">Note</label>
+                      <input type="text" class="form-control form-control-sm js-note"
+                             placeholder="e.g., finished 35; out of lids"
+                             value="{{ task.progress_note or '' }}"
+                             data-field="progress_note" data-id="{{ task.id }}">
+                    </div>
+                  </div>
+                  <div class="text-muted small mt-2" data-save-status="{{ task.id }}"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex align-items-start gap-2">
+                  <form method="post" action="/admin/taskboard/delete/{{ task.id }}" onsubmit="return confirm('Delete this task?')">
+                    <button class="btn btn-sm btn-outline-danger">Delete</button>
+                  </form>
+                </div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleSubmit(e, id){
+    e.preventDefault();
+    fetch(e.target.action, { method: 'POST', headers:{'Accept':'application/json'} })
+      .then(async r=>{
+        const ct=r.headers.get('content-type')||''; if(!ct.includes('application/json')) throw '';
+        return r.json();
+      })
+      .then(data=>{
+        const li=document.getElementById(`task-${id}`); if(!li) return;
+        const btn=li.querySelector('button'); const title=li.querySelector('.title-input');
+        if(data.is_completed){
+          btn.classList.remove('btn-outline-secondary'); btn.classList.add('btn-success');
+          title.classList.add('title-complete');
+          li.classList.add('done');            // keep accent bar green when completed
+        }else{
+          btn.classList.add('btn-outline-secondary'); btn.classList.remove('btn-success');
+          title.classList.remove('title-complete');
+          li.classList.remove('done');         // revert accent bar to brand color
+        }
+      })
+      .catch(()=> e.target.submit());
+    return false;
+  }
+
+  function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn.apply(null,a),ms);} }
+
+  (function(){
+    // keep quick-add day_of_week synced from task_date
+    const qaDate = document.getElementById('qaDate');
+    const qaDOW = document.getElementById('qaDOW');
+    const syncDow = ()=>{ if(qaDate && qaDOW && qaDate.value){ qaDOW.value = new Date(qaDate.value + 'T00:00:00').getDay(); } };
+    qaDate?.addEventListener('change', syncDow); syncDow();
+
+    const map = [
+      ['.js-title','title'],
+      ['.js-details','details'],
+      ['.js-shift','shift_label'],
+      ['.js-role','role'],
+      ['.js-order','order_index'],
+      ['.js-target','target_qty'],
+      ['.js-progress','progress_qty'],
+      ['.js-note','progress_note'],
+    ];
+
+    const save = debounce(async (input)=>{
+      const id=input.getAttribute('data-id'); const field=input.getAttribute('data-field');
+      const status=document.querySelector(`[data-save-status="${id}"]`);
+      if(!id || !field) return;
+      const fd=new FormData(); fd.append(field, input.value);
+      if(status) status.textContent='Saving…';
+      try{
+        const r=await fetch(`/admin/taskboard/${id}/update`,{method:'PATCH',body:fd,headers:{'Accept':'application/json'}});
+        if(!r.ok) throw '';
+        await r.json();
+        if(status){ status.textContent='Saved'; setTimeout(()=>status.textContent='',1200); }
+      }catch{ if(status) status.textContent='Error saving'; }
+    }, 350);
+
+    map.forEach(([sel])=>{
+      document.querySelectorAll(sel).forEach(el=>{
+        el.addEventListener('input',()=>save(el));
+        el.addEventListener('blur', ()=>save(el));
+      });
+    });
+  })();
+
+  function taskBoard(){ return {}; }
+</script>
+{% endblock %}

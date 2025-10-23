@@ -18,63 +18,71 @@
 <body>
 
 <!-- Toolbar -->
-<div class="toolbar py-3">
-  <div class="container d-flex flex-wrap align-items-end gap-3">
-    <div>
-      <h4 class="mb-0">⏱️ Time Clock — Admin</h4>
-      <small class="text-muted">All times shown in Eastern (America/New_York)</small>
-    </div>
-
-    <!-- Presets -->
-    <div class="ms-auto d-flex flex-wrap gap-2">
-      <div class="d-flex align-items-end gap-2">
-        <button id="presetThisWeek" class="btn btn-outline-primary btn-sm btn-preset">This Week (ET)</button>
-        <button id="presetLastWeek" class="btn btn-outline-secondary btn-sm btn-preset">Last Week (ET)</button>
-      </div>
-
-      <form class="d-flex flex-wrap gap-2" method="get">
-        <div>
-          <label class="form-label mb-1 small">Start</label>
-          <input id="startInput" type="date" class="form-control" name="start" value="{{ start }}"/>
-        </div>
-        <div>
-          <label class="form-label mb-1 small">End</label>
-          <input id="endInput" type="date" class="form-control" name="end" value="{{ end }}"/>
-        </div>
-        <div>
-          <label class="form-label mb-1 small">Status</label>
-          <select class="form-select" name="status">
-            {% for s in ['all','unpaid','closed','approved','paid','open'] %}
-              <option value="{{ s }}" {{ 'selected' if status==s else '' }}>{{ s|capitalize }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="form-label mb-1 small">User</label>
-          <select class="form-select" name="q_user">
-            <option value="">All</option>
-            {% for u in users %}
-              <option value="{{ u.id }}" {{ 'selected' if q_user==u.id else '' }}>{{ u.name or u.id }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="d-flex align-items-end">
-          <button class="btn btn-primary">Apply</button>
-        </div>
-      </form>
-
-      <div class="d-flex align-items-end">
-        <a class="btn btn-outline-secondary"
-           href="/admin/timeclock/export?start={{ start }}&end={{ end }}&status={{ status }}">Export CSV</a>
-      </div>
-      <div class="d-flex align-items-end">
-        <form id="autocloseForm" method="post" action="/admin/timeclock/autoclose-stale">
-          <input type="hidden" name="max_hours" value="16"/>
-          <button class="btn btn-warning">Autoclose 16h+</button>
-        </form>
-      </div>
-    </div>
+<div class="toolbar py-3 mb-3 border-bottom" style="border-color: rgba(0,0,0,.08);">
+  <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h4 class="mb-0">⏱️ Time Clock — Admin</h4>
+    <a href="/admin/dashboard" class="btn btn-ghost btn-sm">🏠 Home</a>
   </div>
+</div>
+
+<!-- Sub-toolbar -->
+<div class="bg-light py-2 border-bottom" style="border-color:rgba(0,0,0,.05);">
+  <div class="container d-flex justify-content-end flex-wrap gap-2">
+    <button id="presetThisWeek" class="btn btn-outline-primary btn-sm">This Week (ET)</button>
+    <button id="presetLastWeek" class="btn btn-outline-secondary btn-sm">Last Week (ET)</button>
+  </div>
+</div>
+
+<!-- Controls row: filters + right-aligned actions share the same container/padding -->
+<div class="py-3">
+  <div class="container d-flex flex-wrap align-items-end justify-content-between gap-3">
+
+    <!-- Filters -->
+    <form class="d-flex flex-wrap gap-3" method="get">
+      <div>
+        <label class="form-label mb-1 small">Start</label>
+        <input id="startInput" type="date" class="form-control" name="start" value="{{ start }}"/>
+      </div>
+      <div>
+        <label class="form-label mb-1 small">End</label>
+        <input id="endInput" type="date" class="form-control" name="end" value="{{ end }}"/>
+      </div>
+      <div>
+        <label class="form-label mb-1 small">Status</label>
+        <select class="form-select" name="status">
+          {% for s in ['all','unpaid','closed','approved','paid','open'] %}
+            <option value="{{ s }}" {{ 'selected' if status==s else '' }}>{{ s|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label mb-1 small">User</label>
+        <select class="form-select" name="q_user">
+          <option value="">All</option>
+          {% for u in users %}
+            <option value="{{ u.id }}" {{ 'selected' if q_user==u.id else '' }}>{{ u.name or u.id }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="d-flex align-items-end">
+        <button class="btn btn-primary">Apply</button>
+      </div>
+    </form>
+
+    <!-- Actions (right aligned, respects container padding) -->
+    <div class="d-flex align-items-end gap-2 ms-auto">
+      <a class="btn btn-outline-secondary"
+         href="/admin/timeclock/export?start={{ start }}&end={{ end }}&status={{ status }}">
+        Export CSV
+      </a>
+      <form id="autocloseForm" method="post" action="/admin/timeclock/autoclose-stale">
+        <input type="hidden" name="max_hours" value="16"/>
+        <button class="btn btn-warning">Autoclose 16h+</button>
+      </form>
+    </div>
+
+  </div>
+</div>
 </div>
 
 <div class="container my-4">

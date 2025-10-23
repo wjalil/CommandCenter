@@ -119,11 +119,10 @@
           <h5 class="card-title">🎯 Admin Tools</h5>
           <ul class="list-unstyled">
             <li><a href="/admin/schedule/grid" class="card-link">📅 Manage Shifts</a></li>
-            <li><a href="/tasks/admin/task-templates" class="card-link">🧩 Task Templates</a></li>
-            <li><a href="/tasks/admin/task-submissions" class="card-link">📥 Task Submissions</a></li>
+            <li><a href="/admin/timeclock" class="card-link text-success fw-semibold">⏱️ Time Clock / Payroll</a></li>
             <li><a href="/documents/admin/documents" class="card-link">📄 SOP / Recipes</a></li>
             <li><a href="/admin/workers" class="card-link">👤 Workers</a></li>
-            <li><a href="/admin/timeclock" class="card-link text-success fw-semibold">⏱️ Time Clock / Payroll</a></li>
+            
           </ul>
         </div>
         <form method="post" action="/admin/shifts/generate_next_week">
@@ -131,7 +130,7 @@
         </form>
       </div>
     </div>
-
+  
     <div class="col-lg-4 col-md-6">
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #ff6f00;">
         <div>
@@ -145,7 +144,18 @@
               </a>
               <div class="text-muted small ms-4">Fridge photo + driver notes</div>
             </li>
-            <li><a href="/modules/fridge" class="card-link">🧊 Invoices</a></li>
+
+            <li class="mb-2">
+              <a href="/admin/taskboard" class="card-link fw-bold text-primary d-flex align-items-center">
+                <span>📋 Task Board</span>
+                <span class="badge bg-light text-dark ms-2">Admin</span>
+              </a>
+
+            </li>
+
+            <li class="mb-2">
+              <a href="/modules/fridge" class="card-link">🧊 Invoices</a>
+            </li>
           </ul>
         </div>
         <div class="text-muted small mt-2">Modules auto-assigned to relevant shifts.</div>
@@ -282,17 +292,33 @@
         <div>
           <div class="section-label">Stats</div>
           <h5 class="card-title">📈 Weekly Worker Hours</h5>
+
           {% if weekly_hours %}
-            {% for week_label, hours_dict in weekly_hours.items() %}
+            {% set max_weeks = 4 %}
+            {% set total_weeks = weekly_hours|length %}
+            {% set loop_index = 0 %}
+            
+            <div id="weekly-hours-container">
+              {% for week_label, hours_dict in weekly_hours.items() %}
+                {% set loop_index = loop_index + 1 %}
+                <div class="mt-3 {% if loop_index > max_weeks %}d-none extra-week{% endif %}">
+                  <strong class="text-primary">🗓️ {{ week_label }}</strong>
+                  <ul class="mb-0">
+                    {% for worker_id, hours in hours_dict.items() %}
+                      <li>{{ worker_names.get(worker_id, 'Unknown') }} — 
+                        <span class="text-success fw-semibold">{{ hours|round(1) }} hrs</span>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endfor %}
+            </div>
+
+            {% if total_weeks > max_weeks %}
               <div class="mt-3">
-                <strong class="text-primary">🗓️ {{ week_label }}</strong>
-                <ul class="mb-0">
-                  {% for worker_id, hours in hours_dict.items() %}
-                    <li>{{ worker_names.get(worker_id, 'Unknown') }} — <span class="text-success fw-semibold">{{ hours|round(1) }} hrs</span></li>
-                  {% endfor %}
-                </ul>
+                <button id="toggleWeeks" class="btn btn-sm btn-outline-primary">Show More Weeks</button>
               </div>
-            {% endfor %}
+            {% endif %}
           {% else %}
             <div class="text-muted">No shift data available.</div>
           {% endif %}
@@ -304,5 +330,17 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Toggle extra weeks visibility
+  const btn = document.getElementById('toggleWeeks');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const extras = document.querySelectorAll('.extra-week');
+      const showing = btn.textContent.includes('Less');
+      extras.forEach(el => el.classList.toggle('d-none', showing));
+      btn.textContent = showing ? 'Show More Weeks' : 'Show Less Weeks';
+    });
+  }
+</script>
 </body>
 </html>

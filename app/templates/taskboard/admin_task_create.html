@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<div class="container page-wrap py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="page-title mb-0">🗓️ Create Daily Task</h2>
+    <div class="d-flex gap-2">
+      <a href="/admin/dashboard" class="btn btn-ghost">🏠 Home</a>
+      <a href="/admin/taskboard" class="btn btn-outline-secondary">📋 View Board</a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" action="/admin/taskboard/create" class="row g-3" x-data>
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold">Title</label>
+          <input type="text" name="title" class="form-control" placeholder="e.g., Package 80 breakfasts" required>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-semibold">Details (optional)</label>
+          <input type="text" name="details" class="form-control" placeholder="e.g., use bin C, label allergies">
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-semibold">Task Date</label>
+          <input type="date" name="task_date" class="form-control" value="{{ (now or none) or '' }}">
+          <!-- If you pass 'now' from route context as date.today().isoformat() -->
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-semibold">Shift Label (optional)</label>
+          <input type="text" name="shift_label" class="form-control" placeholder="Morning Open / Delivery">
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-semibold">Role (optional)</label>
+          <input type="text" name="role" class="form-control" placeholder="Barista / Inventory / Driver">
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-semibold">Day of Week (optional)</label>
+          <select name="day_of_week" class="form-select">
+            <option value="">(none)</option>
+            <option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option>
+            <option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option><option value="7">Sun</option>
+          </select>
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-semibold">Order (optional)</label>
+          <input type="number" name="order_index" class="form-control" value="0">
+        </div>
+
+        <div class="col-12">
+          <button class="btn btn-primary">Create Task</button>
+          <a href="/admin/taskboard" class="btn btn-link">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

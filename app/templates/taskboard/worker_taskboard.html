@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block content %}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  :root{
+    --bg1:#f6f8fb; --bg2:#eef3f9; --ink:#111827; --ink-2:#334155;
+    --brand:#0d6efd; --brand-600:#0b5ed7; --brand-soft:#eaf2ff;
+    --ok:#16a34a; --ok-600:#15803d; --warn:#ef4444; --muted:#6b7280;
+    --card:#ffffff; --card-2:#f9fbff; --border:rgba(2,6,23,.08);
+    --shadow:0 6px 18px rgba(0,0,0,.06); --shadow-lg:0 12px 28px rgba(0,0,0,.10);
+    --radius:16px; --radius-sm:12px; --focus:0 0 0 4px rgba(13,110,253,.15);
+  }
+  body{ background:linear-gradient(180deg,var(--bg1),var(--bg2)); }
+  .page-wrap{ max-width: 1100px; }
+
+  /* Header */
+  .page-header{ position: sticky; top: 0; z-index: 5; margin:-0.5rem -0.5rem 1rem; padding: .75rem .5rem; backdrop-filter: saturate(1.2) blur(6px);
+    background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,.70)); border-bottom:1px solid var(--border);
+  }
+  .chip{ display:inline-flex; gap:.45rem; align-items:center; border:1px solid var(--border); background:#f5f7fb; color:#0f172a; border-radius:999px; padding:.25rem .65rem; font-size:.78rem; font-weight:600; }
+  .chip.blue{ background:var(--brand-soft); border-color:rgba(13,110,253,.25); color:#0b4db3; }
+  .chip.ok{ background:#ecfdf5; border-color:#a7f3d0; color:#065f46; }
+  .chip.muted{ background:#f3f4f6; color:#475569; }
+
+  /* Card shell */
+  .task-shell{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+  .task-header{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:var(--card-2); border-bottom:1px solid var(--border); }
+  .task-item{ border-bottom:1px dashed rgba(2,6,23,.08); padding:16px 14px; transition: background .2s ease; }
+  .task-item:hover{ background: rgba(13,110,253,.03); }
+  .task-item:last-child{ border-bottom:0; }
+
+  .title-line{ font-weight:700; letter-spacing:.15px; color:var(--ink); }
+  .title-complete{ text-decoration:line-through; color:#94a3b8 !important; }
+  .meta-line{ display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.35rem; }
+  .qty-label{ font-size:.8rem; color:var(--muted); }
+  .save-status{ min-height: 1rem; color:#64748b; }
+
+  /* Toggle button */
+  .toggle-btn{ min-width:3rem; border-radius:12px; height: 44px; width:44px; display:inline-flex; align-items:center; justify-content:center; font-weight:700; }
+  .toggle-btn.btn-outline-secondary{ background:#fff; border-color:#cbd5e1; color:#475569; }
+  .toggle-btn.btn-outline-secondary:hover{ background:#f8fafc; }
+  .toggle-btn.btn-success{ background: var(--ok); border-color: var(--ok-600); }
+
+  /* Progress input row */
+  .progress-row{ background:linear-gradient(180deg,#ffffff, #fbfdff); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; margin-top:12px; }
+  .form-label{ color:#475569; font-weight:600; }
+  .form-control:focus, textarea.form-control:focus{ box-shadow: var(--focus); border-color: var(--brand); }
+
+  /* Inline progress bar (if target present) */
+  .bar-wrap{ height:8px; background:#e5e7eb; border-radius:999px; overflow:hidden; }
+  .bar{ height:8px; background: linear-gradient(90deg, var(--brand), #60a5fa); }
+
+  /* Buttons */
+  .btn-ghost{ border:1px solid var(--border); background:#fff; }
+  .btn-ghost:hover{ background:#f8fafc; }
+
+  @media (max-width: 576px){
+    .page-title{ font-size:1.2rem; }
+    .toggle-col{ flex-basis: 44px; }
+  }
+</style>
+
+<div class="container page-wrap py-3">
+  <!-- Sticky header -->
+  <div class="page-header d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <span class="chip blue">🧰 Worker</span>
+      <h2 class="page-title mb-0">Today’s Tasks</h2>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="chip muted">📅 {{ today }}</span>
+      <a href="/worker/home" class="btn btn-ghost">⬅ Back</a>
+    </div>
+  </div>
+
+  <div class="task-shell">
+    <div class="task-header">
+      <div class="d-flex align-items-center gap-2">
+        <span class="chip ok">✅ Live</span>
+        <span class="text-muted small">Toggle to complete • autosaves notes & qty</span>
+      </div>
+      {% if tasks|length > 0 %}
+        <div class="small text-muted">{{ tasks|length }} item{{ '' if tasks|length == 1 else 's' }}</div>
+      {% endif %}
+    </div>
+
+    {% if tasks|length == 0 %}
+      <div class="p-4 text-muted">No tasks assigned for today.</div>
+    {% else %}
+      <ul class="list-group list-group-flush">
+        {% for task in tasks|sort(attribute='order_index') %}
+          <li class="list-group-item task-item" id="task-{{ task.id }}">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+              <!-- Left: toggle + title/details -->
+              <div class="d-flex align-items-start gap-3 flex-grow-1">
+                <form method="post"
+                      action="/taskboard/toggle/{{ task.id }}?next=worker"
+                      onsubmit="return toggleSubmit(event, '{{ task.id }}')"
+                      class="toggle-col">
+                  <button class="btn toggle-btn {{ 'btn-success' if task.is_completed else 'btn-outline-secondary' }}" aria-label="Toggle complete">✓</button>
+                </form>
+
+                <div class="flex-grow-1">
+                  <div class="title-line {{ 'title-complete' if task.is_completed }}">{{ task.title }}</div>
+                  {% if task.details %}<div class="small text-muted mt-1">{{ task.details }}</div>{% endif %}
+
+                  <div class="meta-line">
+                    {% if task.shift_label %}<span class="chip">⏱️ Shift: {{ task.shift_label }}</span>{% endif %}
+                    {% if task.role %}<span class="chip">🧑‍🍳 Role: {{ task.role }}</span>{% endif %}
+                    {% if task.target_qty %}<span class="chip muted">🎯 Target: <strong>{{ task.target_qty }}</strong></span>{% endif %}
+                  </div>
+
+                  {% if task.target_qty %}
+                    {% set pct = ((task.progress_qty or 0) * 100 / task.target_qty) if task.target_qty else 0 %}
+                    <div class="mt-2">
+                      <div class="d-flex justify-content-between align-items-center mb-1 small text-muted">
+                        <span>Progress</span><span><strong>{{ task.progress_qty or 0 }}</strong> / {{ task.target_qty }}</span>
+                      </div>
+                      <div class="bar-wrap"><div class="bar" style="width: {{ pct if pct <= 100 else 100 }}%"></div></div>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Right: save status indicator -->
+              <div class="text-muted small save-status" data-save-status="{{ task.id }}"></div>
+            </div>
+
+            <!-- Inline progress controls -->
+            <div class="progress-row" data-task-progress data-task-id="{{ task.id }}">
+              <div class="row g-3 align-items-end">
+                <div class="col-12 col-sm-4 col-md-3">
+                  <label class="form-label small mb-1">Quantity (optional)
+                    {% if task.target_qty %}<span class="text-muted">of {{ task.target_qty }}</span>{% endif %}
+                  </label>
+                  <input type="number" class="form-control js-qty" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="e.g., 35" value="{{ task.progress_qty if task.progress_qty is not none else '' }}">
+                </div>
+                <div class="col-12 col-sm-8 col-md-9">
+                  <label class="form-label small mb-1">Note (optional)</label>
+                  <textarea class="form-control js-note" rows="1" placeholder="e.g., Finished 35 so far; waiting on lids">{{ task.progress_note or "" }}</textarea>
+                </div>
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  function toggleSubmit(e, id){
+    e.preventDefault();
+    fetch(e.target.action, { method: 'POST', headers:{'Accept':'application/json'} })
+      .then(async r=>{
+        const ct=r.headers.get('content-type')||''; if(!ct.includes('application/json')) throw '';
+        return r.json();
+      })
+      .then(data=>{
+        const li=document.getElementById(`task-${id}`); if(!li) return;
+        const btn=li.querySelector('button'); const title=li.querySelector('.title-line');
+        if(data.is_completed){
+          btn.classList.remove('btn-outline-secondary'); btn.classList.add('btn-success');
+          title.classList.add('title-complete');
+        }else{
+          btn.classList.add('btn-outline-secondary'); btn.classList.remove('btn-success');
+          title.classList.remove('title-complete');
+        }
+      })
+      .catch(()=> e.target.submit());
+    return false;
+  }
+
+  function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn.apply(null,a),ms);} }
+
+  (function(){
+    document.querySelectorAll('[data-task-progress]').forEach(card=>{
+      const taskId=card.getAttribute('data-task-id');
+      const qty=card.querySelector('.js-qty'); const note=card.querySelector('.js-note');
+      const status=document.querySelector(`[data-save-status="${taskId}"]`);
+      const save=debounce(async ()=>{
+        if(status){ status.textContent='Saving…'; }
+        const fd=new FormData();
+        fd.append('progress_qty', qty?qty.value:'');
+        fd.append('progress_note', note?note.value:'');
+        try{
+          const r=await fetch(`/worker/taskboard/${taskId}/progress`,{method:'PATCH',body:fd,headers:{'Accept':'application/json'}});
+          if(!r.ok) throw '';
+          const data=await r.json();
+          if(qty && data.progress_qty!==undefined){ qty.value=(data.progress_qty ?? ''); }
+          if(note && data.progress_note!==undefined){ note.value=(data.progress_note ?? ''); }
+          if(status){ status.textContent='Saved'; setTimeout(()=>status.textContent='',1200); }
+
+          // update local progress bar if present
+          const targetQtyText = card.closest('.task-item').querySelector('.meta-line .chip.muted strong');
+          const bar = card.closest('.task-item').querySelector('.bar');
+          const target = targetQtyText ? Number(targetQtyText.textContent) : null;
+          const current = qty && qty.value ? Number(qty.value) : 0;
+          if(bar && target){ const pct = Math.min(100, target ? (current*100/target) : 0); bar.style.width = pct + '%'; }
+        }catch{ if(status) status.textContent='Error saving'; }
+      }, 450);
+      if(qty) qty.addEventListener('input',save);
+      if(note) note.addEventListener('input',save);
+    });
+  })();
+</script>
+{% endblock %}
