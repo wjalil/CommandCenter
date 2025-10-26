@@ -109,26 +109,55 @@ async def admin_create_task(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     tenant_id = user.tenant_id
+
+    # --- Parse/derive date first (fallback to "today" in NY) ---
     try:
         dt = date.fromisoformat(task_date) if task_date else None
     except Exception:
         dt = None
+    if dt is None:
+        dt = datetime.now(NY).date()
 
+    # --- Helpers ---
     def _to_int_or_none(v: Optional[str]):
-        if v is None: return None
+        if v is None:
+            return None
         v = v.strip()
-        if v == "": return None
+        if v == "":
+            return None
         try:
             return max(0, int(v))
         except ValueError:
             return None
+
+    def _normalize_day_of_week(dow_in: Optional[int], fallback_dt: date) -> int:
+        """
+        Normalize to 1..7 (Mon=1..Sun=7).
+        - If client sent 0..6 from JS, map 0->7, keep 1..6.
+        - If client sent 1..7 already, keep it (clamped to 1..7).
+        - If missing/invalid, compute from fallback_dt.isoweekday().
+        """
+        try:
+            if dow_in is not None:
+                d = int(dow_in)
+                if d == 0:
+                    return 7
+                if 1 <= d <= 7:
+                    return d
+        except Exception:
+            pass
+        return fallback_dt.isoweekday()
 
     oi = _to_int_or_none(order_index) or 0
     tq = _to_int_or_none(target_qty)
     pq_raw = _to_int_or_none(progress_qty)
     note = (progress_note or "").strip() or None
 
+    # Cap progress at target if both present
     pq = min(pq_raw, tq) if (tq is not None and pq_raw is not None) else pq_raw
+
+    # --- Normalize day_of_week safely against DB constraint (1..7) ---
+    safe_dow = _normalize_day_of_week(day_of_week, dt)
 
     new_task = DailyTask(
         tenant_id=tenant_id,
@@ -136,7 +165,7 @@ async def admin_create_task(
         details=(details.strip() or None),
 
         task_date=dt,
-        day_of_week=day_of_week,
+        day_of_week=safe_dow,          # <-- patched: always 1..7
         shift_label=(shift_label or None),
         role=(role or None),
         order_index=oi,
@@ -154,6 +183,7 @@ async def admin_create_task(
 
     redirect_day = (dt or datetime.now(NY).date()).isoformat()
     return RedirectResponse(url=f"/admin/taskboard?day={redirect_day}", status_code=303)
+
 
 # ---------- Admin: Delete Task (form or JSON) ----------
 @router.post("/admin/taskboard/delete/{task_id}")
