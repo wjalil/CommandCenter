@@ -1,109 +1,219 @@
 {% extends "base.html" %}
 {% block content %}
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Elegant modern font -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
 <style>
-  [x-cloak] { display: none !important; }
+  [x-cloak]{display:none!important;}
   :root{
-    --ink:#0f172a;            /* deep slate */
-    --ink-2:#1f2937;
+    --ink:#1a1c2c;          /* deep charcoal */
+    --ink-2:#334155;
     --muted:#6b7280;
     --line:#e5e7eb;
-    --bg:#f8fafc;
+    --bg:#f9fafb;
     --card:#ffffff;
-    --teal:#0ea5a6;           /* accent */
+    --teal:#0ea5a6;
     --teal-2:#14b8a6;
     --rose:#ef4444;
     --amber:#f59e0b;
     --success:#22c55e;
   }
-  body{ background: var(--bg); }
+
+  body{
+    background: var(--bg);
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink-2);
+    line-height: 1.5;
+  }
+
   .page-wrap{ padding-top: 10px; }
+
   .page-title{
-    font-weight: 800; letter-spacing: .2px; color: var(--ink);
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--ink);
+    font-size: 1.75rem;
   }
-  .subtext{ color: var(--muted); }
-  .filter-card{
-    background: var(--card); border:1px solid var(--line); border-radius: 16px; padding: 16px;
-  }
+
+  .subtext{ color: var(--muted); font-size: .92rem; }
+
+  /* Buttons */
   .btn-ghost{
-    border: 1px solid var(--line); background:#fff; color:var(--ink); border-radius: 12px;
+    border:1px solid var(--line);
+    background:#fff;
+    color:var(--ink);
+    border-radius:12px;
+    transition: all .15s ease;
   }
-  .btn-ghost:hover{ background:#f3f4f6; }
+  .btn-ghost:hover{ background:#f3f4f6; color: var(--teal); }
   .btn-teal{
-    background: var(--teal); color: #fff; border:none; border-radius:12px; box-shadow: 0 4px 12px rgba(14,165,166,.2);
+    background:var(--teal);
+    color:#fff;
+    border:none;
+    border-radius:12px;
+    box-shadow:0 3px 10px rgba(14,165,166,.25);
+    font-weight:500;
   }
-  .btn-teal:hover{ background: var(--teal-2); color:#fff; }
+  .btn-teal:hover{ background:var(--teal-2); }
+
+  /* Filter card */
+  .filter-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:18px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.03);
+  }
+
+  /* Chips / badges */
   .chip{
-    border:1px dashed #d1d5db; padding:2px 8px; border-radius:999px; font-size:.8rem; color:var(--ink-2);
-    white-space: normal; /* allow wrap on mobile */
-  }
-  .qty-pill{
-    font-variant-numeric: tabular-nums;
-    background: rgba(20,184,166,.12); color: var(--teal-2);
-    border:1px solid rgba(20,184,166,.25);
-    padding: 6px 12px; border-radius: 999px; font-weight: 800;
-  }
-  .row-card{
-    border:1px solid var(--line); border-radius: 16px; background: var(--card);
-    padding: 14px 16px; transition: transform .12s ease, box-shadow .12s ease;
-    overflow: hidden; /* prevent horizontal scroll */
-  }
-  .row-card:hover{ transform: translateY(-1px); box-shadow: 0 8px 24px rgba(2,6,23,.06); }
-  .row-divider{ height: 1px; background: var(--line); margin: 10px 0; }
-  .qty-group .btn{ width: 36px; }
-  .qty-display{
-    min-width: 42px; text-align:center; border:1px solid var(--line); border-radius: 10px; padding: 4px 8px;
-    font-variant-numeric: tabular-nums; font-weight: 600; background:#fff;
-  }
-
-  /* Toolbar: not sticky on mobile; sticky on md+ */
-  .toolbar{ background: transparent; position: static; }
-  @media (min-width: 768px){
-    .toolbar{ position: sticky; top: 8px; z-index: 10; }
-  }
-
-  /* Simple toast */
-  #toast{
-    position: fixed; right: 16px; bottom: 16px; z-index: 1080;
-    display: none; max-width: 320px;
-  }
-  .toast-card{
-    background:#111827; color:#fff; border-radius: 12px; padding: 10px 14px; box-shadow: 0 12px 28px rgba(2,6,23,.35);
+    border:1px dashed #d1d5db;
+    padding:2px 8px;
+    border-radius:999px;
+    font-size:.8rem;
+    color:var(--ink-2);
   }
   .badge-light{
-    background: #f3f4f6; color: #111827; border:1px solid #e5e7eb;
-    white-space: normal; display: inline-block; margin-top: 4px; /* allow wrap */
-  }
-  .help-kb{
-    font-size: .85rem; color: var(--muted);
+    background:#f3f4f6;
+    color:#111827;
+    border:1px solid #e5e7eb;
+    border-radius:999px;
+    padding:2px 8px;
+    font-size:.8rem;
   }
 
-  /* Let flex children shrink to avoid overflow on small screens */
-  .row-card * { min-width: 0; }
+  /* Quantity */
+  .qty-pill{
+    font-variant-numeric:tabular-nums;
+    background:rgba(20,184,166,.12);
+    color:var(--teal-2);
+    border:1px solid rgba(20,184,166,.25);
+    padding:5px 12px;
+    border-radius:999px;
+    font-weight:600;
+    font-size:.9rem;
+  }
+  .qty-group .btn{ width:34px; }
+  .qty-display{
+    min-width:40px;
+    text-align:center;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:4px 8px;
+    font-variant-numeric: tabular-nums;
+    font-weight:500;
+    background:#fff;
+    font-size:.9rem;
+  }
 
-  /* Mobile layout for the action cluster */
-  @media (max-width: 576px) {
-    .row-card { padding: 12px; }
-    .actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      width: 100%;
+  /* List rows */
+  .row-card{
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:var(--card);
+    padding:18px;
+    transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    overflow:hidden;
+    position:relative;
+  }
+  .row-card::before{
+    content:"";
+    position:absolute;
+    left:0; top:0; bottom:0;
+    width:4px;
+    background:linear-gradient(180deg, var(--teal), var(--teal-2));
+    border-top-left-radius:18px;
+    border-bottom-left-radius:18px;
+  }
+  .row-card:hover{
+    transform:translateY(-1px);
+    box-shadow:0 8px 24px rgba(2,6,23,.06);
+    border-color:#dce0e7;
+  }
+  .row-card *{ min-width:0; }
+
+  /* Item title */
+  .item-title{
+    font-weight:600;
+    font-size:1.05rem;
+    color:var(--ink);
+  }
+
+  /* Meta line */
+  .meta-line{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:6px;
+    color:var(--muted);
+    font-size:.9rem;
+  }
+  .meta-dot{ opacity:.5; }
+
+  .actor-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background:#f9fafb;
+    border:1px solid #eef0f3;
+    padding:4px 10px;
+    border-radius:999px;
+    font-size:.85rem;
+  }
+  .actor-initial{
+    width:22px; height:22px;
+    border-radius:999px;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:.75rem;
+    font-weight:600;
+    color:#0b3b3c;
+    background:rgba(20,184,166,.15);
+    border:1px solid rgba(20,184,166,.3);
+  }
+
+  /* Toast */
+  #toast{
+    position:fixed; right:16px; bottom:16px; z-index:1080; display:none; max-width:320px;
+  }
+  .toast-card{
+    background:#111827;
+    color:#fff;
+    border-radius:12px;
+    padding:10px 14px;
+    box-shadow:0 12px 28px rgba(2,6,23,.35);
+    font-weight:500;
+  }
+
+  /* Toolbar sticky on md+ */
+  .toolbar{ background:transparent; position:static; }
+  @media (min-width:768px){
+    .toolbar{ position:sticky; top:8px; z-index:10; }
+  }
+
+  /* Mobile actions cluster */
+  @media (max-width:576px){
+    .row-card{ padding:14px; }
+    .actions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      width:100%;
     }
-    .actions .qty-pill { order: 1; justify-self: start; }
-    .actions .btn-group { order: 3; justify-self: start; }
-    .actions .btn-success { order: 2; width: 100%; justify-self: end; }
-    .actions .dropdown { order: 4; justify-self: end; }
+    .actions .qty-pill{ order:1; justify-self:start; }
+    .actions .btn-group{ order:3; justify-self:start; }
+    .actions .btn-success{ order:2; width:100%; justify-self:end; }
+    .actions .dropdown{ order:4; justify-self:end; }
   }
 </style>
 
 <div class="container page-wrap">
-  <!-- Header / Actions -->
   <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
     <h2 class="page-title mb-2 mb-md-0">🛒 Shopping · View</h2>
     <div class="d-flex gap-2">
       <a href="/admin/dashboard" class="btn btn-ghost">🏠 Home</a>
-      <!-- Mobile-only: Filters toggle -->
       <button class="btn btn-ghost d-inline-flex d-md-none" type="button"
               data-bs-toggle="collapse" data-bs-target="#filtersPanel"
               aria-expanded="false" aria-controls="filtersPanel">
@@ -113,7 +223,6 @@
     </div>
   </div>
 
-  <!-- Filters (collapsible on mobile, visible on md+) -->
   <div class="toolbar mb-3">
     <div id="filtersPanel" class="collapse d-md-block">
       <form class="filter-card" method="get">
@@ -147,115 +256,98 @@
             </div>
           </div>
         </div>
-        <div class="mt-2 help-kb">
+        <div class="mt-2 subtext">
           Pro tip: Use <kbd>+</kbd> and <kbd>–</kbd> to adjust quantity on the focused row • Press <kbd>P</kbd> to mark Purchased
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Empty state -->
   {% if not needs %}
     <div class="text-center subtext py-5">
       <div class="mb-2">Nothing needed yet with the current filters.</div>
       <a class="btn btn-ghost" href="/admin/shopping/view">Show all</a>
     </div>
   {% else %}
-
-    <!-- List -->
-    <div class="d-flex flex-column gap-2">
+    <div class="d-flex flex-column gap-3">
       {% for need in needs %}
       <div class="row-card"
            tabindex="0"
            x-data="rowState('{{ need.item_id }}', {{ need.quantity }})"
            @keydown.stop.prevent.plus="inc()"
-           @keydown.stop.prevent.equal="inc()"   <!-- some keyboards map '+' to '=' without shift -->
+           @keydown.stop.prevent.equal="inc()"
            @keydown.stop.prevent.-="dec()"
            @keydown.stop.prevent.p="mark('PURCHASED')">
 
-        <!-- Top row -->
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2">
-          <!-- Left info: allow shrinking -->
           <div class="me-md-2 flex-fill">
             <div class="d-flex align-items-center flex-wrap gap-2">
-              <h5 class="mb-0" style="font-weight:800;color:var(--ink);">
-                {{ need.item.name }}
-              </h5>
-              {% if need.item.sku %}
-                <span class="chip">SKU: {{ need.item.sku }}</span>
-              {% endif %}
-              {% if need.item.unit %}
-                <span class="chip">{{ need.item.unit }}</span>
-              {% endif %}
+              <h5 class="item-title mb-0">{{ need.item.name }}</h5>
+              {% if need.item.sku %}<span class="chip">SKU: {{ need.item.sku }}</span>{% endif %}
+              {% if need.item.unit %}<span class="chip">{{ need.item.unit }}</span>{% endif %}
             </div>
 
-            <div class="mt-1 subtext">
+            <div class="meta-line">
               {% if need.supplier %}
-                <span class="badge badge-light rounded-pill me-1">Supplier: {{ need.supplier.name }}</span>
+                <span class="badge-light">Supplier: {{ need.supplier.name }}</span>
               {% endif %}
               {% if need.item.business_line %}
-                <span class="badge badge-light rounded-pill me-1">Line: {{ need.item.business_line.name }}</span>
+                <span class="badge-light">Line: {{ need.item.business_line.name }}</span>
               {% endif %}
               {% if need.item.category %}
-                <span class="badge badge-light rounded-pill me-1">Category: {{ need.item.category.name }}</span>
+                <span class="badge-light">Category: {{ need.item.category.name }}</span>
               {% endif %}
               {% if need.notes %}
-                · <em>{{ need.notes }}</em>
+                <span class="meta-dot">·</span>
+                <em>{{ need.notes }}</em>
+              {% endif %}
+              {% set _actor = actor_by_item_id.get(need.item_id) if actor_by_item_id else None %}
+              {% if _actor %}
+                <span class="meta-dot">·</span>
+                <span class="actor-pill">
+                  <span class="actor-initial">{{ _actor[0]|upper }}</span>
+                  <span class="text-truncate">added by {{ _actor }}</span>
+                </span>
               {% endif %}
             </div>
           </div>
 
-          <!-- Actions: stacks/responsive -->
           <div class="actions d-flex align-items-center gap-3 flex-wrap flex-md-nowrap mt-2 mt-md-0">
             <span class="qty-pill" x-text="'Qty: ' + qty"></span>
 
-            <!-- Quantity controls -->
             <div class="btn-group qty-group" role="group" aria-label="Quantity">
               <button class="btn btn-outline-secondary btn-sm" type="button" @click="dec()" :disabled="loading">–</button>
               <span class="qty-display" x-text="qty"></span>
               <button class="btn btn-outline-secondary btn-sm" type="button" @click="inc()" :disabled="loading">+</button>
             </div>
 
-            <!-- Primary action -->
-            <button class="btn btn-success btn-sm flex-shrink-0" type="button"
-                    @click="mark('PURCHASED')"
-                    :disabled="loading">
-              <span x-show="!loading">Purchased</span>
-            </button>
-
-            <!-- More -->
-            <div class="dropdown flex-shrink-0">
-              <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" :disabled="loading">
-                More
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn btn-success" type="button" @click="mark('PURCHASED')" :disabled="loading">
+                <span x-show="!loading">Purchased</span>
               </button>
-              <ul class="dropdown-menu dropdown-menu-end">
-                <li><a class="dropdown-item" href="#" @click.prevent="mark('ORDERED')">Mark Ordered</a></li>
-                <li><a class="dropdown-item text-muted" href="#" @click.prevent="mark('SKIPPED')">Skip</a></li>
-              </ul>
+              <button class="btn btn-outline-secondary" type="button" @click="mark('SKIPPED')" :disabled="loading">
+                <span x-show="!loading">Skip</span>
+              </button>
             </div>
           </div>
         </div>
-
-        <!-- Optional divider / future per-item extras -->
-        <!-- <div class="row-divider"></div> -->
       </div>
       {% endfor %}
     </div>
   {% endif %}
 </div>
 
-<!-- Toast -->
 <div id="toast"><div class="toast-card" x-data="{show:false}" x-show="show" x-transition.opacity></div></div>
 
 <script>
 function showToast(msg){
-  const holder = document.querySelector('#toast');
-  const card = holder.querySelector('.toast-card');
-  card.textContent = msg;
-  holder.style.display = 'block';
-  card.__x ? card.__x.$data.show = true : null;
-  setTimeout(()=>{ card.__x.$data.show = false; }, 1400);
-  setTimeout(()=>{ holder.style.display = 'none'; }, 1650);
+  const holder=document.querySelector('#toast');
+  const card=holder.querySelector('.toast-card');
+  card.textContent=msg;
+  holder.style.display='block';
+  card.__x?card.__x.$data.show=true:null;
+  setTimeout(()=>{card.__x.$data.show=false;},1400);
+  setTimeout(()=>{holder.style.display='none';},1650);
 }
 
 function rowState(itemId, initialQty){
@@ -276,13 +368,13 @@ function rowState(itemId, initialQty){
       })
       .then(async (r)=>{
         if(!r.ok) throw new Error(await r.text());
-        // Remove row for terminal states, keep for ORDERED
+        // Remove row for terminal states, keep visible for non-terminal
         if(status==='PURCHASED' || status==='SKIPPED'){
           el?.remove();
           showToast(status==='PURCHASED' ? 'Marked purchased' : 'Skipped');
         } else {
           el && (el.style.opacity = 1);
-          showToast('Marked ordered');
+          showToast('Marked received');
         }
       })
       .catch(()=>{

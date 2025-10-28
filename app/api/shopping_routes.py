@@ -2,15 +2,16 @@ from fastapi import APIRouter, Depends, Request, Query, HTTPException
 from typing import Optional
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, and_ , func , or_, desc, asc
+from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.sql import over
 from app.db import get_db
 from app.auth.dependencies import get_current_user  # assumes user has .tenant_id, .role, .name
 from app.models.shopping import (
     BusinessLine, Category, Supplier, Item, ShoppingNeed, ShoppingEvent
 )
 from fastapi.templating import Jinja2Templates
-
+from app.utils.time_windows import parse_since
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
@@ -254,6 +255,36 @@ async def shopping_view(
 
     needs = (await db.execute(stmt)).scalars().all()
 
+    # Build list of item_ids currently on the list
+    item_ids = [n.item_id for n in needs]
+    actor_by_item_id = {}
+
+    if item_ids:
+        # Window over events to get the most recent NEEDED event per item
+        rn = func.row_number().over(
+            partition_by=ShoppingEvent.item_id,
+            order_by=ShoppingEvent.id.desc()
+        ).label("rn")
+
+        subq = (
+            select(
+                ShoppingEvent.item_id,
+                ShoppingEvent.actor,
+                rn
+            )
+            .where(
+                ShoppingEvent.tenant_id == tenant_id,
+                ShoppingEvent.item_id.in_(item_ids),
+                ShoppingEvent.to_status == "NEEDED"
+            )
+            .subquery("last_needed_event")
+        )
+
+        rows = await db.execute(
+            select(subq.c.item_id, subq.c.actor).where(subq.c.rn == 1)
+        )
+        actor_by_item_id = {item_id: actor for item_id, actor in rows.all()}
+
     suppliers = (
         await db.execute(select(Supplier).where(Supplier.tenant_id == tenant_id).order_by(Supplier.name))
     ).scalars().all()
@@ -273,6 +304,7 @@ async def shopping_view(
             "active_business_line_id": business_line_id_i,
             "q": q or "",
             "user": user,  # for minor UI affordances if needed
+            "actor_by_item_id": actor_by_item_id
         },
     )
 
@@ -366,3 +398,58 @@ async def shopping_set_status(
     )
     await db.commit()
     return JSONResponse({"ok": True})
+
+
+# View Shopping History
+# ----------------------------
+
+@router.get("/admin/shopping/purchased")
+async def purchased_items_view_join(
+    request: Request,
+    since: str = Query("7d"),
+    q: Optional[str] = Query(None),
+    supplier_id: Optional[int] = None,
+    bl_id: Optional[int] = None,
+    order: str = Query("desc", regex="^(asc|desc)$"),
+    limit: int = Query(200, ge=1, le=2000),
+    db: AsyncSession = Depends(get_db),
+    user = Depends(get_current_user),
+):
+    tenant_id = user.tenant_id
+    since_dt_utc = parse_since(since)
+    if getattr(since_dt_utc, "tzinfo", None) is not None:
+        since_dt_utc = since_dt_utc.replace(tzinfo=None)
+
+    stmt = (
+        select(ShoppingEvent, Item, Supplier, BusinessLine)
+        .join(Item, Item.id == ShoppingEvent.item_id)
+        .join(Supplier, Supplier.id == Item.default_supplier_id, isouter=True)
+        .join(BusinessLine, BusinessLine.id == Item.business_line_id, isouter=True)
+        .where(
+            ShoppingEvent.tenant_id == tenant_id,
+            ShoppingEvent.to_status == "PURCHASED",
+            ShoppingEvent.at >= since_dt_utc,
+            *( [Item.default_supplier_id == supplier_id] if supplier_id else [] ),
+            *( [Item.business_line_id == bl_id] if bl_id else [] ),
+            *( [or_(Item.name.ilike(f"%{q.strip()}%"), Item.sku.ilike(f"%{q.strip()}%"))] if q else [] ),
+        )
+        .order_by(desc(ShoppingEvent.at) if order == "desc" else asc(ShoppingEvent.at))
+        .limit(limit)
+    )
+    res = await db.execute(stmt)
+    rows = res.all()  # list of tuples: (ev, item, supplier, bl)
+
+    # Normalize to dicts for the template
+    events = [{
+        "at": ev.at,
+        "quantity": ev.quantity,
+        "actor": ev.actor,
+        "item_name": item.name if item else "—",
+        "supplier_name": supplier.name if supplier else "—",
+        "bl_name": bl.name if bl else "—",
+    } for (ev, item, supplier, bl) in rows]
+
+    return templates.TemplateResponse(
+        "shopping/purchased_list.html",
+        {"request": request, "events": events, "since": since, "q": q or "", "supplier_id": supplier_id, "bl_id": bl_id, "order": order},
+    )

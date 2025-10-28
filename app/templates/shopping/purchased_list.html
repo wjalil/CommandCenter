@@ -1,0 +1,89 @@
+{# app/templates/shopping/purchased_list.html #}
+{% extends "base.html" %}
+{% block content %}
+<div class="container page-wrap py-3" x-data="{ order: '{{ order }}' }">
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <h2 class="page-title mb-2 mb-md-0">🧾 Purchased Items</h2>
+    <div class="d-flex gap-2">
+      <a href="/admin/dashboard" class="btn btn-ghost">🏠 Home</a>
+      <a href="/admin/shopping/purchased.csv?since={{ since }}{% if q %}&q={{ q }}{% endif %}{% if supplier_id %}&supplier_id={{ supplier_id }}{% endif %}{% if bl_id %}&bl_id={{ bl_id }}{% endif %}&order={{ order }}" class="btn btn-outline-secondary">⬇️ Export CSV</a>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <form class="card shadow-sm p-3 mb-3" method="get" action="/admin/shopping/purchased">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-2">
+        <label class="form-label">Since</label>
+        <input name="since" class="form-control" value="{{ since }}" placeholder="7d or 2025-10-01">
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label">Search</label>
+        <input name="q" class="form-control" value="{{ q }}" placeholder="Item name / SKU">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Supplier</label>
+        <input name="supplier_id" class="form-control" value="{{ supplier_id or '' }}" placeholder="ID">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label">Business Line</label>
+        <input name="bl_id" class="form-control" value="{{ bl_id or '' }}" placeholder="ID">
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label">Order</label>
+        <select name="order" class="form-select">
+          <option value="desc" {% if order=='desc' %}selected{% endif %}>Newest</option>
+          <option value="asc" {% if order=='asc' %}selected{% endif %}>Oldest</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2 d-grid">
+        <button class="btn btn-primary">Apply</button>
+      </div>
+    </div>
+  </form>
+
+  <!-- Table -->
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Date (ET)</th>
+            <th>Item</th>
+            <th class="text-end">Qty</th>
+            <th>Supplier</th>
+            <th>Business Line</th>
+            <th>Actor</th>
+          </tr>
+        </thead>
+    
+        <tbody>
+        {% if events|length == 0 %}
+            <tr><td colspan="6" class="text-muted py-4 text-center">No purchased items in the selected window.</td></tr>
+        {% else %}
+            {% for ev in events %}
+            {# Support ORM objects (relationship version) #}
+            {% set ts = ev.at if ev.at is defined else ev['at'] %}
+            {% set qty = ev.quantity if ev.quantity is defined else ev['quantity'] %}
+            {% set actor = ev.actor if ev.actor is defined else ev['actor'] %}
+            {% set itemname = (ev.item.name if ev.item is defined and ev.item else ev['item_name']) %}
+            {% set suppliername = (ev.item.supplier.name if ev.item is defined and ev.item and ev.item.supplier else ev['supplier_name']) %}
+            {% set blname = (ev.item.business_line.name if ev.item is defined and ev.item and ev.item.business_line else ev['bl_name']) %}
+
+            <tr>
+                <td>{{ ts.strftime("%Y-%m-%d %I:%M %p") if ts else "—" }}</td>
+                <td>{{ itemname or "—" }}</td>
+                <td class="text-end">{{ qty or 0 }}</td>
+                <td>{{ suppliername or "—" }}</td>
+                <td>{{ blname or "—" }}</td>
+                <td>{{ actor or "—" }}</td>
+            </tr>
+            {% endfor %}
+        {% endif %}
+        </tbody>
+
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
