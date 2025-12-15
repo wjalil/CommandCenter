@@ -3,16 +3,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
   body{
     margin:0;
     min-height:100vh;
-    background: linear-gradient(135deg, #eefdf4, #e1f9f5, #f8fffc);
+    background: linear-gradient(135deg, #f2f7f4, #edf6f3, #f9fbfa);
     background-size: 400% 400%;
-    animation: softGradient 15s ease infinite;
-    font-family: 'Orbitron', sans-serif;
-    color:#333;
+    animation: softGradient 18s ease infinite;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    color:#2f3a35;
   }
 
   @keyframes softGradient{
@@ -28,42 +28,40 @@
 
   /* Glass containers */
   .glow-box{
-    background: rgba(255, 255, 255, 0.82);
-    border: 1px solid #cce7dd;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid #dde8e2;
     border-radius: 16px;
-    box-shadow: 0 0 25px rgba(0,0,0,.05);
-    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 22px rgba(0,0,0,.04);
+    backdrop-filter: blur(10px);
   }
 
-  .hero{
-    padding: 18px 18px;
-  }
+  .hero{ padding: 18px 18px; }
 
   .hero-title{
-    font-size: 1.65rem;
-    color: #2c5c48;
-    margin-bottom: 0.2rem;
-    text-shadow: 0 0 3px rgba(44, 92, 72, 0.18);
+    font-size: 1.6rem;
+    color: #355e4d;
+    margin-bottom: 0.25rem;
+    font-weight: 700;
   }
 
   .hero-sub{
-    font-size: .92rem;
-    color:#6e7f75;
+    font-size: .95rem;
+    color:#6f837a;
     margin: 0;
   }
 
   .btn-glow{
-    border: 2px solid #2c5c48;
-    color: #2c5c48;
+    border: 1.8px solid #4a7c68;
+    color: #355e4d;
     background: transparent;
     transition: all 0.2s ease-in-out;
-    font-weight: 700;
+    font-weight: 600;
     border-radius: 14px;
   }
   .btn-glow:hover{
-    background-color:#2c5c48;
+    background-color:#355e4d;
     color:#fff;
-    box-shadow: 0 0 10px #b6ded0;
+    box-shadow: 0 0 10px rgba(53,94,77,.25);
   }
 
   .pill{
@@ -73,72 +71,70 @@
     padding: 6px 12px;
     border-radius: 999px;
     font-size: .78rem;
-    border: 1px solid rgba(204,231,221,.95);
-    background: rgba(255,255,255,.70);
-    color:#2c5c48;
+    border: 1px solid rgba(221,232,226,.95);
+    background: rgba(255,255,255,.75);
+    color:#355e4d;
     white-space: nowrap;
-    font-weight: 800;
+    font-weight: 700;
   }
 
   /* Table container */
-  .table-wrap{
-    padding: 14px;
-  }
+  .table-wrap{ padding: 14px; }
 
   .table{
     margin: 0;
-    border-color: rgba(204,231,221,.9) !important;
+    border-color: rgba(221,232,226,.9) !important;
   }
 
   .table thead th{
-    background: rgba(255,255,255,.75) !important;
-    color: #2c5c48;
-    border-color: rgba(204,231,221,.9) !important;
-    font-weight: 900;
+    background: rgba(255,255,255,.80) !important;
+    color: #355e4d;
+    border-color: rgba(221,232,226,.9) !important;
+    font-weight: 800;
     letter-spacing: .2px;
   }
 
   .table tbody td{
-    border-color: rgba(204,231,221,.9) !important;
+    border-color: rgba(221,232,226,.9) !important;
     vertical-align: middle;
   }
 
   .menu-link{
-    color:#2c5c48;
+    color:#355e4d;
     text-decoration: none;
-    font-weight: 900;
+    font-weight: 800;
   }
-  .menu-link:hover{
-    text-decoration: underline;
-  }
+  .menu-link:hover{ text-decoration: underline; }
 
   .badge{
     border-radius: 999px;
     padding: .4rem .65rem;
-    font-weight: 900;
+    font-weight: 800;
     letter-spacing: .2px;
   }
 
   .btn-xs{
     border-radius: 12px;
-    font-weight: 800;
+    font-weight: 700;
   }
 
   .btn-soft{
-    border: 2px solid rgba(44,92,72,.28);
-    color:#2c5c48;
-    background: rgba(255,255,255,.65);
+    border: 1.8px solid rgba(53,94,77,.28);
+    color:#355e4d;
+    background: rgba(255,255,255,.75);
+    transition: all 0.2s ease-in-out;
   }
   .btn-soft:hover{
-    background:#2c5c48;
+    background:#355e4d;
     color:#fff;
-    box-shadow: 0 0 10px rgba(182,222,208,.9);
+    box-shadow: 0 0 10px rgba(53,94,77,.22);
   }
 
   .btn-danger-soft{
-    border: 2px solid rgba(239,68,68,.25);
+    border: 1.8px solid rgba(239,68,68,.25);
     color: rgb(185,28,28);
     background: rgba(239,68,68,.08);
+    transition: all 0.2s ease-in-out;
   }
   .btn-danger-soft:hover{
     background: rgb(185,28,28);
@@ -152,7 +148,6 @@
     gap: 8px;
   }
 
-  /* Mobile responsiveness: stack table into cards */
   @media (max-width: 768px){
     .table-responsive{ border-radius: 16px; overflow: hidden; }
     .actions{ justify-content: flex-start; }
