@@ -1,32 +1,274 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="container mt-4">
-    <h2>Menus</h2>
-    <a href="/admin/dashboard" class="btn btn-outline-secondary">← Back to Admin Dashboard</a>
-    <a href="/admin/menus/create" class="btn btn-outline-secondary"">➕ Create New Menu</a>
-    <table class="table table-bordered">
-      <thead>
-        <tr><th>Name</th><th>Description</th><th>Status</th></tr>
-      </thead>
-      <tbody>
-        {% for menu in menus %}
-        <tr>
-          <td>
-            <a href="/admin/menu-items?menu_id={{ menu.id }}" class="text-decoration-none fw-semibold">
-              {{ menu.name }}
-            </a>
-          </td>
-          <td>{{ menu.description or "—" }}</td>
-          <td>
-            {% if menu.is_active %}
-              <span class="badge bg-success">Active</span>
-            {% else %}
-              <span class="badge bg-secondary">Inactive</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background: linear-gradient(135deg, #eefdf4, #e1f9f5, #f8fffc);
+    background-size: 400% 400%;
+    animation: softGradient 15s ease infinite;
+    font-family: 'Orbitron', sans-serif;
+    color:#333;
+  }
+
+  @keyframes softGradient{
+    0%{ background-position: 0% 50%; }
+    50%{ background-position: 100% 50%; }
+    100%{ background-position: 0% 50%; }
+  }
+
+  .page-wrap{
+    padding-top: 18px;
+    padding-bottom: 28px;
+  }
+
+  /* Glass containers */
+  .glow-box{
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid #cce7dd;
+    border-radius: 16px;
+    box-shadow: 0 0 25px rgba(0,0,0,.05);
+    backdrop-filter: blur(8px);
+  }
+
+  .hero{
+    padding: 18px 18px;
+  }
+
+  .hero-title{
+    font-size: 1.65rem;
+    color: #2c5c48;
+    margin-bottom: 0.2rem;
+    text-shadow: 0 0 3px rgba(44, 92, 72, 0.18);
+  }
+
+  .hero-sub{
+    font-size: .92rem;
+    color:#6e7f75;
+    margin: 0;
+  }
+
+  .btn-glow{
+    border: 2px solid #2c5c48;
+    color: #2c5c48;
+    background: transparent;
+    transition: all 0.2s ease-in-out;
+    font-weight: 700;
+    border-radius: 14px;
+  }
+  .btn-glow:hover{
+    background-color:#2c5c48;
+    color:#fff;
+    box-shadow: 0 0 10px #b6ded0;
+  }
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: .78rem;
+    border: 1px solid rgba(204,231,221,.95);
+    background: rgba(255,255,255,.70);
+    color:#2c5c48;
+    white-space: nowrap;
+    font-weight: 800;
+  }
+
+  /* Table container */
+  .table-wrap{
+    padding: 14px;
+  }
+
+  .table{
+    margin: 0;
+    border-color: rgba(204,231,221,.9) !important;
+  }
+
+  .table thead th{
+    background: rgba(255,255,255,.75) !important;
+    color: #2c5c48;
+    border-color: rgba(204,231,221,.9) !important;
+    font-weight: 900;
+    letter-spacing: .2px;
+  }
+
+  .table tbody td{
+    border-color: rgba(204,231,221,.9) !important;
+    vertical-align: middle;
+  }
+
+  .menu-link{
+    color:#2c5c48;
+    text-decoration: none;
+    font-weight: 900;
+  }
+  .menu-link:hover{
+    text-decoration: underline;
+  }
+
+  .badge{
+    border-radius: 999px;
+    padding: .4rem .65rem;
+    font-weight: 900;
+    letter-spacing: .2px;
+  }
+
+  .btn-xs{
+    border-radius: 12px;
+    font-weight: 800;
+  }
+
+  .btn-soft{
+    border: 2px solid rgba(44,92,72,.28);
+    color:#2c5c48;
+    background: rgba(255,255,255,.65);
+  }
+  .btn-soft:hover{
+    background:#2c5c48;
+    color:#fff;
+    box-shadow: 0 0 10px rgba(182,222,208,.9);
+  }
+
+  .btn-danger-soft{
+    border: 2px solid rgba(239,68,68,.25);
+    color: rgb(185,28,28);
+    background: rgba(239,68,68,.08);
+  }
+  .btn-danger-soft:hover{
+    background: rgb(185,28,28);
+    color:#fff;
+  }
+
+  .actions{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  /* Mobile responsiveness: stack table into cards */
+  @media (max-width: 768px){
+    .table-responsive{ border-radius: 16px; overflow: hidden; }
+    .actions{ justify-content: flex-start; }
+  }
+</style>
+
+<div class="container page-wrap">
+
+  <!-- HERO -->
+  <div class="glow-box hero mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3">
+      <div>
+        <div class="hero-title">Menus</div>
+        <p class="hero-sub">Create, activate, and manage categories and items for each menu.</p>
+      </div>
+      <span class="pill">Admin</span>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <a href="/admin/dashboard" class="btn btn-glow">← Back</a>
+      <a href="/admin/menus/create" class="btn btn-glow">➕ Create New Menu</a>
+    </div>
+
+    {% if request.query_params.get("success") %}
+      <div class="alert alert-success mt-3 mb-0">{{ request.query_params.get("success") }}</div>
+    {% endif %}
+    {% if request.query_params.get("error") %}
+      <div class="alert alert-danger mt-3 mb-0">{{ request.query_params.get("error") }}</div>
+    {% endif %}
   </div>
+
+  <!-- TABLE -->
+  <div class="glow-box table-wrap">
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead>
+          <tr>
+            <th style="width: 28%;">Name</th>
+            <th>Description</th>
+            <th class="text-center" style="width: 14%;">Categories</th>
+            <th class="text-center" style="width: 14%;">Status</th>
+            <th class="text-center" style="width: 20%;">Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for menu in menus %}
+          <tr>
+            <td>
+              <a href="/admin/menu-items?menu_id={{ menu.id }}" class="menu-link">
+                {{ menu.name }}
+              </a>
+            </td>
+
+            <td class="text-muted">{{ menu.description or "—" }}</td>
+
+            <td class="text-center">
+              {% if menu_category_counts is defined %}
+                <span class="pill">{{ menu_category_counts.get(menu.id, 0) }}</span>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              {% if menu.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              <div class="actions">
+
+                {% if menu.is_active %}
+                  <form method="post" action="/admin/menus/{{ menu.id }}/set-status" class="d-inline">
+                    <input type="hidden" name="action" value="deactivate">
+                    <button type="submit" class="btn btn-sm btn-xs btn-soft">
+                      Deactivate
+                    </button>
+                  </form>
+                {% else %}
+                  <form method="post" action="/admin/menus/{{ menu.id }}/set-status" class="d-inline">
+                    <input type="hidden" name="action" value="activate">
+                    <button type="submit" class="btn btn-sm btn-xs btn-soft">
+                      Activate
+                    </button>
+                  </form>
+                {% endif %}
+
+                <a href="/admin/menu-items?menu_id={{ menu.id }}" class="btn btn-sm btn-xs btn-soft">
+                  Manage Items
+                </a>
+
+                <a href="/admin/menus/{{ menu.id }}/edit" class="btn btn-sm btn-xs btn-soft">
+                  ✏️ Edit Menu
+                </a>
+
+                <form method="post"
+                      action="/admin/menus/{{ menu.id }}/delete"
+                      class="d-inline"
+                      onsubmit="return confirm('Delete this menu AND all its items? This cannot be undone.');">
+                  <button type="submit" class="btn btn-sm btn-xs btn-danger-soft">
+                    🗑️ Delete
+                  </button>
+                </form>
+
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
 {% endblock %}

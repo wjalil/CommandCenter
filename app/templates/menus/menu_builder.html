@@ -1,76 +1,159 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container mt-5" x-data="menuBuilder()">
-  <h2>Create Menu Items</h2>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Create Menu Items</h2>
+    <a href="/admin/menu-items" class="btn btn-outline-secondary">← Back to Items</a>
+  </div>
 
   <!-- Menu Selector -->
   <form method="post" @submit.prevent="submitForm">
-    <div class="mb-3">
-      <label for="menu_id" class="form-label">Select Menu</label>
-      <select class="form-select" x-model="menu_id" required>
-        <option value="" disabled selected>-- Choose a menu --</option>
-        {% for menu in menus %}
-          <option value="{{ menu.id }}">{{ menu.name }}</option>
-        {% endfor %}
-      </select>
+    <div class="row g-3 align-items-end mb-3">
+      <div class="col-md-6">
+        <label class="form-label">Select Menu</label>
+        <select class="form-select" x-model="menu_id" @change="loadCategories()" required>
+          <option value="" disabled>-- Choose a menu --</option>
+          {% for menu in menus %}
+            <option value="{{ menu.id }}">{{ menu.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-6" x-show="menu_id">
+        <div class="small text-muted">
+          Tip: add categories on the menu create page. Items can be uncategorized, but it’s cleaner if you assign one.
+        </div>
+      </div>
     </div>
 
     <!-- Editable Table -->
     <table class="table table-bordered align-middle">
       <thead class="table-light">
         <tr>
-          <th>Name</th>
+          <th style="width: 20%;">Name</th>
           <th>Description</th>
-          <th>Price ($)</th>
-          <th>Qty Available</th>
-          <th>Remove</th>
+          <th style="width: 10%;">Price ($)</th>
+          <th style="width: 12%;">Qty</th>
+          <th style="width: 18%;">Category</th>
+          <th style="width: 8%;">Remove</th>
         </tr>
       </thead>
       <tbody>
-        <template x-for="(item, index) in items" :key="index">
+        <template x-for="(item, index) in items" :key="item.key">
           <tr>
-            <td><input type="text" class="form-control" x-model="item.name" required></td>
-            <td><input type="text" class="form-control" x-model="item.description"></td>
-            <td><input type="number" class="form-control" step="0.01" x-model.number="item.price" required></td>
-            <td><input type="number" class="form-control" x-model.number="item.qty" required></td>
-            <td><button type="button" class="btn btn-sm btn-danger" @click="removeRow(index)">❌</button></td>
+            <td>
+              <input type="text" class="form-control" x-model="item.name" required>
+            </td>
+            <td>
+              <input type="text" class="form-control" x-model="item.description">
+            </td>
+            <td>
+              <input type="number" class="form-control" step="0.01" min="0" x-model.number="item.price" required>
+            </td>
+            <td>
+              <input type="number" class="form-control" min="0" step="1" x-model.number="item.qty" required>
+            </td>
+            <td>
+              <select class="form-select" x-model="item.category_id">
+                <option value="">-- None --</option>
+                <template x-for="cat in categories" :key="cat.id">
+                  <option :value="cat.id" x-text="cat.name"></option>
+                </template>
+              </select>
+            </td>
+            <td class="text-center">
+              <button type="button" class="btn btn-sm btn-outline-danger" @click="removeRow(index)">✕</button>
+            </td>
           </tr>
         </template>
       </tbody>
     </table>
 
     <div class="d-flex justify-content-between">
-      <button type="button" class="btn btn-secondary" @click="addRow">➕ Add Row</button>
-      <button type="submit" class="btn btn-primary">💾 Save Items</button>
+      <button type="button" class="btn btn-secondary" @click="addRow">+ Add Row</button>
+      <button type="submit" class="btn btn-primary" :disabled="saving">
+        <span x-show="!saving">Save Items</span>
+        <span x-show="saving">Saving...</span>
+      </button>
     </div>
   </form>
 </div>
 
-<!-- Alpine Component -->
 <script>
 function menuBuilder() {
   return {
     menu_id: "",
+    categories: [],
+    saving: false,
     items: [
-      { name: "", description: "", price: 0, qty: 0 }
+      { key: crypto.randomUUID(), name: "", description: "", price: 0, qty: 0, category_id: "" }
     ],
+
     addRow() {
-      this.items.push({ name: "", description: "", price: 0, qty: 0 });
+      this.items.push({ key: crypto.randomUUID(), name: "", description: "", price: 0, qty: 0, category_id: "" });
     },
     removeRow(index) {
       this.items.splice(index, 1);
+      if (this.items.length === 0) this.addRow();
     },
-    async submitForm() {
-      const response = await fetch("/admin/menu-items/bulk-create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ menu_id: this.menu_id, items: this.items })
-      });
 
-      if (response.redirected) {
-        window.location.href = response.url;
-      } else {
-        alert("Error saving items.");
+    async loadCategories() {
+      this.categories = [];
+      // clear category selections when switching menus
+      this.items = this.items.map(i => ({ ...i, category_id: "" }));
+
+      if (!this.menu_id) return;
+
+      try {
+        const res = await fetch(`/admin/menus/${this.menu_id}/categories.json`);
+        if (!res.ok) throw new Error("Failed to load categories");
+        const data = await res.json();
+        this.categories = data.categories || [];
+      } catch (e) {
+        console.error(e);
+        this.categories = [];
+      }
+    },
+
+    async submitForm() {
+      if (!this.menu_id) {
+        alert("Please choose a menu.");
+        return;
+      }
+
+      // light validation
+      const cleaned = this.items
+        .map(i => ({
+          name: (i.name || "").trim(),
+          description: (i.description || "").trim(),
+          price: Number(i.price || 0),
+          qty: Number(i.qty || 0),
+          category_id: i.category_id || null,
+        }))
+        .filter(i => i.name);
+
+      if (cleaned.length === 0) {
+        alert("Please add at least one valid item name.");
+        return;
+      }
+
+      this.saving = true;
+      try {
+        const response = await fetch("/admin/menu-items/bulk-create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ menu_id: this.menu_id, items: cleaned })
+        });
+
+        if (response.redirected) {
+          window.location.href = response.url;
+        } else if (response.ok) {
+          window.location.href = "/admin/menu-items?success=Items+added";
+        } else {
+          alert("Error saving items.");
+        }
+      } finally {
+        this.saving = false;
       }
     }
   }

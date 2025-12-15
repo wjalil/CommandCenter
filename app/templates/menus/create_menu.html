@@ -1,21 +1,78 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="container mt-4">
-    <h2>Create Menu</h2>
-    <form method="post">
-      <div class="mb-3">
-        <label for="name" class="form-label">Menu Name</label>
-        <input type="text" class="form-control" name="name" required>
-      </div>
-      <div class="mb-3">
-        <label for="description" class="form-label">Description</label>
-        <textarea class="form-control" name="description"></textarea>
-      </div>
-      <div class="form-check mb-3">
-        <input class="form-check-input" type="checkbox" name="is_active" value="true" id="is_active">
-        <label class="form-check-label" for="is_active">Set as Active Menu</label>
-      </div>
-      <button type="submit" class="btn btn-primary">Create Menu</button>
-    </form>
-  </div>
+<div class="container mt-4" x-data="menuCreate()">
+  <h2>Create Menu</h2>
+
+  {% if request.query_params.get("error") %}
+    <div class="alert alert-danger">{{ request.query_params.get("error") }}</div>
+  {% endif %}
+
+  <form method="post">
+    <div class="mb-3">
+      <label class="form-label">Menu Name</label>
+      <input type="text" class="form-control" name="name" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Description</label>
+      <textarea class="form-control" name="description"></textarea>
+    </div>
+
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" name="is_active" value="true" id="is_active">
+      <label class="form-check-label" for="is_active">Set as Active Menu</label>
+    </div>
+
+    <hr class="my-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h5 class="mb-0">Categories</h5>
+      <button type="button" class="btn btn-sm btn-outline-secondary" @click="addCat()">+ Add Category</button>
+    </div>
+
+    <div class="text-muted small mb-3">These control how customers see the menu (grouped like a restaurant).</div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="width:60%;">Name</th>
+            <th style="width:25%;">Order</th>
+            <th style="width:15%;">Remove</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(c, idx) in cats" :key="idx">
+            <tr>
+              <td>
+                <input class="form-control" name="category_names" x-model="c.name" placeholder="e.g., Drinks" required>
+              </td>
+              <td>
+                <input class="form-control" type="number" name="category_orders" x-model.number="c.order" min="0" step="1">
+              </td>
+              <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger" @click="removeCat(idx)">✕</button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create Menu</button>
+  </form>
+</div>
+
+<script>
+function menuCreate(){
+  return {
+    cats: [{ name: "Main", order: 0 }],
+    addCat(){ this.cats.push({ name: "", order: this.cats.length }); },
+    removeCat(i){
+      this.cats.splice(i, 1);
+      if(this.cats.length === 0) this.cats.push({ name: "Main", order: 0 });
+    }
+  }
+}
+</script>
 {% endblock %}

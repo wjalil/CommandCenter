@@ -1,154 +1,269 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container mt-4">
-  <h2 class="mb-4">🍽️ Menu Items Management</h2>
-  <a href="/admin/menus" class="btn btn-outline-secondary">← Back to Menus</a>
+
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h2 class="mb-0">🍽️ Menu Items</h2>
+      <div class="text-muted small">Manage items by menu</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="/admin/menus" class="btn btn-outline-secondary">← Back to Menus</a>
+    </div>
+  </div>
+
   {% if request.query_params.get("success") %}
     <div class="alert alert-success">{{ request.query_params.get("success") }}</div>
   {% endif %}
+  {% if request.query_params.get("error") %}
+    <div class="alert alert-danger">{{ request.query_params.get("error") }}</div>
+  {% endif %}
 
   {% for menu in menus %}
-    <div class="mb-4" x-data="{
-        newItems: [],
-        addRow() {
-          this.newItems.push({ name: '', description: '', price: 0.00, qty: 0 });
-        },
-        async submitNewItems(menuId) {
-          const response = await fetch('/admin/menu-items/bulk-create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ menu_id: menuId, items: this.newItems })
-          });
-          if (response.ok) {
-            location.reload();
-          } else {
-            alert('Failed to add new items.');
-          }
-        }
-      }"
-    >
-      <h4>{{ menu.name }} {% if menu.is_active %}<span class="badge bg-success">Active</span>{% endif %}</h4>
-      <div class="table-responsive">
-        <table class="table nice-table align-middle text-center">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th>
-              <th>Description</th>
-              <th>Price ($)</th>
-              <th>Qty Available</th>
-              <th>Photo</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in menu.items %}
-              <tr x-data="{
-                  editable: false,
-                  form: {
-                    name: '{{ item.name }}',
-                    description: `{{ item.description or '' }}`,
-                    price: {{ item.price }},
-                    qty: {{ item.qty_available }}
-                  },
-                  async updateItem() {
-                    const response = await fetch('/admin/menu-items/{{ item.id }}/inline-update', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(this.form)
-                    });
-                    if (response.ok) {
-                      this.editable = false;
-                    } else {
-                      alert('Failed to update item');
-                    }
-                  }
-                }"
-              >
-                <td>
-                  <template x-if="editable">
-                    <input x-model="form.name" class="form-control" />
-                  </template>
-                  <template x-if="!editable">
-                    <span x-text="form.name"></span>
-                  </template>
-                </td>
-                <td>
-                  <template x-if="editable">
-                    <input x-model="form.description" class="form-control" />
-                  </template>
-                  <template x-if="!editable">
-                    <span x-text="form.description || '—'"></span>
-                  </template>
-                </td>
-                <td>
-                  <template x-if="editable">
-                    <input x-model="form.price" type="number" step="0.01" class="form-control" />
-                  </template>
-                  <template x-if="!editable">
-                    $<span x-text="parseFloat(form.price).toFixed(2)"></span>
-                  </template>
-                </td>
-                <td>
-                  <template x-if="editable">
-                    <input x-model="form.qty" type="number" class="form-control" />
-                  </template>
-                  <template x-if="!editable">
-                    <span x-text="form.qty"></span>
-                  </template>
-                </td>
-                <td>
-                  {% if item.photo_filename %}
-                    <img src="/static/uploads/{{ item.photo_filename }}" class="img-thumbnail" style="max-width: 60px;" />
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-                <td class="d-flex justify-content-center gap-2">
-                  <template x-if="editable">
-                    <button class="btn btn-sm btn-success" @click="updateItem">💾</button>
-                  </template>
-                  <button class="btn btn-sm btn-outline-primary" @click="editable = !editable" x-text="editable ? 'Cancel' : '✏️ Edit'"></button>
-                  <form method="post" action="/admin/menu-items/{{ item.id }}/delete" onsubmit="return confirm('Delete this item?');">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
-                  </form>
-                </td>
-              </tr>
-            {% endfor %}
+    {% set categories = menu_categories_map.get(menu.id, []) if menu_categories_map is defined else [] %}
 
-            <!-- Render new rows -->
-            <template x-for="(item, index) in newItems" :key="index">
-              <tr>
-                <td><input x-model="item.name" class="form-control" required></td>
-                <td><input x-model="item.description" class="form-control"></td>
-                <td><input x-model.number="item.price" type="number" step="0.01" class="form-control" required></td>
-                <td><input x-model.number="item.qty" type="number" class="form-control" required></td>
-                <td>—</td>
-                <td><button class="btn btn-sm btn-danger" @click="newItems.splice(index, 1)">❌</button></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
+    <div class="card shadow-sm mb-4" x-data="menuItemsPage({{ menu.id|tojson }})">
+      <div class="card-body">
 
-      <!-- ✅ Controls for Alpine rows -->
-      <div class="d-flex gap-2 mt-2">
-        <button class="btn btn-sm btn-secondary" @click="addRow">➕ Add Row</button>
-        <button class="btn btn-sm btn-primary" @click="submitNewItems('{{ menu.id }}')" :disabled="newItems.length === 0">💾 Save New Items</button>
-      </div>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <h4 class="mb-0">{{ menu.name }}</h4>
+            {% if menu.is_active %}
+              <span class="badge bg-success">Active</span>
+            {% else %}
+              <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+          </div>
 
-      <!-- 🖼️ Add New Item with Photo Upload -->
-      <form method="post" action="/admin/menu-items/create" enctype="multipart/form-data" class="mt-4" style="max-width: 100%;">
-        <input type="hidden" name="menu_id" value="{{ menu.id }}">
-        <div class="row g-2">
-          <div class="col"><input type="text" name="name" placeholder="Item name" class="form-control" required></div>
-          <div class="col"><input type="text" name="description" placeholder="Description" class="form-control"></div>
-          <div class="col"><input type="number" name="price" step="0.01" placeholder="Price" class="form-control" required></div>
-          <div class="col"><input type="number" name="quantity" placeholder="Qty" class="form-control" required></div>
-          <div class="col"><input type="file" name="photo" accept="image/*" class="form-control"></div>
-          <div class="col-auto"><button type="submit" class="btn btn-success">📸 Add Item w/ Photo</button></div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-secondary" type="button" @click="addRow()">+ Add Row</button>
+            <button class="btn btn-sm btn-primary" type="button" @click="submitNewItems()" :disabled="newItems.length === 0">
+              Save New Items
+            </button>
+          </div>
         </div>
-      </form>
+
+        <div class="table-responsive">
+          <table class="table table-bordered align-middle text-center">
+            <thead class="table-light">
+              <tr>
+                <th style="min-width:160px;">Name</th>
+                <th style="min-width:220px;">Description</th>
+                <th style="width:120px;">Price</th>
+                <th style="width:100px;">Qty</th>
+                <th style="min-width:180px;">Category</th>
+                <th style="width:110px;">Photo</th>
+                <th style="width:170px;">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for item in menu.items %}
+
+                {# ---- CATEGORY LABEL (namespace fixes Jinja loop scoping) ---- #}
+                {% set ns = namespace(label="—") %}
+                {% if item.category_id %}
+                  {% for cat in categories %}
+                    {% if cat.id == item.category_id %}
+                      {% set ns.label = cat.name %}
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
+
+                <tr
+                  x-data="menuItemRow($el)"
+                  data-item-id="{{ item.id }}"
+                  data-name="{{ item.name|e }}"
+                  data-description="{{ (item.description or '')|e }}"
+                  data-price="{{ item.price }}"
+                  data-qty="{{ item.qty_available }}"
+                  data-category-id="{{ item.category_id or '' }}"
+                >
+                  <td class="text-start">
+                    <div x-show="!editable" class="fw-semibold">{{ item.name }}</div>
+                    <div x-show="editable">
+                      <input class="form-control" x-model="form.name">
+                    </div>
+                  </td>
+
+                  <td class="text-start">
+                    <div x-show="!editable">{{ item.description or "—" }}</div>
+                    <div x-show="editable">
+                      <input class="form-control" x-model="form.description">
+                    </div>
+                  </td>
+
+                  <td>
+                    <div x-show="!editable">${{ "%.2f"|format(item.price or 0) }}</div>
+                    <div x-show="editable">
+                      <input type="number" step="0.01" min="0" class="form-control" x-model="form.price">
+                    </div>
+                  </td>
+
+                  <td>
+                    <div x-show="!editable">{{ item.qty_available }}</div>
+                    <div x-show="editable">
+                      <input type="number" min="0" step="1" class="form-control" x-model="form.qty_available">
+                    </div>
+                  </td>
+
+                  <td class="text-start">
+                    <div x-show="!editable">{{ ns.label }}</div>
+                    <div x-show="editable">
+                      <select class="form-select" x-model="form.category_id">
+                        <option value="">—</option>
+                        {% for cat in categories %}
+                          <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </td>
+
+                  <td>
+                    {% if item.photo_filename %}
+                      <img
+                        src="https://commandcenter-media.nyc3.cdn.digitaloceanspaces.com/{{ item.photo_filename }}"
+                        class="img-thumbnail"
+                        style="max-width:70px; height:auto;"
+                      >
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+
+                  <td class="d-flex justify-content-center gap-2">
+                    <button x-show="editable" class="btn btn-sm btn-success" type="button" @click="updateItem()">💾</button>
+
+                    <button class="btn btn-sm btn-outline-primary" type="button"
+                            @click="editable = !editable"
+                            x-text="editable ? 'Cancel' : '✏️ Edit'"></button>
+
+                    <form method="post" action="/admin/menu-items/{{ item.id }}/delete"
+                          onsubmit="return confirm('Delete this item?');">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+
+              <!-- New bulk rows -->
+              <template x-for="(item, index) in newItems" :key="index">
+                <tr>
+                  <td><input class="form-control" x-model="item.name"></td>
+                  <td><input class="form-control" x-model="item.description"></td>
+                  <td><input class="form-control" type="number" step="0.01" x-model.number="item.price"></td>
+                  <td><input class="form-control" type="number" step="1" x-model.number="item.qty_available"></td>
+                  <td class="text-start">
+                    <select class="form-select" x-model="item.category_id">
+                      <option value="">—</option>
+                      {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>—</td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-danger" type="button" @click="newItems.splice(index,1)">✕</button>
+                  </td>
+                </tr>
+              </template>
+
+            </tbody>
+          </table>
+        </div>
+
+        <hr class="my-4">
+
+        <h5>Add a single item</h5>
+        <form method="post" action="/admin/menu-items/create" enctype="multipart/form-data">
+          <input type="hidden" name="menu_id" value="{{ menu.id }}">
+
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label small">Name</label>
+              <input class="form-control" name="name" required>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small">Description</label>
+              <input class="form-control" name="description">
+            </div>
+
+            <div class="col-md-2">
+              <label class="form-label small">Price</label>
+              <input class="form-control" type="number" step="0.01" min="0" name="price" required>
+            </div>
+
+            <div class="col-md-2">
+              <label class="form-label small">Qty</label>
+              <input class="form-control" type="number" step="1" min="0" name="quantity" required>
+            </div>
+
+            <div class="col-md-2">
+              <label class="form-label small">Category</label>
+              <select class="form-select" name="category_id">
+                <option value="">—</option>
+                {% for cat in categories %}
+                  <option value="{{ cat.id }}">{{ cat.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small">Photo</label>
+              <input class="form-control" type="file" name="photo">
+            </div>
+
+            <div class="col-md-2">
+              <button class="btn btn-success w-100" type="submit">Add Item</button>
+            </div>
+          </div>
+        </form>
+
+      </div>
     </div>
   {% endfor %}
 </div>
+
+<script>
+function menuItemsPage(menuId) {
+  return {
+    newItems: [],
+    addRow() {
+      this.newItems.push({ name:"", description:"", price:0, qty_available:0, category_id:"" });
+    },
+    async submitNewItems() {
+      const r = await fetch("/admin/menu-items/bulk-create", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({ menu_id:menuId, items:this.newItems })
+      });
+      if (r.ok) location.reload();
+      else alert("Failed to add items");
+    }
+  }
+}
+
+function menuItemRow(el) {
+  return {
+    editable:false,
+    form:{
+      name: el.dataset.name || "",
+      description: el.dataset.description || "",
+      price: el.dataset.price || 0,
+      qty_available: parseInt(el.dataset.qty || "0", 10),
+      category_id: el.dataset.categoryId || ""
+    },
+    async updateItem() {
+      const r = await fetch(`/admin/menu-items/${el.dataset.itemId}/inline-update`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify(this.form)
+      });
+      if (r.ok) location.reload();
+      else alert("Update failed");
+    }
+  }
+}
+</script>
 {% endblock %}

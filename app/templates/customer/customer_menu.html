@@ -1,42 +1,384 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container py-5" x-data="orderCart">
-  <h2 class="text-center mb-4">🍪 Menu</h2>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  {% if request.query_params.get("success") %}
-    <div class="alert alert-success">{{ request.query_params.get("success") }}</div>
-  {% endif %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
 
-  {% for menu in menus %}
-    <h4 class="mb-3">{{ menu.name }}</h4>
-    <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
-      {% for item in menu.items %}
-        <div class="col">
-          <div class="card h-100">
-            {% if item.photo_filename %}
-              <img src="/static/menu_items_photos/{{ item.photo_filename }}" class="card-img-top" style="height: 180px; object-fit: cover;">
-            {% endif %}
-            <div class="card-body d-flex flex-column">
-              <h5 class="card-title">{{ item.name }}</h5>
-              <p class="card-text">{{ item.description or 'No description available.' }}</p>
-              <p class="fw-bold text-success">${{ "%.2f"|format(item.price) }}</p>
-              <input type="number" min="1" max="{{ item.qty_available }}" value="1" class="form-control mb-2" x-ref="qty_{{ item.id }}">
-              <button class="btn btn-primary mt-auto"
-                @click='addToCart({{ item.id|tojson }}, {{ item.name|tojson }}, {{ item.price }}, $refs["qty_{{ item.id }}"].value)'>
-                ➕ Add to Cart
-              </button>
+  body{
+    margin:0;
+    min-height:100vh;
+    background: linear-gradient(135deg, #eefdf4, #e1f9f5, #f8fffc);
+    background-size: 400% 400%;
+    animation: softGradient 15s ease infinite;
+    font-family: 'Orbitron', sans-serif;
+    color:#333;
+  }
+
+  @keyframes softGradient{
+    0%{ background-position: 0% 50%; }
+    50%{ background-position: 100% 50%; }
+    100%{ background-position: 0% 50%; }
+  }
+
+  [x-cloak]{ display:none !important; }
+
+  .page-wrap{
+    padding-top: 18px;
+    padding-bottom: 170px; /* space for floating cart */
+  }
+
+  /* Glass containers */
+  .glow-box{
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid #cce7dd;
+    border-radius: 16px;
+    box-shadow: 0 0 25px rgba(0,0,0,.05);
+    backdrop-filter: blur(8px);
+  }
+
+  .hero{
+    padding: 18px 18px;
+  }
+
+  .hero-title{
+    font-size: 1.65rem;
+    color: #2c5c48;
+    margin-bottom: 0.2rem;
+    text-shadow: 0 0 3px rgba(44, 92, 72, 0.18);
+  }
+
+  .hero-sub{
+    font-size: .92rem;
+    color:#6e7f75;
+    margin: 0;
+  }
+
+  .btn-glow{
+    border: 2px solid #2c5c48;
+    color: #2c5c48;
+    background: transparent;
+    transition: all 0.2s ease-in-out;
+    font-weight: 600;
+  }
+  .btn-glow:hover{
+    background-color:#2c5c48;
+    color:#fff;
+    box-shadow: 0 0 10px #b6ded0;
+  }
+
+  /* Accordion */
+  .accordion-item{
+    border: 1px solid #cce7dd !important;
+    border-radius: 16px !important;
+    overflow: hidden;
+    background: rgba(255,255,255,.82);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 20px rgba(0,0,0,.04);
+    margin-bottom: 12px;
+  }
+  .accordion-button{
+    font-weight: 600;
+    color:#2c5c48;
+    background: rgba(255,255,255,.70);
+    border-bottom: 1px solid rgba(204,231,221,.8);
+  }
+  .accordion-button:focus{ box-shadow:none; }
+  .accordion-button:not(.collapsed){
+    background: rgba(255,255,255,.82);
+  }
+
+  .cat-meta{
+    font-size: .82rem;
+    color:#6e7f75;
+  }
+
+  /* Item cards */
+  .item-card{
+    border: 1px solid rgba(204,231,221,.95);
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255,255,255,.86);
+    box-shadow: 0 0 18px rgba(0,0,0,.04);
+    height: 100%;
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  }
+  .item-card:hover{
+    transform: translateY(-3px);
+    border-color: rgba(44,92,72,.35);
+    box-shadow: 0 18px 40px rgba(0,0,0,.10);
+  }
+
+  .item-media{
+    position: relative;
+    overflow: hidden;
+  }
+
+  .item-img{
+    height: 170px;
+    width: 100%;
+    object-fit: cover;
+    background: rgba(0,0,0,.03);
+    display:block;
+  }
+
+  /* Soft gradient at bottom for “premium” depth */
+  .item-media::after{
+    content:"";
+    position:absolute;
+    left:0; right:0; bottom:0;
+    height: 54%;
+    background: linear-gradient(to top, rgba(0,0,0,.20), rgba(0,0,0,0));
+    pointer-events:none;
+    opacity:.9;
+  }
+
+  /* Smooth image zoom on hover */
+  .item-media img.item-img{
+    transition: transform .45s ease;
+  }
+  .item-card:hover .item-media img.item-img{
+    transform: scale(1.06);
+  }
+
+  /* Optional badge overlay */
+  .media-badge{
+    position:absolute;
+    top:10px;
+    left:10px;
+    z-index:2;
+    box-shadow: 0 10px 18px rgba(0,0,0,.08);
+  }
+
+  /* Sold-out veil */
+  .sold-veil{
+    position:absolute;
+    inset:0;
+    background: rgba(255,255,255,.55);
+    backdrop-filter: blur(2px);
+    z-index:1;
+  }
+  .sold-label{
+    position:absolute;
+    top:10px;
+    right:10px;
+    z-index:3;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 700;
+    border: 1px solid rgba(239,68,68,.28);
+    background: rgba(239,68,68,.12);
+    color: rgb(185,28,28);
+  }
+
+  .item-name{
+    font-size: 1.02rem;
+    color:#2c5c48;
+    margin:0;
+  }
+  .item-desc{
+    font-size: .86rem;
+    color:#6e7f75;
+    margin: 0.4rem 0 0.75rem 0;
+    min-height: 38px;
+  }
+  .price{
+    color:#2c5c48;
+    font-size: 1.0rem;
+    margin: 0;
+  }
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: .78rem;
+    border: 1px solid rgba(204,231,221,.95);
+    background: rgba(255,255,255,.70);
+    color:#2c5c48;
+    white-space: nowrap;
+  }
+  .pill-sold{
+    border-color: rgba(239,68,68,.28);
+    background: rgba(239,68,68,.10);
+    color: rgb(185,28,28);
+  }
+
+  .qty-input{
+    border-radius: 12px;
+    border: 1px solid rgba(204,231,221,.95);
+    font-weight: 600;
+  }
+
+  /* Floating cart */
+  .floating-cart{
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: min(340px, calc(100vw - 32px));
+    z-index: 1055;
+  }
+  .cart-card{
+    border-radius: 16px;
+    border: 1px solid #cce7dd;
+    background: rgba(255,255,255,.88);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 25px rgba(0,0,0,.08);
+    overflow: hidden;
+  }
+  .cart-head{
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(204,231,221,.9);
+  }
+  .cart-title{
+    color:#2c5c48;
+    font-size: 1.02rem;
+    margin:0;
+  }
+</style>
+
+<div class="container page-wrap" x-data="orderCart" x-cloak>
+
+  <!-- HERO -->
+  <div class="glow-box hero mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3">
+      <div>
+        <div class="hero-title">🍪 Menu</div>
+        {% if menu %}
+          <p class="hero-sub">{{ menu.name }}{% if menu.description %} • {{ menu.description }}{% endif %}</p>
+        {% else %}
+          <p class="hero-sub">No active menu</p>
+        {% endif %}
+      </div>
+      <a href="/customer" class="btn btn-glow">← Back</a>
+    </div>
+
+    {% if request.query_params.get("success") %}
+      <div class="alert alert-success mt-3 mb-0">{{ request.query_params.get("success") }}</div>
+    {% endif %}
+    {% if request.query_params.get("error") %}
+      <div class="alert alert-danger mt-3 mb-0">{{ request.query_params.get("error") }}</div>
+    {% endif %}
+  </div>
+
+  {% if not menu %}
+    <div class="glow-box p-3">
+      <div class="text-muted">No active menu is available right now. Please check back soon.</div>
+    </div>
+  {% else %}
+
+    <!-- ACCORDION -->
+    <div class="accordion" id="menuAccordion">
+      {% for group in category_groups %}
+        {% set gid = "cat_" ~ loop.index %}
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="{{ gid }}_head">
+            <button class="accordion-button {% if not loop.first %}collapsed{% endif %}"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#{{ gid }}_body"
+                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}"
+                    aria-controls="{{ gid }}_body">
+              <div class="d-flex justify-content-between align-items-center w-100">
+                <div>{{ group.name }}</div>
+                <div class="cat-meta">{{ group["items"]|length }} items</div>
+              </div>
+            </button>
+          </h2>
+
+          <div id="{{ gid }}_body"
+               class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+               aria-labelledby="{{ gid }}_head"
+               data-bs-parent="#menuAccordion">
+            <div class="accordion-body">
+
+              <div class="row row-cols-1 row-cols-md-3 g-3">
+                {% for item in group["items"] %}
+                  {% set max_qty = (item.qty_available or 0) %}
+
+                  <div class="col">
+                    <div class="item-card">
+                      {% if item.photo_filename %}
+                        <div class="item-media">
+                          {% if max_qty > 0 %}
+                            <span class="pill media-badge">{{ max_qty }} left</span>
+                          {% endif %}
+
+                          {% if max_qty <= 0 %}
+                            <div class="sold-veil"></div>
+                            <div class="sold-label">Sold out</div>
+                          {% endif %}
+
+                          <img
+                            class="item-img"
+                            src="https://commandcenter-media.nyc3.cdn.digitaloceanspaces.com/{{ item.photo_filename }}"
+                            alt="{{ item.name }}"
+                            loading="lazy"
+                          >
+                        </div>
+                      {% else %}
+                        <div class="item-img d-flex align-items-center justify-content-center text-muted">No photo</div>
+                      {% endif %}
+
+                      <div class="p-3 d-flex flex-column" style="height: calc(100% - 170px);">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                          <h5 class="item-name">{{ item.name }}</h5>
+                          {% if max_qty <= 0 %}
+                            <span class="pill pill-sold">Sold out</span>
+                          {% else %}
+                            <span class="pill">{{ max_qty }} left</span>
+                          {% endif %}
+                        </div>
+
+                        <p class="item-desc">{{ item.description or "No description available." }}</p>
+
+                        <div class="d-flex justify-content-between align-items-center mt-auto gap-2">
+                          <p class="price fw-bold mb-0">${{ "%.2f"|format(item.price or 0) }}</p>
+
+                          <input type="number"
+                                 min="1"
+                                 max="{{ max_qty }}"
+                                 value="1"
+                                 class="form-control form-control-sm qty-input"
+                                 style="width: 88px;"
+                                 x-ref="qty_{{ item.id }}"
+                                 {% if max_qty <= 0 %}disabled{% endif %}>
+
+                          <button class="btn btn-glow btn-sm"
+                                  type="button"
+                                  {% if max_qty <= 0 %}disabled{% endif %}
+                                  @click='addToCart("{{ item.id }}", {{ item.name|tojson }}, {{ item.price or 0 }}, $refs["qty_{{ item.id }}"].value)'>
+                            Add
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                {% endfor %}
+              </div>
+
             </div>
           </div>
         </div>
       {% endfor %}
     </div>
-  {% endfor %}
 
-  <!-- 🛒 Floating Cart -->
-  <div class="position-fixed bottom-0 end-0 m-4" style="z-index: 1055;" x-show="cart.length > 0" x-transition>
-    <div class="card shadow-lg border-0 rounded-4" style="width: 300px;">
-      <div class="card-body">
-        <h5 class="card-title">🛒 Cart</h5>
+  {% endif %}
+
+  <!-- 🛒 Floating Cart (same pattern you had working) -->
+  <div class="floating-cart" x-show="cart.length > 0" x-transition>
+    <div class="cart-card">
+      <div class="cart-head d-flex justify-content-between align-items-center">
+        <h5 class="cart-title mb-0">🛒 Cart</h5>
+        <button type="button" class="btn btn-sm btn-outline-danger" @click="cart = []">Clear</button>
+      </div>
+
+      <div class="p-3">
         <ul class="list-group mb-3">
           <template x-for="(item, index) in cart" :key="item.id">
             <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -45,12 +387,15 @@
                 <br>
                 <small class="text-muted">Qty: <span x-text="item.quantity"></span></small>
               </div>
-              <button class="btn btn-sm btn-outline-danger" @click="removeFromCart(index)">✖</button>
+              <button class="btn btn-sm btn-outline-danger" type="button" @click="removeFromCart(index)">✖</button>
             </li>
           </template>
         </ul>
+
         <p class="text-end mb-2">Total: <strong>$<span x-text="total.toFixed(2)"></span></strong></p>
-        <button class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#reviewModal">Review & Submit</button>
+        <button class="btn btn-glow w-100" type="button" data-bs-toggle="modal" data-bs-target="#reviewModal">
+          Review & Submit
+        </button>
       </div>
     </div>
   </div>
@@ -59,9 +404,9 @@
   <div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
     <div class="modal-dialog">
       <form method="post" action="/customer/order/submit-full" @submit="prepareForm">
-        <div class="modal-content">
+        <div class="modal-content" style="border-radius: 16px; overflow:hidden;">
           <div class="modal-header">
-            <h5 class="modal-title">🧾 Review Your Order</h5>
+            <h5 class="modal-title" id="reviewModalLabel">🧾 Review Your Order</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
@@ -73,58 +418,21 @@
                 </li>
               </template>
             </ul>
+
             <div class="mb-3">
               <label for="note" class="form-label">Note (optional)</label>
               <textarea name="note" x-model="note" class="form-control" rows="3"></textarea>
             </div>
+
             <input type="hidden" name="cart_json" :value="JSON.stringify(cart)">
           </div>
           <div class="modal-footer">
-            <button type="submit" class="btn btn-primary w-100">📦 Submit Order</button>
+            <button type="submit" class="btn btn-glow w-100">📦 Submit Order</button>
           </div>
         </div>
       </form>
     </div>
   </div>
+
 </div>
-
-<!-- ✅ Alpine Cart Logic -->
-<script>
-  document.addEventListener('alpine:init', () => {
-    Alpine.data('orderCart', () => ({
-      cart: [],
-      note: '',
-      initCart() {
-        console.log('🟢 Alpine cart component mounted');
-      },
-      get total() {
-        return this.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      },
-      addToCart(id, name, price, qty) {
-        console.log('➕ Adding to cart:', { id, name, price, qty });
-        qty = parseInt(qty);
-        if (!qty || qty <= 0) return;
-
-        const existing = this.cart.find(i => i.id === id);
-        if (existing) {
-          existing.quantity += qty;
-        } else {
-          this.cart.push({ id, name, price: parseFloat(price), quantity: qty });
-        }
-      },
-      removeFromCart(index) {
-        console.log('❌ Removing item at index', index);
-        this.cart.splice(index, 1);
-      },
-      prepareForm(event) {
-        if (this.cart.length === 0) {
-          event.preventDefault();
-          alert("Your cart is empty!");
-        } else {
-          console.log('📦 Submitting cart:', this.cart);
-        }
-      }
-    }));
-  });
-</script>
 {% endblock %}

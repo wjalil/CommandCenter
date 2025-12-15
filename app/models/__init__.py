@@ -7,6 +7,7 @@ from .shortage_log import ShortageLog
 from .custom_modules.driver_order import DriverOrder
 from .menu.menu_item import MenuItem
 from .menu.menu import Menu
+from .menu.menu_category import MenuCategory
 from .customer.customer import Customer
 from .customer.customer_order import CustomerOrder
 from .internal_task import InternalTask

@@ -1,112 +1,342 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-4">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- 🔙 Back Home -->
-  <div class="text-end mb-3">
-    <a href="/admin/dashboard" class="btn btn-sm btn-outline-secondary">🏠 Home</a>
-  </div>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
 
-<!-- 📥 Log Submission Form -->
-<div class="card mb-5 shadow-sm">
-  <div class="card-header bg-light">
-    <h5 class="mb-0">🧊 Submit Vending Machine Log</h5>
-  </div>
-  <div class="card-body">
+  body{
+    margin:0;
+    min-height:100vh;
+    background: linear-gradient(135deg, #eefdf4, #e1f9f5, #f8fffc);
+    background-size: 400% 400%;
+    animation: softGradient 15s ease infinite;
+    font-family: 'Orbitron', sans-serif;
+    color:#333;
+  }
 
-    <!-- ✅ Success / Error Alerts -->
-    {% if request.query_params.get("success") %}
-      <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ request.query_params.get("success") }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  @keyframes softGradient{
+    0%{ background-position: 0% 50%; }
+    50%{ background-position: 100% 50%; }
+    100%{ background-position: 0% 50%; }
+  }
+
+  .page-wrap{ padding-top: 18px; padding-bottom: 28px; }
+
+  .glow-box{
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid #cce7dd;
+    border-radius: 16px;
+    box-shadow: 0 0 25px rgba(0,0,0,.05);
+    backdrop-filter: blur(8px);
+  }
+
+  .hero{ padding: 18px 18px; }
+  .hero-title{
+    font-size: 1.65rem;
+    color: #2c5c48;
+    margin-bottom: 0.2rem;
+    text-shadow: 0 0 3px rgba(44, 92, 72, 0.18);
+  }
+  .hero-sub{ font-size: .92rem; color:#6e7f75; margin: 0; }
+
+  .btn-glow{
+    border: 2px solid #2c5c48;
+    color: #2c5c48;
+    background: transparent;
+    transition: all 0.2s ease-in-out;
+    font-weight: 700;
+    border-radius: 14px;
+  }
+  .btn-glow:hover{
+    background-color:#2c5c48;
+    color:#fff;
+    box-shadow: 0 0 10px #b6ded0;
+  }
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: .78rem;
+    border: 1px solid rgba(204,231,221,.95);
+    background: rgba(255,255,255,.70);
+    color:#2c5c48;
+    white-space: nowrap;
+    font-weight: 800;
+  }
+
+  .form-card{ padding: 14px; }
+  .form-inner{
+    border: 1px solid rgba(204,231,221,.95);
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255,255,255,.86);
+    box-shadow: 0 0 18px rgba(0,0,0,.04);
+  }
+  .form-head{
+    padding: 14px 16px;
+    background: rgba(255,255,255,.70);
+    border-bottom: 1px solid rgba(204,231,221,.9);
+  }
+  .form-head h5{ margin:0; font-weight: 900; color:#2c5c48; }
+  .form-body{ padding: 16px; }
+
+  details.machine{
+    border: 1px solid rgba(204,231,221,.95);
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255,255,255,.82);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 20px rgba(0,0,0,.04);
+    margin-bottom: 12px;
+  }
+  details.machine summary{
+    list-style: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    background: rgba(255,255,255,.70);
+    border-bottom: 1px solid rgba(204,231,221,.85);
+    display:flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  details.machine summary::-webkit-details-marker{ display:none; }
+
+  .machine-title{ font-size: 1.05rem; font-weight: 900; color:#2c5c48; margin:0; }
+  .machine-meta{ font-size: .78rem; color:#6e7f75; margin:0; }
+
+  .section{ padding: 14px 16px; }
+  .section-title{ font-weight: 900; color:#2c5c48; margin: 0 0 8px 0; }
+  .section-sub{ font-size: .82rem; color:#6e7f75; margin: 0 0 12px 0; }
+
+  .log-card{
+    border: 1px solid rgba(204,231,221,.9);
+    background: rgba(255,255,255,.75);
+    border-radius: 14px;
+    padding: 12px 12px;
+    margin-bottom: 10px;
+  }
+  .log-head{
+    display:flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .log-time{ font-weight: 900; color:#2c5c48; font-size: .88rem; white-space: nowrap; }
+  .log-type{ font-size: .78rem; color:#6e7f75; }
+  .log-notes{ margin: 6px 0 0 0; color:#334155; font-size: .9rem; }
+  .log-email{ margin: 8px 0 0 0; font-size: .82rem; color:#6e7f75; }
+
+  .photo-grid{
+    display:flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .photo{
+    width: 150px;
+    height: 110px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(204,231,221,.95);
+    background: rgba(0,0,0,.03);
+    box-shadow: 0 12px 25px rgba(0,0,0,.06);
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  }
+  .photo:hover{
+    transform: translateY(-2px);
+    border-color: rgba(44,92,72,.35);
+    box-shadow: 0 18px 35px rgba(0,0,0,.10);
+  }
+  .photo img{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display:block;
+  }
+
+  .divider{ height: 1px; background: rgba(204,231,221,.85); margin: 12px 0; }
+
+  .form-control, .form-select{
+    border-radius: 14px;
+    border: 1px solid rgba(204,231,221,.95);
+  }
+  .form-control:focus, .form-select:focus{
+    box-shadow: 0 0 0 .2rem rgba(44,92,72,.10);
+    border-color: rgba(44,92,72,.35);
+  }
+</style>
+
+<div class="container page-wrap">
+
+  <!-- HERO -->
+  <div class="glow-box hero mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3">
+      <div>
+        <div class="hero-title">🧊 Vending Logs</div>
+        <p class="hero-sub">Submit internal restock notes and review QR-submitted issues by machine.</p>
       </div>
+      <span class="pill">Admin</span>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <a href="/admin/dashboard" class="btn btn-glow">🏠 Home</a>
+    </div>
+
+    {% if request.query_params.get("success") %}
+      <div class="alert alert-success mt-3 mb-0">{{ request.query_params.get("success") }}</div>
     {% endif %}
     {% if request.query_params.get("error") %}
-      <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ request.query_params.get("error") }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      </div>
+      <div class="alert alert-danger mt-3 mb-0">{{ request.query_params.get("error") }}</div>
     {% endif %}
-
-    <form method="post" enctype="multipart/form-data">
-      <div class="mb-3">
-        <label for="machine_id" class="form-label">Machine Location</label>
-        <select name="machine_id" class="form-select" required>
-          <option disabled selected value="">Select a machine</option>
-          {% for machine in machines %}
-            <option value="{{ machine.id }}">{{ machine.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="mb-3">
-        <label for="notes" class="form-label">Notes</label>
-        <textarea name="notes" class="form-control" rows="2" placeholder="E.g. Restock Kit-Kats, grab Pelligrino"></textarea>
-      </div>
-
-      <div class="mb-3">
-        <label for="photos" class="form-label">Photos (Snack + Beverage)</label>
-        <input type="file" name="photos" class="form-control" multiple>
-      </div>
-
-      <button type="submit" class="btn btn-primary">Submit Log</button>
-    </form>
   </div>
-</div>
 
+  <!-- 📥 Log Submission Form -->
+  <div class="glow-box form-card mb-3">
+    <div class="form-inner">
+      <div class="form-head">
+        <h5>🛠️ Submit Vending Machine Log</h5>
+      </div>
+
+      <div class="form-body">
+        <form method="post" enctype="multipart/form-data" action="/vending/log">
+          <input type="hidden" name="next" value="/admin/vending-logs">
+          <div class="mb-3">
+            <label for="machine_id" class="form-label">Machine Location</label>
+            <select name="machine_id" class="form-select" required>
+              <option disabled selected value="">Select a machine</option>
+              {% for machine in machines %}
+                <option value="{{ machine.id }}">{{ machine.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea name="notes" class="form-control" rows="2"
+                      placeholder="E.g. Restock Kit-Kats, grab Pelligrino"></textarea>
+          </div>
+
+          <!-- IMPORTANT: must be name="photos" + multiple to match route -->
+          <div class="mb-3">
+            <label for="photos" class="form-label">Photos (Snack + Beverage)</label>
+            <input type="file" name="photos" class="form-control" multiple accept="image/*">
+            <div class="small mt-1" style="color:#6e7f75;">
+              Tip: Upload snack + beverage photos together.
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-glow w-100">Submit Log</button>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <!-- 📦 Logs by Machine -->
   {% for machine_name, sources in grouped_logs.items() %}
-  <details class="mb-4 border rounded p-3 bg-light">
-    <summary class="h5 mb-2">🏭 {{ machine_name }}</summary>
+    <details class="machine">
+      <summary>
+        <div>
+          <div class="machine-title">🏭 {{ machine_name }}</div>
+          <div class="machine-meta">
+            Internal: {{ (sources.internal|length) if sources.internal else 0 }}
+            • QR: {{ (sources.qr|length) if sources.qr else 0 }}
+          </div>
+        </div>
+        <span class="pill">View</span>
+      </summary>
 
-    <!-- Internal Logs -->
-    <div class="mt-3">
-      <h6 class="fw-bold">🛠️ Internal Logs (Showing most recent 3)</h6>
-      {% if sources.internal %}
-        {% for log in sources.internal[:3] %}
-          <p><strong>{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</strong>: {{ log.notes or "—" }}</p>
-          {% if log.photo_filename %}
-            {% for photo in log.photo_filename.split(',') %}
-              <img src="/static/vending_logs/{{ photo.strip() }}" class="img-thumbnail mb-2 me-2" style="max-height: 150px;" />
+      <div class="section">
+        <!-- Internal Logs -->
+        <div>
+          <div class="section-title">🛠️ Internal Logs</div>
+          <div class="section-sub">Showing the most recent 3 submissions.</div>
+
+          {% if sources.internal %}
+            {% for log in sources.internal[:3] %}
+              <div class="log-card">
+                <div class="log-head">
+                  <div class="log-time">{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</div>
+                  <div class="log-type">Internal</div>
+                </div>
+
+                <p class="log-notes">{{ log.notes or "—" }}</p>
+
+                {% if log.photo_filename %}
+                  <div class="photo-grid">
+                    {% for photo in log.photo_filename.split(',') %}
+                      {% set key = photo.strip() %}
+                      {% if key %}
+                        <a class="photo" target="_blank"
+                           href="https://commandcenter-media.nyc3.cdn.digitaloceanspaces.com/{{ key }}">
+                          <img loading="lazy"
+                               src="https://commandcenter-media.nyc3.cdn.digitaloceanspaces.com/{{ key }}"
+                               alt="Vending log photo">
+                        </a>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="small mt-2" style="color:#6e7f75;">No photos uploaded.</div>
+                {% endif %}
+              </div>
             {% endfor %}
           {% else %}
-            <p class="text-muted small">No photos uploaded.</p>
+            <div class="small" style="color:#6e7f75;">No internal logs available.</div>
           {% endif %}
-          <hr>
-        {% endfor %}
-      {% else %}
-        <p class="text-muted">No internal logs available.</p>
-      {% endif %}
-    </div>
+        </div>
 
-    <!-- QR Logs -->
-    <div class="mt-3">
-      <h6 class="fw-bold">🔗 QR Submissions ({{ sources.qr | length }})</h6>
-      {% if sources.qr %}
-        {% for log in sources.qr %}
-          <p><strong>{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</strong>: {{ log.issue_type }} — {{ log.notes or "—" }}</p>
-          {% if log.photo_filename %}
-            {% if ',' in log.photo_filename %}
-              {% for photo in log.photo_filename.split(',') %}
-                <img src="/static/vending_logs/vending_qr_photos/{{ photo.strip() }}" class="img-thumbnail mb-2 me-2" style="max-height: 150px;" />
-              {% endfor %}
-            {% else %}
-              <img src="/static/vending_logs/vending_qr_photos/{{ log.photo_filename }}" class="img-thumbnail mb-2" style="max-height: 150px;" />
-            {% endif %}
+        <div class="divider"></div>
+
+        <!-- QR Logs -->
+        <div>
+          <div class="section-title">🔗 QR Submissions</div>
+          <div class="section-sub">Customer-reported issues for this machine.</div>
+
+          {% if sources.qr %}
+            {% for log in sources.qr %}
+              <div class="log-card">
+                <div class="log-head">
+                  <div class="log-time">{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</div>
+                  <div class="log-type">{{ log.issue_type }}</div>
+                </div>
+
+                <p class="log-notes">{{ log.notes or "—" }}</p>
+
+                {% if log.photo_filename %}
+                  <div class="photo-grid">
+                    {% for photo in log.photo_filename.split(',') %}
+                      {% set key = photo.strip() %}
+                      {% if key %}
+                        <a class="photo" target="_blank"
+                           href="https://commandcenter-media.nyc3.cdn.digitaloceanspaces.com/{{ key }}">
+                          <img loading="lazy"
+                               src="https://commandcenter-media.nyc3.cdn.digitaloceanspaces.com/{{ key }}"
+                               alt="QR submission photo">
+                        </a>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="small mt-2" style="color:#6e7f75;">No photo uploaded.</div>
+                {% endif %}
+
+                {% if log.email %}
+                  <p class="log-email">📧 {{ log.email }}</p>
+                {% endif %}
+              </div>
+            {% endfor %}
           {% else %}
-            <p class="text-muted small">No photo uploaded.</p>
+            <div class="small" style="color:#6e7f75;">No QR submissions available.</div>
           {% endif %}
-          {% if log.email %}
-            <p class="text-muted small">📧 {{ log.email }}</p>
-          {% endif %}
-          <hr>
-        {% endfor %}
-      {% else %}
-        <p class="text-muted">No QR submissions available.</p>
-      {% endif %}
-    </div>
-  </details>
+        </div>
+      </div>
+    </details>
   {% endfor %}
 
 </div>

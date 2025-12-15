@@ -1,18 +1,216 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-5">
-  <h2 class="mb-4">👋 Welcome, {{ user.name or 'Customer' }}</h2>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <div class="row g-3">
-    <div class="col-md-4">
-      <a href="/customer/menu" class="btn btn-lg btn-primary w-100">📋 View Menu / Place Order</a>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background: linear-gradient(135deg, #eefdf4, #e1f9f5, #f8fffc);
+    background-size: 400% 400%;
+    animation: softGradient 15s ease infinite;
+    font-family: 'Orbitron', sans-serif;
+    color:#333;
+  }
+
+  @keyframes softGradient{
+    0%{ background-position: 0% 50%; }
+    50%{ background-position: 100% 50%; }
+    100%{ background-position: 0% 50%; }
+  }
+
+  /* Glass containers */
+  .glow-box{
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid #cce7dd;
+    border-radius: 16px;
+    box-shadow: 0 0 25px rgba(0,0,0,.05);
+    backdrop-filter: blur(8px);
+  }
+
+  .page-wrap{
+    padding-top: 18px;
+    padding-bottom: 28px;
+  }
+
+  .hero{
+    padding: 18px 18px;
+  }
+  .hero-title{
+    font-size: 1.65rem;
+    color: #2c5c48;
+    margin-bottom: 0.2rem;
+    text-shadow: 0 0 3px rgba(44, 92, 72, 0.18);
+  }
+  .hero-sub{
+    font-size: .92rem;
+    color:#6e7f75;
+    margin: 0;
+  }
+
+  .btn-glow{
+    border: 2px solid #2c5c48;
+    color: #2c5c48;
+    background: transparent;
+    transition: all 0.2s ease-in-out;
+    font-weight: 600;
+  }
+  .btn-glow:hover{
+    background-color:#2c5c48;
+    color:#fff;
+    box-shadow: 0 0 10px #b6ded0;
+  }
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: .78rem;
+    border: 1px solid rgba(204,231,221,.95);
+    background: rgba(255,255,255,.70);
+    color:#2c5c48;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+
+  /* Feature cards */
+  .cardx{
+    border: 1px solid rgba(204,231,221,.95);
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255,255,255,.86);
+    box-shadow: 0 0 18px rgba(0,0,0,.04);
+    height: 100%;
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  }
+  .cardx:hover{
+    transform: translateY(-3px);
+    border-color: rgba(44,92,72,.35);
+    box-shadow: 0 18px 40px rgba(0,0,0,.10);
+  }
+  .cardx .card-body{
+    padding: 18px;
+  }
+
+  .muted{
+    color:#6e7f75;
+  }
+
+  .cta{
+    border-radius: 14px;
+    font-weight: 800;
+    padding: 12px 14px;
+  }
+
+  .cta-primary{
+    border: 2px solid #2c5c48;
+    background: #2c5c48;
+    color:#fff;
+    transition: all .2s ease-in-out;
+  }
+  .cta-primary:hover{
+    filter: brightness(1.02);
+    box-shadow: 0 0 12px rgba(182,222,208,.9);
+  }
+
+  .cta-outline{
+    border: 2px solid rgba(44,92,72,.35);
+    color:#2c5c48;
+    background: transparent;
+  }
+
+  .divider{
+    height: 1px;
+    background: rgba(204,231,221,.9);
+    margin: 18px 0;
+  }
+</style>
+
+<div class="container page-wrap">
+
+  <!-- HERO -->
+  <div class="glow-box hero mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-3">
+      <div>
+        <div class="hero-title">Welcome, {{ user.name or 'Customer' }}</div>
+        <p class="hero-sub">Tap below to place an order. It only takes a minute.</p>
+      </div>
+      <span class="pill">Customer</span>
     </div>
-    <div class="col-md-4">
-      <a href="#" class="btn btn-lg btn-outline-secondary w-100 disabled">📦 Track Orders (coming soon)</a>
-    </div>
-    <div class="col-md-4">
-      <a href="#" class="btn btn-lg btn-outline-secondary w-100 disabled">💬 Feedback (coming soon)</a>
+
+    <div class="divider"></div>
+
+    <div class="d-flex flex-wrap gap-2">
+      <a href="/customer/menu" class="btn btn-glow">🍪 View Menu</a>
+      <a href="/logout" class="btn btn-outline-secondary">Logout</a>
     </div>
   </div>
+
+  <!-- CARDS -->
+  <div class="row g-3">
+
+    <!-- Primary CTA -->
+    <div class="col-12 col-md-6">
+      <div class="cardx">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div>
+              <div class="h5 mb-1" style="font-weight:900; color:#2c5c48;">Order Now</div>
+              <div class="muted">Browse the menu, add items to your cart, and submit.</div>
+            </div>
+            <span class="pill">Fast</span>
+          </div>
+
+          <div class="mt-3">
+            <a href="/customer/menu" class="btn w-100 cta cta-primary">View Menu / Place Order</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coming soon: Orders -->
+    <div class="col-12 col-md-3">
+      <div class="cardx">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div>
+              <div class="h6 mb-1" style="font-weight:900; color:#2c5c48;">Track Orders</div>
+              <div class="muted mb-3">See what’s working and what’s completed.</div>
+            </div>
+            <span class="pill">Soon</span>
+          </div>
+          <button class="btn w-100 cta cta-outline" disabled>Coming soon</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coming soon: Feedback -->
+    <div class="col-12 col-md-3">
+      <div class="cardx">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div>
+              <div class="h6 mb-1" style="font-weight:900; color:#2c5c48;">Feedback</div>
+              <div class="muted mb-3">Share notes and requests with the team.</div>
+            </div>
+            <span class="pill">Soon</span>
+          </div>
+          <button class="btn w-100 cta cta-outline" disabled>Coming soon</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="glow-box p-3 mt-3">
+    <div class="muted small">
+      Tip: If you have a special request, add it as a note in your cart before submitting.
+    </div>
+  </div>
+
 </div>
 {% endblock %}
