@@ -13,3 +13,4 @@ from .customer.customer_order import CustomerOrder
 from .internal_task import InternalTask
 from .custom_modules.machine import Machine
 from .shopping import *
+from app.models.tenant_module import TenantModule

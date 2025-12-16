@@ -1,3 +1,5 @@
+{% set enabled_modules = enabled_modules or {} %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -112,6 +114,7 @@
 
   <!-- Row 1 -->
   <div class="row g-4 mb-4">
+    {% if enabled_modules.get("core_ops", True) %}
     <div class="col-lg-4 col-md-6">
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #0d6efd;">
         <div>
@@ -130,13 +133,16 @@
         </form>
       </div>
     </div>
+    {% endif %}
   
+    {% if enabled_modules.get("catering_modules", True) %}
     <div class="col-lg-4 col-md-6">
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #ff6f00;">
         <div>
           <div class="section-label">Catering Modules</div>
           <h5 class="card-title">🧰 Delivery & Invoicing</h5>
           <ul class="list-unstyled">
+            {% if enabled_modules.get("driver_order", True) %}
             <li class="mb-2">
               <a href="/modules/driver_order" class="card-link fw-bold text-primary d-flex align-items-center">
                 <span>🚚 Delivery Log</span>
@@ -144,7 +150,9 @@
               </a>
               <div class="text-muted small ms-4">Fridge photo + driver notes</div>
             </li>
+            {% endif %}
 
+            {% if enabled_modules.get("taskboard", True) %}
             <li class="mb-2">
               <a href="/admin/taskboard" class="card-link fw-bold text-primary d-flex align-items-center">
                 <span>📋 Task Board</span>
@@ -152,16 +160,21 @@
               </a>
 
             </li>
+            {% endif %}
 
+            {% if enabled_modules.get("invoices", True) %}
             <li class="mb-2">
               <a href="/modules/fridge" class="card-link">🧊 Invoices</a>
             </li>
+            {% endif %}
           </ul>
         </div>
         <div class="text-muted small mt-2">Modules auto-assigned to relevant shifts.</div>
       </div>
     </div>
+    {% endif %}
 
+    {% if enabled_modules.get("customer_ordering", True) %}
     <div class="col-lg-4 col-md-6">
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #0d6efd;">
         <div>
@@ -179,10 +192,12 @@
         </div>
       </div>
     </div>
+    {% endif %}
   </div>
 
   <!-- Row 2 -->
   <div class="row g-4 mb-4">
+    {% if enabled_modules.get("internal_tasks", True) %}
     <div class="col-lg-4 col-md-6">
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #ff474a;">
         <div>
@@ -214,7 +229,9 @@
         </div>
       </div>
     </div>
+    {% endif %}
 
+    {% if enabled_modules.get("shopping", True) %}
     <div class="col-lg-4 col-md-6">
       <div class="dashboard-card d-flex flex-column h-100 equal-height gap-2" style="border-left: 5px solid #ffb347;">
         <div class="mb-1">
@@ -237,8 +254,10 @@
         </ul>
       </div>
     </div>
+    {% endif %}
 
 
+    {% if enabled_modules.get("vending", True) %}
     <div class="col-lg-4 col-md-6">
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #0dcaf0;">
         <div>
@@ -255,10 +274,12 @@
       </div>
       </div>
     </div>
+    {% endif %}
   </div>
 
   <!-- Row 3 -->
   <div class="row g-4 mb-4">
+    {% if enabled_modules.get("financial_summary", True) %}
     <div class="col-lg-6">
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #48b546;">
         <div>
@@ -289,7 +310,9 @@
         <a href="#" class="btn btn-outline-secondary btn-sm w-auto disabled">📊 View Report (Coming Soon)</a>
       </div>
     </div>
+    {% endif %}
 
+    {% if enabled_modules.get("weekly_hours", True) %}
     <div class="col-lg-6">
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #130f89;">
         <div>
@@ -328,6 +351,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
   </div>
 
 </div>

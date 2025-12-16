@@ -26,6 +26,7 @@ from app.crud import shift, internal_task
 from app.api.admin.shifts_bulk import router as shifts_bulk_router
 from app.api.admin.shifts_clone import router as shifts_clone_router
 from app.api.admin.schedule_grid_routes import schedule_grid_page
+from app.auth.module_gates import get_enabled_modules
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -37,13 +38,14 @@ UPLOAD_DIR = UPLOAD_PATHS['vending_logs']
 @router.get("/admin/shifts")
 async def admin_shift_view(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_admin_user)):
     shifts = await shift.get_all_shifts(db, tenant_id=request.state.tenant_id)
-    result = await db.execute(select(User).where(User.role == "worker"))
+    result = await db.execute(select(User).where(User.role == "worker",User.tenant_id == user.tenant_id))
     workers = result.scalars().all()
     worker_names = {worker.id: worker.name for worker in workers}
 
     weekly_shifts, weekly_hours = compute_weekly_shifts_and_hours(shifts)
 
-    result = await db.execute(select(TaskTemplate))
+    result = await db.execute(select(TaskTemplate).where(TaskTemplate.tenant_id == user.tenant_id))
+
     task_templates = result.scalars().all()
 
     result = await db.execute(select(TaskTemplate.auto_assign_label).where(TaskTemplate.auto_assign_label != None))
@@ -142,7 +144,7 @@ async def remove_task_from_shift(request: Request, task_id: str = Form(...), db:
 
 @router.get("/admin/workers")
 async def get_workers(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_admin_user)):
-    result = await db.execute(select(User))
+    result = await db.execute(select(User).where(User.tenant_id == user.tenant_id))
     workers = result.scalars().all()
     return templates.TemplateResponse("create_workers.html", {"request": request, "workers": workers})
 
@@ -161,7 +163,7 @@ async def create_worker(
 
 @router.post("/admin/workers/delete/{user_id}")
 async def delete_worker(user_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_admin_user)):
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == user_id,User.tenant_id == user.tenant_id))
     worker = result.scalar_one_or_none()
     if worker:
         await db.delete(worker)
@@ -172,11 +174,11 @@ async def delete_worker(user_id: str, db: AsyncSession = Depends(get_db), user: 
 
 @router.get("/admin/dashboard")
 async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_admin_user)):
-    result = await db.execute(select(User).where(User.role == "worker"))
+    result = await db.execute(select(User).where(User.role == "worker",User.tenant_id == user.tenant_id))
     workers = result.scalars().all()
     worker_names = {worker.id: worker.name for worker in workers}
 
-    result = await db.execute(select(Shift))
+    result = await db.execute(select(Shift).where(Shift.tenant_id == user.tenant_id))
     shifts = result.scalars().all()
     internal_tasks = await internal_task.get_all_tasks(db)
     _, weekly_hours = compute_weekly_shifts_and_hours(shifts)
@@ -184,6 +186,8 @@ async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), 
     result = await db.execute(select(ShortageLog).order_by(ShortageLog.timestamp.desc()))
     shortage_logs = result.scalars().all()
     unresolved_logs = [log for log in shortage_logs if not log.is_resolved]
+
+    enabled_modules = await get_enabled_modules(db, user.tenant_id)
 
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
@@ -193,6 +197,7 @@ async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), 
         "internal_tasks": internal_tasks,
         "shortage_logs": shortage_logs,
         "unresolved_logs": unresolved_logs,
+        "enabled_modules": enabled_modules,
     })
 
 @router.get("/admin/shortages")

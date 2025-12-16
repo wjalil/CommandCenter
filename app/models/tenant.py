@@ -7,6 +7,8 @@ class Tenant(Base):
     __tablename__ = "tenants"
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
+    slug = Column(String, unique=True, nullable=True)          # NEW (nullable for migration backfill)
+    dispatch_phone = Column(String, nullable=True)  
 
  # Back-populated relationships
     users = relationship("User", back_populates="tenant")
