@@ -11,6 +11,8 @@ from app.db import get_db
 from app.models.user import User
 from app.models.shift import Shift
 from app.utils.tenant import get_current_tenant_id
+from app.auth.dependencies import get_current_admin_user
+
 
 templates = Jinja2Templates(directory="app/templates")
 router = APIRouter(prefix="/admin/schedule", tags=["Schedule Grid"])
@@ -57,7 +59,7 @@ class BulkUpsertPayload(BaseModel):
 
 # ---------- pages ----------
 @router.get("/grid")
-async def schedule_grid_page(request: Request):
+async def schedule_grid_page(request: Request, user: User = Depends(get_current_admin_user)):
     today = datetime.now().date()
     current_monday = today - timedelta(days=today.weekday())
     # If you open on Sunday, jump to next Monday
@@ -70,13 +72,14 @@ async def get_schedule_data(
     request: Request,
     week_start: str,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = get_current_tenant_id(request)
+    tenant_id = user.tenant_id
     monday = dt_date.fromisoformat(week_start)
     start, days, end_excl = week_span(monday)
 
     workers = (await db.execute(
-        select(User).where(User.tenant_id == tenant_id).order_by(User.name)
+        select(User).where(User.tenant_id == tenant_id,User.role == "worker",User.is_active == True,).order_by(User.name)
     )).scalars().all()
 
     shifts = (await db.execute(
@@ -117,13 +120,18 @@ async def bulk_upsert(
     request: Request,
     payload: BulkUpsertPayload,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = get_current_tenant_id(request)
+    tenant_id = user.tenant_id
 
-    # preload worker names (for labels)
     worker_rows = (await db.execute(
-        select(User.id, User.name).where(User.tenant_id == tenant_id)
+        select(User.id, User.name).where(
+            User.tenant_id == tenant_id,
+            User.role == "worker",
+            User.is_active == True,
+        )
     )).all()
+
     worker_name_by_id = {str(i): n for (i, n) in worker_rows}
 
     created = updated = deleted = 0
@@ -203,7 +211,7 @@ async def bulk_upsert(
     return {"created": created, "updated": updated, "deleted": deleted}
 
 @router.get("/timeslots")
-async def timeslots_page(request: Request):
+async def timeslots_page(request: Request, user: User = Depends(get_current_admin_user)):
     today = datetime.now().date()
     current_monday = today - timedelta(days=today.weekday())
     week_start = (current_monday + (timedelta(days=7) if today.weekday()==6 else timedelta(0))).isoformat()

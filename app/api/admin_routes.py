@@ -48,7 +48,10 @@ async def admin_shift_view(request: Request, db: AsyncSession = Depends(get_db),
 
     task_templates = result.scalars().all()
 
-    result = await db.execute(select(TaskTemplate.auto_assign_label).where(TaskTemplate.auto_assign_label != None))
+    result = await db.execute(select(TaskTemplate.auto_assign_label).where(
+        TaskTemplate.tenant_id == user.tenant_id,
+        TaskTemplate.auto_assign_label != None
+    ))
     preset_labels = sorted(set(result.scalars().all()))
 
     for shift_list in weekly_shifts.values():
