@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">📦 Customer Orders</h2>
+    <a href="/worker/home" class="btn btn-outline-secondary">🏠 Home</a>
+  </div>
+
+  <p class="text-muted small mb-2" id="last-updated">
+     ⏳ Last updated: <span id="seconds">0</span> seconds ago
+  </p>
+
+  <!-- Filter Tabs -->
+  <div class="btn-group mb-4" role="group">
+    {% for s in ["ALL", "NEW", "WORKING", "COMPLETED"] %}
+      <a href="?filter={{ s }}" class="btn btn-sm {% if filter == s or (not filter and s == 'ALL') %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        {{ s.title() }}
+      </a>
+    {% endfor %}
+  </div>
+
+  <!-- Orders -->
+  {% for order in orders %}
+    {% if filter == "ALL" or not filter or order.status.name == filter %}
+      <div class="card mb-4 shadow-sm border-0 rounded-4 order-card position-relative transition-hover">
+
+        <!-- Colored Status Strip -->
+        <div class="status-strip 
+          {% if order.status.name == 'NEW' %}bg-warning
+          {% elif order.status.name == 'WORKING' %}bg-primary
+          {% elif order.status.name == 'COMPLETED' %}bg-success
+          {% endif %}">
+        </div>
+
+        <!-- Header -->
+        <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="mb-0 fw-bold">👤 {{ order.customer.name if order.customer else "Walk-in Customer" }}</h5>
+            {% if order.customer and order.customer.phone_number %}
+              <small class="text-muted d-block">{{ order.customer.phone_number }}</small>
+            {% endif %}
+            <small class="text-muted">{{ order.timestamp.strftime('%b %d, %Y • %I:%M %p') }}</small>
+          </div>
+          <span class="badge rounded-pill px-3 py-2 
+            {% if order.status.name == 'NEW' %}bg-warning text-dark
+            {% elif order.status.name == 'WORKING' %}bg-primary
+            {% elif order.status.name == 'COMPLETED' %}bg-success
+            {% endif %}">
+            {{ order.status.value }}
+          </span>
+        </div>
+
+        <!-- Body -->
+        <div class="card-body bg-light-subtle rounded-bottom">
+
+          {% if order.note %}
+            <div class="mb-3">
+              <strong class="text-muted">Note:</strong>
+              <p class="fst-italic text-dark ms-3">📝 {{ order.note }}</p>
+            </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <strong class="text-muted">Items:</strong>
+            <ul class="list-group list-group-flush mt-2 rounded overflow-hidden">
+
+              {% set ns = namespace(total=0) %}
+              {% for item in order.items %}
+                {% set subtotal = item.menu_item.price * item.quantity %}
+                {% set ns.total = ns.total + subtotal %}
+                <li class="list-group-item d-flex justify-content-between align-items-center bg-white">
+                  <div>
+                    {{ item.menu_item.name if item.menu_item else "Unknown Item" }}
+                    <span class="badge bg-secondary ms-2">x{{ item.quantity }}</span>
+                  </div>
+                  <strong>${{ '%.2f' % subtotal }}</strong>
+                </li>
+              {% endfor %}
+
+              <li class="list-group-item d-flex justify-content-between align-items-center bg-light fw-bold">
+                <span>Total:</span>
+                <span>${{ '%.2f' % ns.total }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Status Update Form -->
+          <form method="post" action="/worker/orders/{{ order.id }}/update_status" class="d-flex align-items-center gap-2 mt-3">
+            <select name="status" class="form-select form-select-sm" style="max-width: 200px;">
+              {% for s in ["NEW", "WORKING", "COMPLETED"] %}
+                <option value="{{ s }}" {% if order.status.name == s %}selected{% endif %}>{{ s.title() }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Update</button>
+          </form>
+
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="alert alert-info text-center mt-5">
+      <h5>No orders submitted yet.</h5>
+    </div>
+  {% endfor %}
+
+</div>
+
+<!-- Custom CSS -->
+<style>
+  .transition-hover {
+    transition: transform 0.15s ease-in-out, box-shadow 0.2s;
+  }
+
+  .transition-hover:hover {
+    transform: scale(1.01);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  }
+
+  .order-card {
+    background-color: #fbfbfb;
+  }
+
+  .status-strip {
+    width: 6px;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    border-top-left-radius: 0.75rem;
+    border-bottom-left-radius: 0.75rem;
+  }
+
+  .bg-light-subtle {
+    background-color: #f9fafb;
+  }
+</style>
+
+<script>
+  let seconds = 0;
+  let isSubmitting = false;
+
+  document.querySelectorAll("form").forEach(form => {
+    form.addEventListener("submit", () => {
+      isSubmitting = true;
+    });
+  });
+
+  setInterval(() => {
+    if (!isSubmitting) {
+      seconds += 1;
+      document.getElementById("seconds").textContent = seconds;
+    }
+  }, 1000);
+
+  setInterval(() => {
+    if (!document.hidden && !isSubmitting) {
+      window.location.reload();
+    }
+  }, 15000);
+</script>
+
+{% endblock %}

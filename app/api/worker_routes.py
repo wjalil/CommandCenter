@@ -16,6 +16,7 @@ from app.models.user import User
 from app.auth.dependencies import get_current_user
 from app.models.timeclock import TimeEntry, TimeStatus
 from app.utils.timeclock_service import clock_in as svc_clock_in, clock_out as svc_clock_out
+from app.models.customer.customer_order import CustomerOrder, OrderItem
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -211,3 +212,62 @@ async def post_clock_out(
     )
     await db.commit()
     return {"ok": True, "entry_id": e.id if e else None}
+
+
+# View Orders as Workers
+@router.get("/worker/orders")
+async def worker_orders_view(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    # Only workers/staff should see this page
+    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+        return templates.TemplateResponse("unauthorized.html", {"request": request})
+    
+    # Fetch orders for this tenant with related data
+    result = await db.execute(
+        select(CustomerOrder)
+        .options(
+            selectinload(CustomerOrder.customer),
+            selectinload(CustomerOrder.items).selectinload(OrderItem.menu_item),
+        )
+        .where(CustomerOrder.tenant_id == user.tenant_id)
+        .order_by(CustomerOrder.timestamp.desc())
+    )
+    orders = result.scalars().all()
+    
+    # Get filter parameter
+    filter_param = request.query_params.get("filter", "ALL")
+    
+    return templates.TemplateResponse(
+        "worker_order_view.html",
+        {
+            "request": request,
+            "orders": orders,
+            "worker_name": getattr(user, "name", "Worker"),
+            "filter": filter_param,
+        }
+    )
+
+#Toggle Order Status
+@router.post("/worker/orders/{order_id}/update_status")
+async def worker_update_order_status(
+    order_id: str,
+    status: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    result = await db.execute(
+        select(CustomerOrder).where(
+            CustomerOrder.id == order_id, 
+            CustomerOrder.tenant_id == user.tenant_id
+        )
+    )
+    order = result.scalar_one_or_none()
+
+    if order:
+        order.status = (status or "").strip()
+        await db.commit()
+
+    return RedirectResponse(url="/worker/orders?success=Order+updated", status_code=303)

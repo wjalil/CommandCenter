@@ -27,6 +27,7 @@ from app.api.admin.shifts_bulk import router as shifts_bulk_router
 from app.api.admin.shifts_clone import router as shifts_clone_router
 from app.api.admin.schedule_grid_routes import schedule_grid_page
 from app.auth.module_gates import get_enabled_modules
+from app.models.tenant import Tenant
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -192,6 +193,10 @@ async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), 
 
     enabled_modules = await get_enabled_modules(db, user.tenant_id)
 
+    # ✅ Fetch the tenant
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
+    tenant = tenant_result.scalar_one_or_none()
+
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
         "user": user,
@@ -201,6 +206,7 @@ async def admin_dashboard(request: Request, db: AsyncSession = Depends(get_db), 
         "shortage_logs": shortage_logs,
         "unresolved_logs": unresolved_logs,
         "enabled_modules": enabled_modules,
+        "tenant": tenant,
     })
 
 @router.get("/admin/shortages")

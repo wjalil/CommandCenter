@@ -8,365 +8,642 @@
   body{
     margin:0;
     min-height:100vh;
-    background: linear-gradient(135deg, #f2f7f4, #edf6f3, #f9fbfa);
-    background-size: 400% 400%;
-    animation: softGradient 18s ease infinite;
+    background: linear-gradient(135deg, #fafbfc 0%, #f4f6f8 100%);
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    color:#2f3a35;
-  }
-
-  @keyframes softGradient{
-    0%{ background-position: 0% 50%; }
-    50%{ background-position: 100% 50%; }
-    100%{ background-position: 0% 50%; }
+    color:#1e293b;
   }
 
   [x-cloak]{ display:none !important; }
 
   .page-wrap{
-    padding-top: 18px;
-    padding-bottom: 170px; /* space for floating cart */
+    padding-top: 0;
+    padding-bottom: 200px; /* space for floating cart */
   }
 
-  /* Glass containers */
-  .glow-box{
-    background: rgba(255, 255, 255, 0.88);
-    border: 1px solid #dde8e2;
-    border-radius: 16px;
-    box-shadow: 0 8px 22px rgba(0,0,0,.04);
-    backdrop-filter: blur(10px);
-  }
-
+  /* Hero Header */
   .hero{
-    padding: 18px 18px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.96), rgba(59, 130, 246, 0.96));
+    padding: 2.5rem 1.5rem 1.75rem 1.5rem;
+    color: white;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(20px);
   }
 
   .hero-title{
-    font-size: 1.6rem;
-    color: #355e4d;
-    margin-bottom: 0.25rem;
-    font-weight: 700;
+    font-size: 2rem;
+    margin-bottom: 0.4rem;
+    font-weight: 800;
+    letter-spacing: -0.8px;
   }
 
   .hero-sub{
-    font-size: .95rem;
-    color:#6f837a;
+    font-size: 1rem;
+    color: rgba(255,255,255,0.9);
     margin: 0;
+    font-weight: 500;
   }
 
-  .btn-glow{
-    border: 1.8px solid #4a7c68;
-    color: #355e4d;
-    background: transparent;
-    transition: all 0.2s ease-in-out;
-    font-weight: 600;
-    border-radius: 14px;
-  }
-  .btn-glow:hover{
-    background-color:#355e4d;
-    color:#fff;
-    box-shadow: 0 0 10px rgba(53,94,77,.25);
-  }
-
-  /* Accordion */
-  .accordion-item{
-    border: 1px solid #dde8e2 !important;
-    border-radius: 16px !important;
-    overflow: hidden;
-    background: rgba(255,255,255,.9);
+  .btn-back{
+    border: 1.5px solid rgba(255,255,255,0.35);
+    color: white;
+    background: rgba(255,255,255,0.12);
     backdrop-filter: blur(10px);
-    box-shadow: 0 10px 26px rgba(0,0,0,.05);
-    margin-bottom: 12px;
-  }
-  .accordion-button{
+    transition: all 0.25s ease;
     font-weight: 600;
-    color:#355e4d;
-    background: rgba(255,255,255,.80);
-    border-bottom: 1px solid rgba(221,232,226,.9);
+    border-radius: 12px;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.95rem;
+    letter-spacing: -0.2px;
   }
-  .accordion-button:focus{ box-shadow:none; }
-  .accordion-button:not(.collapsed){
-    background: rgba(255,255,255,.90);
-  }
-
-  .cat-meta{
-    font-size: .82rem;
-    color:#6f837a;
+  .btn-back:hover{
+    background: rgba(255,255,255,0.22);
+    border-color: rgba(255,255,255,0.5);
+    color: white;
+    transform: translateY(-1px);
   }
 
-  /* Item cards */
+  /* Category Navigation - Sticky */
+  .cat-nav{
+    position: sticky;
+    top: 125px;
+    z-index: 99;
+    background: rgba(255,255,255,0.96);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+    padding: 1.25rem 0;
+    margin-bottom: 2.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .cat-nav::-webkit-scrollbar { display: none; }
+
+  .cat-nav-inner{
+    display: flex;
+    gap: 0.75rem;
+    min-width: max-content;
+    padding: 0 1.5rem;
+  }
+
+  .cat-pill{
+    padding: 0.65rem 1.35rem;
+    border-radius: 999px;
+    border: 1.5px solid rgba(148, 163, 184, 0.2);
+    background: white;
+    color: #64748b;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.25s ease;
+    cursor: pointer;
+    white-space: nowrap;
+    letter-spacing: -0.2px;
+  }
+
+  .cat-pill:hover{
+    background: rgba(139, 92, 246, 0.06);
+    border-color: rgba(139, 92, 246, 0.3);
+    color: #8b5cf6;
+    transform: translateY(-1px);
+  }
+
+  .cat-pill.active{
+    background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
+  }
+
+  /* Category Section */
+  .cat-section{
+    margin-bottom: 4rem;
+    scroll-margin-top: 200px;
+  }
+
+  .cat-header{
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 1.75rem;
+    letter-spacing: -0.8px;
+  }
+
+  /* Item Grid */
+  .item-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.75rem;
+  }
+
+  /* Item Cards */
   .item-card{
-    border: 1px solid rgba(221,232,226,.95);
-    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 24px;
     overflow: hidden;
-    background: rgba(255,255,255,.95);
-    box-shadow: 0 10px 26px rgba(0,0,0,.05);
+    background: white;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.05);
     height: 100%;
-    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
   }
+
   .item-card:hover{
-    transform: translateY(-3px);
-    border-color: rgba(53,94,77,.35);
-    box-shadow: 0 18px 36px rgba(0,0,0,.08);
+    transform: translateY(-6px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.1);
+    border-color: rgba(139, 92, 246, 0.3);
   }
 
   .item-media{
     position: relative;
     overflow: hidden;
+    aspect-ratio: 3/2;
+    background: #f1f5f9;
   }
 
   .item-img{
-    height: 170px;
     width: 100%;
+    height: 100%;
     object-fit: cover;
-    background: rgba(0,0,0,.03);
-    display:block;
+    display: block;
+    transition: transform 0.6s ease;
   }
 
-  /* Soft gradient at bottom for “premium” depth */
+  .item-card:hover .item-img{
+    transform: scale(1.1);
+  }
+
+  /* Gradient overlay for depth */
   .item-media::after{
     content:"";
     position:absolute;
     left:0; right:0; bottom:0;
-    height: 54%;
-    background: linear-gradient(to top, rgba(0,0,0,.18), rgba(0,0,0,0));
+    height: 55%;
+    background: linear-gradient(to top, rgba(0,0,0,0.35), transparent);
     pointer-events:none;
-    opacity:.9;
   }
 
-  /* Smooth image zoom on hover */
-  .item-media img.item-img{
-    transition: transform .45s ease;
-  }
-  .item-card:hover .item-media img.item-img{
-    transform: scale(1.06);
-  }
-
-  /* Optional badge overlay */
+  /* Badge overlay */
   .media-badge{
-    position:absolute;
-    top:10px;
-    left:10px;
-    z-index:2;
-    box-shadow: 0 10px 18px rgba(0,0,0,.08);
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 2;
+    padding: 0.5rem 0.9rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: rgba(16, 185, 129, 0.96);
+    color: white;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    letter-spacing: -0.2px;
   }
 
-  /* Sold-out veil */
+  /* Sold-out overlay */
   .sold-veil{
-    position:absolute;
-    inset:0;
-    background: rgba(255,255,255,.60);
-    backdrop-filter: blur(2px);
-    z-index:1;
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(5px);
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
+
   .sold-label{
-    position:absolute;
-    top:10px;
-    right:10px;
-    z-index:3;
-    padding: 6px 10px;
+    padding: 0.6rem 1.2rem;
     border-radius: 999px;
-    font-size: .78rem;
-    font-weight: 600;
-    border: 1px solid rgba(239,68,68,.28);
-    background: rgba(239,68,68,.12);
-    color: rgb(185,28,28);
+    font-size: 0.9rem;
+    font-weight: 700;
+    background: rgba(239, 68, 68, 0.96);
+    color: white;
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+    letter-spacing: -0.2px;
+  }
+
+  /* Card Content */
+  .item-content{
+    padding: 1.75rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .item-name{
-    font-size: 1.02rem;
-    color:#355e4d;
-    margin:0;
-    font-weight: 600;
-  }
-  .item-desc{
-    font-size: .86rem;
-    color:#6f837a;
-    margin: 0.4rem 0 0.75rem 0;
-    min-height: 38px;
-  }
-  .price{
-    color:#355e4d;
-    font-size: 1.0rem;
+    font-size: 1.2rem;
+    color: #1e293b;
     margin: 0;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    line-height: 1.35;
   }
 
-  .pill{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: .75rem;
-    border: 1px solid rgba(221,232,226,.95);
-    background: rgba(255,255,255,.75);
-    color:#355e4d;
-    white-space: nowrap;
-    font-weight: 600;
+  .item-desc{
+    font-size: 0.95rem;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.6;
+    flex: 1;
+    min-height: 2.4rem;
   }
-  .pill-sold{
-    border-color: rgba(239,68,68,.28);
-    background: rgba(239,68,68,.10);
-    color: rgb(185,28,28);
+
+  .item-footer{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.25rem;
+    padding-top: 1.25rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+  }
+
+  .price{
+    color: #1e293b;
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.6px;
+  }
+
+  .qty-control{
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
   }
 
   .qty-input{
+    width: 70px;
+    text-align: center;
     border-radius: 12px;
-    border: 1px solid rgba(221,232,226,.95);
-    font-weight: 600;
+    border: 1.5px solid rgba(148, 163, 184, 0.22);
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 0.5rem 0.6rem;
+    color: #1e293b;
+    transition: all 0.2s ease;
   }
 
-  /* Floating cart */
+  .qty-input:focus{
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.08);
+    outline: none;
+  }
+
+  .btn-add{
+    background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+    border: none;
+    color: white;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 0.7rem 1.4rem;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
+    letter-spacing: -0.2px;
+    font-size: 0.95rem;
+  }
+
+  .btn-add:hover:not(:disabled){
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
+  }
+
+  .btn-add:disabled{
+    background: #e2e8f0;
+    color: #94a3b8;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* Floating Cart */
   .floating-cart{
     position: fixed;
-    right: 16px;
-    bottom: 16px;
-    width: min(340px, calc(100vw - 32px));
+    right: 20px;
+    bottom: 20px;
+    width: min(380px, calc(100vw - 40px));
     z-index: 1055;
   }
+
   .cart-card{
-    border-radius: 16px;
-    border: 1px solid #dde8e2;
-    background: rgba(255,255,255,.92);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 10px 28px rgba(0,0,0,.08);
+    border-radius: 24px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(255,255,255,0.98);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 16px 60px rgba(0,0,0,0.15);
     overflow: hidden;
   }
+
   .cart-head{
-    padding: 12px 14px;
-    border-bottom: 1px solid rgba(221,232,226,.9);
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
+
   .cart-title{
-    color:#355e4d;
-    font-size: 1.02rem;
-    margin:0;
+    font-size: 1.2rem;
+    margin: 0;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+  }
+
+  .btn-clear{
+    background: rgba(255,255,255,0.18);
+    border: 1.5px solid rgba(255,255,255,0.3);
+    color: white;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    letter-spacing: -0.1px;
+  }
+
+  .btn-clear:hover{
+    background: rgba(255,255,255,0.28);
+    border-color: rgba(255,255,255,0.5);
+  }
+
+  .cart-body{
+    padding: 1.5rem;
+    max-height: 360px;
+    overflow-y: auto;
+  }
+
+  .cart-item{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 14px;
+    margin-bottom: 0.75rem;
+    transition: all 0.2s ease;
+  }
+
+  .cart-item:hover{
+    background: #f1f5f9;
+  }
+
+  .cart-item-name{
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 1rem;
+    letter-spacing: -0.2px;
+  }
+
+  .cart-item-qty{
+    font-size: 0.9rem;
+    color: #64748b;
+    margin-top: 0.25rem;
+  }
+
+  .btn-remove{
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #ef4444;
+    border-radius: 10px;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .btn-remove:hover{
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .cart-total{
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #1e293b;
+    text-align: right;
+    margin: 1.5rem 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.15);
+    letter-spacing: -0.6px;
+  }
+
+  .btn-submit{
+    background: linear-gradient(135deg, #10b981, #14b8a6);
+    border: none;
+    color: white;
     font-weight: 700;
+    border-radius: 14px;
+    padding: 1rem;
+    width: 100%;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+    letter-spacing: -0.3px;
+    transition: all 0.25s ease;
+  }
+
+  .btn-submit:hover{
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(16, 185, 129, 0.4);
+  }
+
+  /* Empty State */
+  .empty-state{
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #64748b;
+  }
+
+  .empty-icon{
+    font-size: 5rem;
+    margin-bottom: 1.5rem;
+    opacity: 0.4;
+  }
+
+  .empty-state h4{
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.4px;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .item-grid{
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    .hero{
+      padding: 2rem 1.25rem 1.5rem 1.25rem;
+    }
+    .hero-title{
+      font-size: 1.75rem;
+    }
+    .cat-nav{
+      top: 110px;
+      padding: 1rem 0;
+    }
+    .cat-section{
+      margin-bottom: 3rem;
+    }
+    .cat-header{
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .item-content{
+      padding: 1.5rem;
+    }
+  }
+
+  /* Smooth scroll */
+  html{
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar for cart */
+  .cart-body::-webkit-scrollbar {
+    width: 6px;
+  }
+  .cart-body::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.08);
+    border-radius: 999px;
+  }
+  .cart-body::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.3);
+    border-radius: 999px;
+  }
+  .cart-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(139, 92, 246, 0.5);
   }
 </style>
 
-<div class="container page-wrap" x-data="orderCart" x-cloak>
+<div x-data="orderCart" x-cloak>
 
-  <!-- HERO -->
-  <div class="glow-box hero mb-3">
-    <div class="d-flex justify-content-between align-items-start gap-3">
-      <div>
-        <div class="hero-title">🍪 Menu</div>
-        {% if menu %}
-          <p class="hero-sub">{{ menu.name }}{% if menu.description %} • {{ menu.description }}{% endif %}</p>
-        {% else %}
-          <p class="hero-sub">No active menu</p>
-        {% endif %}
+  <!-- HERO HEADER -->
+  <div class="hero">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <div class="hero-title">🍪 Menu</div>
+          {% if menu %}
+            <p class="hero-sub">{{ menu.name }}{% if menu.description %} • {{ menu.description }}{% endif %}</p>
+          {% else %}
+            <p class="hero-sub">No active menu available</p>
+          {% endif %}
+        </div>
+        <a href="/customer" class="btn btn-back">← Back</a>
       </div>
-      <a href="/customer" class="btn btn-glow">← Back</a>
-    </div>
 
-    {% if request.query_params.get("success") %}
-      <div class="alert alert-success mt-3 mb-0">{{ request.query_params.get("success") }}</div>
-    {% endif %}
-    {% if request.query_params.get("error") %}
-      <div class="alert alert-danger mt-3 mb-0">{{ request.query_params.get("error") }}</div>
-    {% endif %}
+      {% if request.query_params.get("success") %}
+        <div class="alert alert-success mt-3 mb-0" style="border-radius: 14px;">
+          {{ request.query_params.get("success") }}
+        </div>
+      {% endif %}
+      {% if request.query_params.get("error") %}
+        <div class="alert alert-danger mt-3 mb-0" style="border-radius: 14px;">
+          {{ request.query_params.get("error") }}
+        </div>
+      {% endif %}
+    </div>
   </div>
 
   {% if not menu %}
-    <div class="glow-box p-3">
-      <div class="text-muted">No active menu is available right now. Please check back soon.</div>
+    <div class="container mt-4">
+      <div class="empty-state">
+        <div class="empty-icon">🍽️</div>
+        <h4>No Menu Available</h4>
+        <p>Please check back soon for our delicious offerings!</p>
+      </div>
     </div>
   {% else %}
 
-    <!-- ACCORDION -->
-    <div class="accordion" id="menuAccordion">
+    <!-- CATEGORY NAVIGATION -->
+    <div class="cat-nav">
+      <div class="container">
+        <div class="cat-nav-inner">
+          {% for group in category_groups %}
+            <a href="#cat-{{ loop.index }}" class="cat-pill" 
+               @click="activeCategory = '{{ loop.index }}'"
+               :class="{ 'active': activeCategory === '{{ loop.index }}' }">
+              {{ group.name }}
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- MENU SECTIONS -->
+    <div class="container page-wrap">
       {% for group in category_groups %}
-        {% set gid = "cat_" ~ loop.index %}
-        <div class="accordion-item">
-          <h2 class="accordion-header" id="{{ gid }}_head">
-            <button class="accordion-button {% if not loop.first %}collapsed{% endif %}"
-                    type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#{{ gid }}_body"
-                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}"
-                    aria-controls="{{ gid }}_body">
-              <div class="d-flex justify-content-between align-items-center w-100">
-                <div>{{ group.name }}</div>
-                <div class="cat-meta">{{ group["items"]|length }} items</div>
-              </div>
-            </button>
-          </h2>
+        <div class="cat-section" id="cat-{{ loop.index }}">
+          <h2 class="cat-header">{{ group.name }}</h2>
 
-          <div id="{{ gid }}_body"
-               class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
-               aria-labelledby="{{ gid }}_head"
-               data-bs-parent="#menuAccordion">
-            <div class="accordion-body">
+          <div class="item-grid">
+            {% for item in group["items"] %}
+              {% set max_qty = (item.qty_available or 0) %}
 
-              <div class="row row-cols-1 row-cols-md-3 g-3">
-                {% for item in group["items"] %}
-                  {% set max_qty = (item.qty_available or 0) %}
+              <div class="item-card">
+                <!-- Image -->
+                <div class="item-media">
+                  {% if max_qty > 0 %}
+                    <span class="media-badge">{{ max_qty }} left</span>
+                  {% endif %}
 
-                  <div class="col">
-                    <div class="item-card">
-                      {% if item.photo_filename %}
-                        <div class="item-media">
-                          {% if max_qty > 0 %}
-                            <span class="pill media-badge">{{ max_qty }} left</span>
-                          {% endif %}
+                  {% if max_qty <= 0 %}
+                    <div class="sold-veil">
+                      <div class="sold-label">Sold Out</div>
+                    </div>
+                  {% endif %}
 
-                          {% if max_qty <= 0 %}
-                            <div class="sold-veil"></div>
-                            <div class="sold-label">Sold out</div>
-                          {% endif %}
+                  {% if item.photo_filename %}
+                    <img
+                      class="item-img"
+                      src="https://commandcenter-media.nyc3.cdn.digitaloceanspaces.com/{{ item.photo_filename }}"
+                      alt="{{ item.name }}"
+                      loading="lazy"
+                    >
+                  {% else %}
+                    <div class="item-img d-flex align-items-center justify-content-center text-muted">
+                      <span style="font-size: 3.5rem; opacity: 0.25;">🍪</span>
+                    </div>
+                  {% endif %}
+                </div>
 
-                          <img
-                            class="item-img"
-                            src="https://commandcenter-media.nyc3.cdn.digitaloceanspaces.com/{{ item.photo_filename }}"
-                            alt="{{ item.name }}"
-                            loading="lazy"
-                          >
-                        </div>
-                      {% else %}
-                        <div class="item-img d-flex align-items-center justify-content-center text-muted">No photo</div>
-                      {% endif %}
+                <!-- Content -->
+                <div class="item-content">
+                  <h3 class="item-name">{{ item.name }}</h3>
+                  <p class="item-desc">{{ item.description or "Delicious treat, made fresh daily!" }}</p>
 
-                      <div class="p-3 d-flex flex-column" style="height: calc(100% - 170px);">
-                        <div class="d-flex justify-content-between align-items-start gap-2">
-                          <h5 class="item-name">{{ item.name }}</h5>
-                          {% if max_qty <= 0 %}
-                            <span class="pill pill-sold">Sold out</span>
-                          {% else %}
-                            <span class="pill">{{ max_qty }} left</span>
-                          {% endif %}
-                        </div>
+                  <div class="item-footer">
+                    <div class="price">${{ "%.2f"|format(item.price or 0) }}</div>
 
-                        <p class="item-desc">{{ item.description or "No description available." }}</p>
+                    <div class="qty-control">
+                      <input 
+                        type="number"
+                        min="1"
+                        max="{{ max_qty }}"
+                        value="1"
+                        class="qty-input"
+                        x-ref="qty_{{ item.id }}"
+                        {% if max_qty <= 0 %}disabled{% endif %}>
 
-                        <div class="d-flex justify-content-between align-items-center mt-auto gap-2">
-                          <p class="price fw-bold mb-0">${{ "%.2f"|format(item.price or 0) }}</p>
-
-                          <input type="number"
-                                 min="1"
-                                 max="{{ max_qty }}"
-                                 value="1"
-                                 class="form-control form-control-sm qty-input"
-                                 style="width: 88px;"
-                                 x-ref="qty_{{ item.id }}"
-                                 {% if max_qty <= 0 %}disabled{% endif %}>
-
-                          <button class="btn btn-glow btn-sm"
-                                  type="button"
-                                  {% if max_qty <= 0 %}disabled{% endif %}
-                                  @click='addToCart("{{ item.id }}", {{ item.name|tojson }}, {{ item.price or 0 }}, $refs["qty_{{ item.id }}"].value)'>
-                            Add
-                          </button>
-                        </div>
-                      </div>
-
+                      <button 
+                        class="btn btn-add"
+                        type="button"
+                        {% if max_qty <= 0 %}disabled{% endif %}
+                        @click='addToCart("{{ item.id }}", {{ item.name|tojson }}, {{ item.price or 0 }}, $refs["qty_{{ item.id }}"].value)'>
+                        Add
+                      </button>
                     </div>
                   </div>
-
-                {% endfor %}
+                </div>
               </div>
 
-            </div>
+            {% endfor %}
           </div>
         </div>
       {% endfor %}
@@ -374,64 +651,70 @@
 
   {% endif %}
 
-  <!-- 🛒 Floating Cart -->
+  <!-- 🛒 FLOATING CART -->
   <div class="floating-cart" x-show="cart.length > 0" x-transition>
     <div class="cart-card">
-      <div class="cart-head d-flex justify-content-between align-items-center">
-        <h5 class="cart-title mb-0">🛒 Cart</h5>
-        <button type="button" class="btn btn-sm btn-outline-danger" @click="cart = []">Clear</button>
+      <div class="cart-head">
+        <h5 class="cart-title">🛒 Your Cart</h5>
+        <button type="button" class="btn btn-clear" @click="cart = []">Clear</button>
       </div>
 
-      <div class="p-3">
-        <ul class="list-group mb-3">
-          <template x-for="(item, index) in cart" :key="item.id">
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <div>
-                <span class="fw-semibold" x-text="item.name"></span>
-                <br>
-                <small class="text-muted">Qty: <span x-text="item.quantity"></span></small>
-              </div>
-              <button class="btn btn-sm btn-outline-danger" type="button" @click="removeFromCart(index)">✖</button>
-            </li>
-          </template>
-        </ul>
+      <div class="cart-body">
+        <template x-for="(item, index) in cart" :key="item.id">
+          <div class="cart-item">
+            <div>
+              <div class="cart-item-name" x-text="item.name"></div>
+              <div class="cart-item-qty">Qty: <span x-text="item.quantity"></span></div>
+            </div>
+            <button class="btn btn-remove" type="button" @click="removeFromCart(index)">✖</button>
+          </div>
+        </template>
 
-        <p class="text-end mb-2">Total: <strong>$<span x-text="total.toFixed(2)"></span></strong></p>
-        <button class="btn btn-glow w-100" type="button" data-bs-toggle="modal" data-bs-target="#reviewModal">
-          Review & Submit
+        <div class="cart-total">
+          Total: $<span x-text="total.toFixed(2)"></span>
+        </div>
+
+        <button class="btn btn-submit" type="button" data-bs-toggle="modal" data-bs-target="#reviewModal">
+          Review & Submit Order
         </button>
       </div>
     </div>
   </div>
 
-  <!-- 📝 Modal for Order Review -->
+  <!-- 📝 REVIEW MODAL -->
   <div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
       <form method="post" action="/customer/order/submit-full" @submit="prepareForm">
-        <div class="modal-content" style="border-radius: 16px; overflow:hidden;">
-          <div class="modal-header">
-            <h5 class="modal-title" id="reviewModalLabel">🧾 Review Your Order</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-content" style="border-radius: 24px; overflow:hidden; border: none;">
+          <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: white; border: none; padding: 1.5rem;">
+            <h5 class="modal-title fw-bold" id="reviewModalLabel" style="letter-spacing: -0.4px; font-size: 1.25rem;">🧾 Review Your Order</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body">
-            <ul class="list-group mb-3">
+          <div class="modal-body" style="padding: 1.75rem;">
+            <div class="mb-4">
               <template x-for="item in cart" :key="item.id">
-                <li class="list-group-item d-flex justify-content-between">
-                  <span x-text="`${item.name} x${item.quantity}`"></span>
-                  <span>$<span x-text="(item.price * item.quantity).toFixed(2)"></span></span>
-                </li>
+                <div class="cart-item">
+                  <div>
+                    <div class="cart-item-name" x-text="`${item.name} x${item.quantity}`"></div>
+                  </div>
+                  <div class="fw-bold" style="font-size: 1.1rem; letter-spacing: -0.3px;">$<span x-text="(item.price * item.quantity).toFixed(2)"></span></div>
+                </div>
               </template>
-            </ul>
+            </div>
 
             <div class="mb-3">
-              <label for="note" class="form-label">Note (optional)</label>
-              <textarea name="note" x-model="note" class="form-control" rows="3"></textarea>
+              <label for="note" class="form-label fw-semibold" style="color: #1e293b; font-size: 0.95rem;">Special Instructions (optional)</label>
+              <textarea name="note" x-model="note" class="form-control" rows="3" 
+                style="border-radius: 14px; border: 1.5px solid rgba(148, 163, 184, 0.22); padding: 0.85rem 1rem; font-size: 0.95rem;"
+                placeholder="Any special requests or dietary needs?"></textarea>
             </div>
 
             <input type="hidden" name="cart_json" :value="JSON.stringify(cart)">
           </div>
-          <div class="modal-footer">
-            <button type="submit" class="btn btn-glow w-100">📦 Submit Order</button>
+          <div class="modal-footer" style="border: none; padding: 1rem 1.75rem 1.75rem 1.75rem;">
+            <button type="submit" class="btn btn-submit">
+              📦 Place Order · $<span x-text="total.toFixed(2)"></span>
+            </button>
           </div>
         </div>
       </form>
@@ -439,4 +722,37 @@
   </div>
 
 </div>
+
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('orderCart', () => ({
+      cart: [],
+      note: '',
+      activeCategory: '1',
+      
+      get total() {
+        return this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      },
+      
+      addToCart(id, name, price, qty) {
+        const quantity = parseInt(qty);
+        const existing = this.cart.find(item => item.id === id);
+        
+        if (existing) {
+          existing.quantity += quantity;
+        } else {
+          this.cart.push({ id, name, price, quantity });
+        }
+      },
+      
+      removeFromCart(index) {
+        this.cart.splice(index, 1);
+      },
+      
+      prepareForm(e) {
+        // Form will submit naturally
+      }
+    }));
+  });
+</script>
 {% endblock %}

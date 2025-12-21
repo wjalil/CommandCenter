@@ -103,6 +103,11 @@
 <nav class="navbar navbar-expand-lg px-4">
   <div class="container-fluid">
     <span class="navbar-brand">🛫 CookieOps Command Center</span>
+    {% if tenant %}
+    <span class="badge rounded-pill bg-info text-dark ms-3 px-3 py-2" style="font-size: 0.9rem; font-weight: 500;">
+    {{ tenant.name }}
+    </span>
+    {% endif %}
     <div class="text-end mb-3">
       <a href="/logout" class="btn btn-outline-danger btn-sm">🔓 Logout</a>
     </div>
