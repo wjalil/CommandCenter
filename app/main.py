@@ -58,7 +58,19 @@ app = FastAPI()
 
 
 # ✅ Session middleware (required for PIN login sessions)
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "fallback-secret"))
+# Security: httponly prevents XSS theft, secure requires HTTPS, samesite prevents CSRF
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+if not SESSION_SECRET:
+    raise ValueError("SESSION_SECRET environment variable is required! Generate with: openssl rand -hex 32")
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    max_age=3600,  # 1 hour session timeout
+    same_site="lax",  # CSRF protection (strict would break OAuth flows)
+    https_only=True,  # Only send over HTTPS in production
+    httponly=True,  # Prevent JavaScript access (XSS protection)
+)
 
 # ✅ Tenant middleware (injects request.state.tenant_id)
 app.add_middleware(TenantMiddleware)

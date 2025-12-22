@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean,Integer,ForeignKey
+from sqlalchemy import Column, String, Boolean, Integer, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
@@ -13,14 +13,19 @@ class User(Base):
     name = Column(String, nullable=False)
     pin_code = Column(String, nullable=False)
     role = Column(String, nullable=False)  # "admin", "worker"
-    #Tenant ID 
+    #Tenant ID
     tenant_id = Column(Integer, ForeignKey("tenants.id"))
     tenant = relationship("Tenant", back_populates="users")
 
-    worker_type = Column(String, nullable=True) 
+    worker_type = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     business_id = Column(String, nullable=True)  # just store it raw for now
     shifts = relationship("Shift", back_populates="worker")
     submissions = relationship("TaskSubmission", back_populates="worker")
     vending_logs = relationship("VendingLog", back_populates="submitter", cascade="all, delete-orphan")
     hourly_rate = Column(Numeric(10,2), nullable=True) # per-tenant rate
+
+    # Security: Prevent PIN collision between tenants
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "pin_code", name="uq_user_tenant_pin"),
+    )
