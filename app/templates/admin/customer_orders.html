@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}{{ customer.name }} - Orders - CookieOps{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2>📦 {{ customer.name }} - Order History</h2>
+                    <p class="text-muted mb-0">{{ customer.phone_number or 'No phone number' }}</p>
+                </div>
+                <a href="/admin/customers/balances" class="btn btn-secondary">← Back to Balances</a>
+            </div>
+
+            {% if success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ success }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            <!-- Orders List -->
+            {% if orders %}
+            {% for order in orders %}
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center
+                    {% if order.payment_status.value == 'Paid' %}bg-success text-white{% else %}bg-warning{% endif %}">
+                    <div>
+                        <strong>Order #{{ order.id[:8] }}</strong>
+                        <span class="ms-2">{{ order.timestamp.strftime('%b %d, %Y at %I:%M %p') }}</span>
+                    </div>
+                    <div>
+                        <span class="badge
+                            {% if order.payment_status.value == 'Paid' %}bg-light text-success{% else %}bg-danger{% endif %}
+                            px-3 py-2">
+                            {{ order.payment_status.value }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Order Items -->
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Item</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Price</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in order.items_list %}
+                                <tr>
+                                    <td>{{ item.item_name }}</td>
+                                    <td class="text-center">{{ item.quantity }}</td>
+                                    <td class="text-end">${{ "%.2f"|format(item.price_at_time_of_order|float) }}</td>
+                                    <td class="text-end">${{ "%.2f"|format((item.price_at_time_of_order * item.quantity)|float) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="3" class="text-end fw-bold">Order Total:</td>
+                                    <td class="text-end fw-bold text-primary">${{ "%.2f"|format(order.total_price|float) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Customer Note -->
+                    {% if order.note %}
+                    <div class="alert alert-info mb-3">
+                        <strong>Customer Note:</strong> {{ order.note }}
+                    </div>
+                    {% endif %}
+
+                    <!-- Payment Info -->
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            {% if order.payment_status.value == 'Paid' %}
+                            <span class="text-success">
+                                ✅ Paid via {{ order.payment_method or 'Unknown' }}
+                                {% if order.paid_at %}
+                                on {{ order.paid_at.strftime('%b %d, %Y') }}
+                                {% endif %}
+                            </span>
+                            {% else %}
+                            <span class="text-danger fw-bold">❌ Unpaid - Balance Due: ${{ "%.2f"|format(order.total_price|float) }}</span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div>
+                            {% if order.payment_status.value != 'Paid' %}
+                            <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#payModal{{ order.id }}">
+                                💵 Mark as Paid
+                            </button>
+                            {% else %}
+                            <form method="POST" action="/admin/orders/{{ order.id }}/mark-unpaid" class="d-inline">
+                                <button type="submit" class="btn btn-outline-warning btn-sm" onclick="return confirm('Mark this order as unpaid?')">
+                                    ↩️ Mark as Unpaid
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Modal -->
+            <div class="modal fade" id="payModal{{ order.id }}" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Mark Order as Paid</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <form method="POST" action="/admin/orders/{{ order.id }}/mark-paid">
+                            <div class="modal-body">
+                                <p class="mb-3">Order Total: <strong class="text-primary">${{ "%.2f"|format(order.total_price|float) }}</strong></p>
+                                <div class="mb-3">
+                                    <label for="payment_method{{ order.id }}" class="form-label">Payment Method</label>
+                                    <select class="form-select" id="payment_method{{ order.id }}" name="payment_method" required>
+                                        <option value="Cash">Cash</option>
+                                        <option value="Card">Credit/Debit Card</option>
+                                        <option value="Check">Check</option>
+                                        <option value="Venmo">Venmo</option>
+                                        <option value="Zelle">Zelle</option>
+                                        <option value="Account">On Account</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-success">✅ Confirm Payment</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-5 text-muted">
+                    <p class="mb-0">No orders found for this customer.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}

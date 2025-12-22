@@ -130,7 +130,7 @@
             <li><a href="/admin/timeclock" class="card-link text-success fw-semibold">⏱️ Time Clock / Payroll</a></li>
             <li><a href="/documents/admin/documents" class="card-link">📄 SOP / Recipes</a></li>
             <li><a href="/admin/workers" class="card-link">👤 Workers</a></li>
-            
+            <li><a href="/admin/settings/email" class="card-link text-primary fw-semibold">⚙️ Email Settings</a></li>
           </ul>
         </div>
         <form method="post" action="/admin/shifts/generate_next_week">
@@ -183,15 +183,16 @@
     <div class="col-lg-4 col-md-6">
       <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #0d6efd;">
         <div>
-          <div class="section-label">Menu Tools</div>
-          <h5 class="card-title">🍽️ Manage Menus</h5>
-          <p class="text-muted small">Create, assign, and edit menu items.</p>
+          <div class="section-label">Customer Management</div>
+          <h5 class="card-title">🍽️ Orders & Menus</h5>
+          <p class="text-muted small">Manage customers, orders, and menu items.</p>
           <ul class="list-unstyled">
             <li class="mb-2">
-              <a href="/admin/menus" class="card-link">🔍 View</a>
-              <a href="/admin/menus/create" class="card-link">➕ New</a>
-             <a href="/admin/customers/create" class="card-link">👤 Add Customer</a>
-             <a href="/admin/orders" class="card-link">📦 View Orders</a>
+              <a href="/admin/customers/balances" class="card-link fw-bold text-success">💰 Customer Balances</a>
+              <a href="/admin/orders" class="card-link">📦 View Orders</a>
+              <a href="/admin/menus" class="card-link">🔍 Menus</a>
+              <a href="/admin/menus/create" class="card-link">➕ New Menu</a>
+              <a href="/admin/customers/create" class="card-link">👤 Add Customer</a>
             </li>
           </ul>
         </div>
@@ -318,46 +319,45 @@
     {% endif %}
 
     {% if enabled_modules.get("weekly_hours", True) %}
-    <div class="col-lg-6">
-      <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #130f89;">
-        <div>
-          <div class="section-label">Stats</div>
-          <h5 class="card-title">📈 Weekly Worker Hours</h5>
+        <div class="col-lg-6">
+          <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #130f89;">
+            <div>
+              <div class="section-label">Stats</div>
+              <h5 class="card-title">📈 Weekly Worker Hours</h5>
 
-          {% if weekly_hours %}
-            {% set max_weeks = 4 %}
-            {% set total_weeks = weekly_hours|length %}
-            {% set loop_index = 0 %}
-            
-            <div id="weekly-hours-container">
-              {% for week_label, hours_dict in weekly_hours.items() %}
-                {% set loop_index = loop_index + 1 %}
-                <div class="mt-3 {% if loop_index > max_weeks %}d-none extra-week{% endif %}">
-                  <strong class="text-primary">🗓️ {{ week_label }}</strong>
-                  <ul class="mb-0">
-                    {% for worker_id, hours in hours_dict.items() %}
-                      <li>{{ worker_names.get(worker_id, 'Unknown') }} — 
-                        <span class="text-success fw-semibold">{{ hours|round(1) }} hrs</span>
-                      </li>
-                    {% endfor %}
-                  </ul>
+              {% if weekly_hours %}
+                {% set max_weeks = 3 %}
+                {% set total_weeks = weekly_hours|length %}
+                {% set weeks_list = weekly_hours.items()|list|reverse %}
+                
+                <div id="weekly-hours-container">
+                  {% for week_label, hours_dict in weeks_list %}
+                    <div class="mt-3 {% if loop.index > max_weeks %}d-none extra-week{% endif %}">
+                      <strong class="text-primary">🗓️ {{ week_label }}</strong>
+                      <ul class="mb-0">
+                        {% for worker_id, hours in hours_dict.items() %}
+                          <li>{{ worker_names.get(worker_id, 'Unknown') }} — 
+                            <span class="text-success fw-semibold">{{ hours|round(1) }} hrs</span>
+                          </li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                  {% endfor %}
                 </div>
-              {% endfor %}
-            </div>
 
-            {% if total_weeks > max_weeks %}
-              <div class="mt-3">
-                <button id="toggleWeeks" class="btn btn-sm btn-outline-primary">Show More Weeks</button>
-              </div>
-            {% endif %}
-          {% else %}
-            <div class="text-muted">No shift data available.</div>
-          {% endif %}
+                {% if total_weeks > max_weeks %}
+                  <div class="mt-3">
+                    <button id="toggleWeeks" class="btn btn-sm btn-outline-primary">Show More Weeks</button>
+                  </div>
+                {% endif %}
+              {% else %}
+                <div class="text-muted">No shift data available.</div>
+              {% endif %}
+            </div>
+          </div>
         </div>
+        {% endif %}
       </div>
-    </div>
-    {% endif %}
-  </div>
 
 </div>
 

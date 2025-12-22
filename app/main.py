@@ -31,6 +31,8 @@ configure_mappers()
 from fastapi.staticfiles import StaticFiles
 from app.api.admin import admin_timeclock_routes
 from app.api.admin import schedule_grid_routes
+from app.api.admin import admin_settings_routes
+from app.api.admin import admin_customer_routes
 from app.api import taskboard_routes
 
 load_dotenv()
@@ -180,4 +182,6 @@ app.include_router(customer_routes.router)
 app.include_router(shopping_router)
 app.include_router(admin_timeclock_routes.router)
 app.include_router(schedule_grid_routes.router)
+app.include_router(admin_settings_routes.router)
+app.include_router(admin_customer_routes.router)
 app.include_router(taskboard_routes.router)

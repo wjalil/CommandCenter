@@ -17,15 +17,11 @@ from app.models.customer.customer_order import CustomerOrder, OrderItem
 from app.models.menu.menu import Menu
 from app.models.menu.menu_item import MenuItem
 from app.models.menu.menu_category import MenuCategory
-
-# Optional Twilio hook (leave commented until ready)
-# from app.utils.twilio_client import send_order_alert
+from app.models.tenant import Tenant
+from app.utils.email_service import send_new_order_email
 
 templates = Jinja2Templates(directory="app/templates")
 router = APIRouter()
-
-ENABLE_ORDER_SMS_ALERTS = False  # flip to True when Twilio is configured
-ORDER_ALERT_TO_PHONE = "+17187757343"  # replace when ready
 
 
 # -----------------------
@@ -191,11 +187,12 @@ async def submit_full_order(
     if not normalized:
         return RedirectResponse("/customer/menu?error=Empty+cart", status_code=303)
 
-    # Create order
+    # Create order (total_price will be calculated as we add items)
     order = CustomerOrder(
         customer_id=customer.id,
         tenant_id=customer.tenant_id,
         note=(note or "").strip(),
+        total_price=0.00,  # Will be updated as items are added
     )
     db.add(order)
     await db.flush()  # populate order.id
@@ -216,7 +213,9 @@ async def submit_full_order(
             safe_items[it.id] = it
 
     # Validate availability + create order items
-    items_summary = []  # for optional SMS
+    items_summary = []  # for email
+    order_total = 0.00
+
     for row in normalized:
         menu_item = safe_items.get(row["id"])
         if not menu_item:
@@ -230,35 +229,67 @@ async def submit_full_order(
             await db.rollback()
             return RedirectResponse("/customer/menu?error=Not+enough+inventory", status_code=303)
 
-        # Create OrderItem row
+        # Get price at time of order
+        item_price = float(menu_item.price or 0.00)
+        line_total = item_price * qty_requested
+        order_total += line_total
+
+        # Create OrderItem row with snapshot data
         db.add(
             OrderItem(
                 order_id=order.id,
                 menu_item_id=menu_item.id,
                 quantity=qty_requested,
+                price_at_time_of_order=item_price,
+                item_name=menu_item.name,
             )
         )
 
         # Decrement inventory
         menu_item.qty_available = qty_available - qty_requested
 
-        items_summary.append({"name": menu_item.name, "qty": qty_requested})
+        items_summary.append({
+            "name": menu_item.name,
+            "qty": qty_requested,
+            "price": item_price,
+            "total": line_total
+        })
+
+    # Update order total
+    order.total_price = order_total
 
     await db.commit()
 
-    # Optional SMS alert
-    if ENABLE_ORDER_SMS_ALERTS:
-        try:
-            # send_order_alert(
-            #     to_phone=ORDER_ALERT_TO_PHONE,
-            #     customer_name=customer.name,
-            #     items=items_summary,
-            #     customer_phone=customer.phone_number,
-            # )
-            pass
-        except Exception as e:
-            # keep order successful even if SMS fails
-            print(f"❌ SMS alert failed: {e}")
+    # Send email notification if configured (using fresh session to avoid state issues)
+    try:
+        # Use a new database session for email to avoid transaction state issues
+        from app.db import async_session
+        async with async_session() as email_db:
+            # Load tenant to get email configuration
+            tenant_result = await email_db.execute(
+                select(Tenant).where(Tenant.id == customer.tenant_id)
+            )
+            tenant = tenant_result.scalar_one_or_none()
+
+            if tenant:
+                email_result = send_new_order_email(
+                    tenant=tenant,
+                    customer=customer,
+                    items_summary=items_summary,
+                    order_id=order.id,
+                    order_note=note or "",
+                    order_total=order_total,
+                )
+
+                # Log result but don't fail order if email fails
+                if email_result["success"]:
+                    print(f"✅ Order email sent: {email_result['message']}")
+                else:
+                    print(f"⚠️ Order email not sent: {email_result['message']}")
+
+    except Exception as e:
+        # Keep order successful even if email fails
+        print(f"❌ Email notification failed: {e}")
 
     return RedirectResponse("/customer/menu?success=Order+submitted!", status_code=303)
 

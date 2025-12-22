@@ -1,5 +1,5 @@
 # app/models/tenant.py
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Boolean, Text
 from app.models.base import Base
 from sqlalchemy.orm import relationship, foreign
 
@@ -8,7 +8,13 @@ class Tenant(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
     slug = Column(String, unique=True, nullable=True)          # NEW (nullable for migration backfill)
-    dispatch_phone = Column(String, nullable=True)  
+    dispatch_phone = Column(String, nullable=True)
+
+    # RESEND Email Integration Settings
+    resend_api_key_encrypted = Column(Text, nullable=True)  # Encrypted RESEND API key
+    order_notification_email = Column(String, nullable=True)  # Where to send order alerts
+    from_email = Column(String, nullable=True)  # Sender email (e.g., "orders@business.com")
+    enable_order_emails = Column(Boolean, default=False, nullable=False)  # Toggle email notifications  
 
  # Back-populated relationships
     users = relationship("User", back_populates="tenant")

@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Email Settings - CookieOps{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Email Notification Settings</h2>
+                <a href="/admin/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+            </div>
+
+            {% if success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ success }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            <!-- Main Settings Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">RESEND Email Integration</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        Configure RESEND to receive email notifications when customers place new orders.
+                        <a href="https://resend.com/api-keys" target="_blank">Get your API key from RESEND</a>.
+                    </p>
+
+                    <form method="POST" action="/admin/settings/email/update" class="needs-validation" novalidate>
+                        <div class="row">
+                            <!-- RESEND API Key -->
+                            <div class="col-md-6 mb-3">
+                                <label for="resend_api_key" class="form-label">
+                                    RESEND API Key
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <input
+                                    type="password"
+                                    class="form-control"
+                                    id="resend_api_key"
+                                    name="resend_api_key"
+                                    placeholder="{% if api_key_display %}Leave blank to keep existing key{% else %}re_...{% endif %}"
+                                >
+                                <small class="form-text text-muted">
+                                    {% if api_key_display %}
+                                        ✅ API Key configured ({{ api_key_display }}) - Leave blank to keep existing, or enter new key to update
+                                    {% else %}
+                                        Enter your RESEND API key (starts with "re_")
+                                    {% endif %}
+                                </small>
+                            </div>
+
+                            <!-- From Email -->
+                            <div class="col-md-6 mb-3">
+                                <label for="from_email" class="form-label">
+                                    From Email Address
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <input
+                                    type="email"
+                                    class="form-control"
+                                    id="from_email"
+                                    name="from_email"
+                                    placeholder="orders@yourbusiness.com"
+                                    value="{{ tenant.from_email or '' }}"
+                                    required
+                                >
+                                <small class="form-text text-muted">
+                                    Sender email (must be verified in RESEND)
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Order Notification Email -->
+                            <div class="col-md-6 mb-3">
+                                <label for="order_notification_email" class="form-label">
+                                    Order Notification Email
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <input
+                                    type="email"
+                                    class="form-control"
+                                    id="order_notification_email"
+                                    name="order_notification_email"
+                                    placeholder="manager@yourbusiness.com"
+                                    value="{{ tenant.order_notification_email or '' }}"
+                                    required
+                                >
+                                <small class="form-text text-muted">
+                                    Where to send new order notifications
+                                </small>
+                            </div>
+
+                            <!-- Enable/Disable Toggle -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label d-block">Email Notifications</label>
+                                <div class="form-check form-switch">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="enable_order_emails"
+                                        name="enable_order_emails"
+                                        {% if tenant.enable_order_emails %}checked{% endif %}
+                                    >
+                                    <label class="form-check-label" for="enable_order_emails">
+                                        Enable order email notifications
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Toggle email alerts on/off without removing configuration
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Save Settings
+                            </button>
+
+                            {% if api_key_display %}
+                            <button
+                                type="button"
+                                class="btn btn-outline-danger"
+                                onclick="if(confirm('Clear stored API key?')) { document.getElementById('clearForm').submit(); }"
+                            >
+                                <i class="bi bi-trash"></i> Clear API Key
+                            </button>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Test Email Card -->
+            {% if api_key_display and tenant.from_email %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Test Email Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Send a test email to verify your RESEND configuration is working correctly.</p>
+
+                    <form method="POST" action="/admin/settings/email/test" class="row g-3">
+                        <div class="col-md-8">
+                            <label for="test_email" class="form-label">Test Recipient Email</label>
+                            <input
+                                type="email"
+                                class="form-control"
+                                id="test_email"
+                                name="test_email"
+                                placeholder="your@email.com"
+                                value="{{ tenant.order_notification_email or '' }}"
+                                required
+                            >
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-info w-100">
+                                <i class="bi bi-envelope-check"></i> Send Test Email
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Help Section -->
+            <div class="card shadow-sm mt-4 border-warning">
+                <div class="card-header bg-warning bg-opacity-10">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Setup Instructions</h5>
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0">
+                        <li class="mb-2">
+                            <strong>Get a RESEND API key:</strong>
+                            Sign up at <a href="https://resend.com" target="_blank">resend.com</a> and create an API key.
+                        </li>
+                        <li class="mb-2">
+                            <strong>Verify your domain:</strong>
+                            In RESEND dashboard, verify the domain you'll use for "From Email" (e.g., yourbusiness.com).
+                        </li>
+                        <li class="mb-2">
+                            <strong>Configure settings above:</strong>
+                            Enter your API key, from email (must use verified domain), and notification recipient.
+                        </li>
+                        <li class="mb-2">
+                            <strong>Test the configuration:</strong>
+                            Use the "Send Test Email" feature to verify everything works.
+                        </li>
+                        <li>
+                            <strong>Enable notifications:</strong>
+                            Toggle "Enable order email notifications" to start receiving alerts when customers place orders.
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Hidden form for clearing API key -->
+<form id="clearForm" method="POST" action="/admin/settings/email/clear" style="display: none;"></form>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+{% endblock %}
