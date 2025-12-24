@@ -33,3 +33,10 @@ class Tenant(Base):
     driver_orders = relationship("DriverOrder", back_populates="tenant")
     machines = relationship("Machine", back_populates="tenant")
     vending_logs = relationship("VendingLog", back_populates="tenant")
+
+    # Catering module
+    food_components = relationship("FoodComponent", back_populates="tenant")
+    catering_meal_items = relationship("CateringMealItem", back_populates="tenant")
+    catering_programs = relationship("CateringProgram", back_populates="tenant")
+    catering_monthly_menus = relationship("CateringMonthlyMenu", back_populates="tenant")
+    catering_invoices = relationship("CateringInvoice", back_populates="tenant")

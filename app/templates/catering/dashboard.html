@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Catering Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-12">
+    <h2>🍽️ Catering Management</h2>
+    <p class="text-muted">CACFP-compliant meal planning and invoicing</p>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Programs Card -->
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">📋 Programs</h5>
+        <p class="card-text">Manage catering programs, clients, and service schedules</p>
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="badge bg-primary">{{ program_count }} Active</span>
+          <a href="/catering/programs" class="btn btn-sm btn-primary">Manage</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meal Items Card -->
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">🥗 Meal Items</h5>
+        <p class="card-text">Create and manage CACFP-compliant meal recipes</p>
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="badge bg-success">{{ meal_item_count }} Items</span>
+          <a href="/catering/meal-items" class="btn btn-sm btn-success">Manage</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly Menus Card -->
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">📅 Monthly Menus</h5>
+        <p class="card-text">Plan and generate monthly meal calendars</p>
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="badge bg-info text-dark">{{ menu_count }} Menus</span>
+          <a href="/catering/monthly-menus" class="btn btn-sm btn-info">Manage</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Food Components Card -->
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">🥛 Food Components</h5>
+        <p class="card-text">Manage individual food items and portions</p>
+        <a href="/catering/food-components" class="btn btn-sm btn-secondary">Manage</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invoices Card -->
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">💵 Invoices</h5>
+        <p class="card-text">Generate and track service invoices</p>
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="badge bg-warning text-dark">{{ invoice_count }} Invoices</span>
+          <a href="/catering/invoices" class="btn btn-sm btn-warning">Manage</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CACFP Reference Card -->
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">📊 CACFP Reference</h5>
+        <p class="card-text">View USDA portion requirements and guidelines</p>
+        <a href="/catering/cacfp-reference" class="btn btn-sm btn-secondary">View</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">Quick Actions</h5>
+      </div>
+      <div class="card-body">
+        <div class="btn-group" role="group">
+          <a href="/catering/programs/create" class="btn btn-outline-primary">+ New Program</a>
+          <a href="/catering/meal-items/create" class="btn btn-outline-success">+ New Meal Item</a>
+          <a href="/catering/monthly-menus/generate" class="btn btn-outline-info">📅 Generate Menu</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

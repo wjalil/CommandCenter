@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Create Monthly Menu{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-12">
+    <h2>📅 Create Monthly Menu</h2>
+    <p class="text-muted">Create a new menu and manually assign meals</p>
+  </div>
+</div>
+
+<form method="POST" action="/catering/monthly-menus/create">
+  <div class="card">
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label">Select Program *</label>
+        <select name="program_id" class="form-select" required>
+          <option value="">-- Choose a program --</option>
+          {% for program in programs %}
+          <option value="{{ program.id }}" {% if selected_program_id == program.id %}selected{% endif %}>
+            {{ program.name }} ({{ program.client_name }})
+          </option>
+          {% endfor %}
+        </select>
+        {% if not programs %}
+        <div class="alert alert-warning mt-2">
+          No active programs found. <a href="/catering/programs/create">Create a program first</a>.
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Month *</label>
+          <select name="month" class="form-select" required>
+            <option value="1" {% if selected_month == 1 %}selected{% endif %}>January</option>
+            <option value="2" {% if selected_month == 2 %}selected{% endif %}>February</option>
+            <option value="3" {% if selected_month == 3 %}selected{% endif %}>March</option>
+            <option value="4" {% if selected_month == 4 %}selected{% endif %}>April</option>
+            <option value="5" {% if selected_month == 5 %}selected{% endif %}>May</option>
+            <option value="6" {% if selected_month == 6 %}selected{% endif %}>June</option>
+            <option value="7" {% if selected_month == 7 %}selected{% endif %}>July</option>
+            <option value="8" {% if selected_month == 8 %}selected{% endif %}>August</option>
+            <option value="9" {% if selected_month == 9 %}selected{% endif %}>September</option>
+            <option value="10" {% if selected_month == 10 %}selected{% endif %}>October</option>
+            <option value="11" {% if selected_month == 11 %}selected{% endif %}>November</option>
+            <option value="12" {% if selected_month == 12 %}selected{% endif %}>December</option>
+          </select>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Year *</label>
+          <input type="number" name="year" class="form-control" value="{{ selected_year or 2025 }}" min="2024" max="2030" required>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Copy From Existing Menu (Optional)</label>
+        <select name="copy_from_menu_id" class="form-select">
+          <option value="">-- Start with blank menu --</option>
+          {% for menu in existing_menus %}
+          <option value="{{ menu.id }}" {% if selected_copy_from == menu.id %}selected{% endif %}>
+            {{ menu.program.name }} - {{ ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][menu.month] }} {{ menu.year }}
+          </option>
+          {% endfor %}
+        </select>
+        <small class="form-text text-muted">Optionally duplicate an existing menu to save time</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <button type="submit" class="btn btn-primary" {% if not programs %}disabled{% endif %}>
+      📅 Create Menu
+    </button>
+    <a href="/catering/monthly-menus" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}

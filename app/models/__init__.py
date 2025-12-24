@@ -14,3 +14,18 @@ from .internal_task import InternalTask
 from .custom_modules.machine import Machine
 from .shopping import *
 from app.models.tenant_module import TenantModule
+from .timeclock import TimeEntry  # ← CRITICAL: Was missing - caused time_entries table to be dropped
+from .taskboard import DailyTask  # ← CRITICAL: Was missing - caused daily_tasks table to be dropped
+from .catering import (
+    CACFPAgeGroup,
+    CACFPComponentType,
+    CACFPPortionRule,
+    FoodComponent,
+    CateringMealItem,
+    CateringMealComponent,
+    CateringProgram,
+    CateringProgramHoliday,
+    CateringMonthlyMenu,
+    CateringMenuDay,
+    CateringInvoice,
+)

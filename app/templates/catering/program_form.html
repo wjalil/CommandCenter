@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if program else 'Create' }} Program{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-12">
+    <h2>{{ '✏️ Edit' if program else '➕ Create' }} Program</h2>
+  </div>
+</div>
+
+<form method="POST" action="{{ '/catering/programs/' + program.id + '/update' if program else '/catering/programs/create' }}">
+  <div class="card">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">Program Information</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Program Name *</label>
+          <input type="text" name="name" class="form-control" value="{{ program.name if program else '' }}" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Invoice Prefix *</label>
+          <input type="text" name="invoice_prefix" class="form-control" placeholder="e.g., BC, LC" value="{{ program.invoice_prefix if program else '' }}" maxlength="4" required>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Client Name *</label>
+          <input type="text" name="client_name" class="form-control" value="{{ program.client_name if program else '' }}" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Client Email</label>
+          <input type="email" name="client_email" class="form-control" value="{{ program.client_email if program else '' }}">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Client Phone</label>
+          <input type="tel" name="client_phone" class="form-control" value="{{ program.client_phone if program else '' }}">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Age Group *</label>
+          <select name="age_group_id" class="form-select" required>
+            {% for age_group in age_groups %}
+            <option value="{{ age_group.id }}" {% if program and program.age_group_id == age_group.id %}selected{% endif %}>
+              {{ age_group.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Total Children *</label>
+          <input type="number" name="total_children" class="form-control" value="{{ program.total_children if program else '' }}" min="1" required>
+          <small class="form-text text-muted">Total number of meals to provide daily</small>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Vegan Count</label>
+          <input type="number" name="vegan_count" class="form-control" value="{{ program.vegan_count if program else 0 }}" min="0">
+          <small class="form-text text-muted">How many of the total meals are vegan (subset, not additional)</small>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Service Address</label>
+        <textarea name="address" class="form-control" rows="2">{{ program.address if program else '' }}</textarea>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Start Date *</label>
+          <input type="date" name="start_date" class="form-control" value="{{ program.start_date if program else '' }}" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">End Date (optional)</label>
+          <input type="date" name="end_date" class="form-control" value="{{ program.end_date if program else '' }}">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Service Days *</label>
+        <div class="row">
+          {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+          <div class="col-md-3 col-6 mb-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="service_days" value="{{ day }}" id="day_{{ day }}"
+                {% if program and day in program.service_days %}checked{% endif %}>
+              <label class="form-check-label" for="day_{{ day }}">{{ day }}</label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Meal Types Required *</label>
+        <div class="row">
+          {% for meal_type in ['Breakfast', 'Lunch', 'Snack'] %}
+          <div class="col-md-4 mb-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="meal_types_required" value="{{ meal_type }}" id="meal_{{ meal_type }}"
+                {% if program and meal_type in program.meal_types_required %}checked{% endif %}>
+              <label class="form-check-label" for="meal_{{ meal_type }}">{{ meal_type }}</label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="is_active" id="is_active" {% if not program or program.is_active %}checked{% endif %}>
+        <label class="form-check-label" for="is_active">
+          Program is active
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <button type="submit" class="btn btn-primary">{{ 'Update' if program else 'Create' }} Program</button>
+    <a href="/catering/programs" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Catering Programs{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-8">
+    <h2>📋 Catering Programs</h2>
+    <p class="text-muted">Manage client programs and service schedules</p>
+  </div>
+  <div class="col-md-4 text-end">
+    <a href="/catering/programs/create" class="btn btn-primary">+ New Program</a>
+    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
+  </div>
+</div>
+
+{% if programs %}
+<table class="nice-table">
+  <thead>
+    <tr>
+      <th>Program Name</th>
+      <th>Client</th>
+      <th>Age Group</th>
+      <th>Children</th>
+      <th>Service Days</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for program in programs %}
+    <tr>
+      <td><strong>{{ program.name }}</strong></td>
+      <td>
+        {{ program.client_name }}<br>
+        <small class="text-muted">{{ program.client_email or 'No email' }}</small>
+      </td>
+      <td>{{ program.age_group.name }}</td>
+      <td>
+        {{ program.total_children }} total
+        {% if program.vegan_count > 0 %}
+        <br><small class="text-success">{{ program.vegan_count }} vegan</small>
+        {% endif %}
+      </td>
+      <td>
+        <small>
+          {% for day in program.service_days %}
+            {{ day }}{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        </small>
+      </td>
+      <td>
+        {% if program.is_active %}
+        <span class="badge bg-success">Active</span>
+        {% else %}
+        <span class="badge bg-secondary">Inactive</span>
+        {% endif %}
+      </td>
+      <td>
+        <div class="btn-group btn-group-sm">
+          <a href="/catering/programs/{{ program.id }}/edit" class="btn btn-outline-primary">Edit</a>
+          <a href="/catering/monthly-menus/generate?program_id={{ program.id }}" class="btn btn-outline-info">Generate Menu</a>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">
+  <h5>No Programs Yet</h5>
+  <p>Create your first catering program to get started.</p>
+  <a href="/catering/programs/create" class="btn btn-primary">+ Create Program</a>
+</div>
+{% endif %}
+{% endblock %}

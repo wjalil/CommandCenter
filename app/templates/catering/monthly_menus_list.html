@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Monthly Menus{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-8">
+    <h2>📅 Monthly Menus</h2>
+    <p class="text-muted">Plan and manage monthly meal calendars</p>
+  </div>
+  <div class="col-md-4 text-end">
+    <a href="/catering/monthly-menus/create" class="btn btn-primary">📅 Create Menu</a>
+    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
+  </div>
+</div>
+
+{% if monthly_menus %}
+<table class="nice-table">
+  <thead>
+    <tr>
+      <th>Program</th>
+      <th>Month</th>
+      <th>Status</th>
+      <th>Days</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for menu in monthly_menus %}
+    <tr>
+      <td><strong>{{ menu.program.name }}</strong></td>
+      <td>{{ ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][menu.month] }} {{ menu.year }}</td>
+      <td>
+        {% if menu.status == 'draft' %}
+        <span class="badge bg-secondary">Draft</span>
+        {% elif menu.status == 'finalized' %}
+        <span class="badge bg-success">Finalized</span>
+        {% elif menu.status == 'sent' %}
+        <span class="badge bg-primary">Sent</span>
+        {% endif %}
+      </td>
+      <td>{{ menu.menu_days|length }} days</td>
+      <td>
+        <div class="btn-group btn-group-sm">
+          <a href="/catering/monthly-menus/{{ menu.id }}/calendar" class="btn btn-outline-primary">📅 Calendar</a>
+          <a href="/catering/monthly-menus/{{ menu.id }}/duplicate" class="btn btn-outline-success">📋 Duplicate</a>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">
+  <h5>No Monthly Menus Yet</h5>
+  <p>Create your first monthly menu for a program.</p>
+  <a href="/catering/monthly-menus/create" class="btn btn-primary">📅 Create Menu</a>
+</div>
+{% endif %}
+{% endblock %}

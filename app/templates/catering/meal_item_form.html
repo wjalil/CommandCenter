@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if meal_item else 'Create' }} Meal Item{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-12">
+    <h2>{{ '✏️ Edit' if meal_item else '➕ Create' }} Meal Item</h2>
+  </div>
+</div>
+
+<form method="POST" action="{{ '/catering/meal-items/' + meal_item.id + '/update' if meal_item else '/catering/meal-items/create' }}">
+  <div class="card">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">Meal Information</h5>
+    </div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label">Meal Name *</label>
+        <input type="text" name="name" class="form-control" value="{{ meal_item.name if meal_item else '' }}" required>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Description</label>
+        <textarea name="description" class="form-control" rows="2">{{ meal_item.description if meal_item else '' }}</textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Meal Type *</label>
+        <select name="meal_type" class="form-select" required>
+          <option value="Breakfast" {% if meal_item and meal_item.meal_type == 'Breakfast' %}selected{% endif %}>Breakfast</option>
+          <option value="Lunch" {% if meal_item and meal_item.meal_type == 'Lunch' %}selected{% endif %}>Lunch</option>
+          <option value="Snack" {% if meal_item and meal_item.meal_type == 'Snack' %}selected{% endif %}>Snack</option>
+        </select>
+      </div>
+
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="is_vegetarian" id="is_vegetarian"
+          {% if not meal_item or meal_item.is_vegetarian %}checked{% endif %}>
+        <label class="form-check-label" for="is_vegetarian">
+          Vegetarian
+        </label>
+      </div>
+
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="is_vegan" id="is_vegan"
+          {% if meal_item and meal_item.is_vegan %}checked{% endif %}>
+        <label class="form-check-label" for="is_vegan">
+          Vegan
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Food Components Section -->
+  <div class="card mt-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">🥗 Food Components (CACFP Tracking)</h5>
+      <button type="button" class="btn btn-sm btn-success" onclick="addComponentRow()">+ Add Component</button>
+    </div>
+    <div class="card-body">
+      <p class="text-muted mb-3">Add individual food items and portions for CACFP compliance tracking.</p>
+
+      {% if not food_components %}
+      <div class="alert alert-warning">
+        No food components available. <a href="/catering/food-components" target="_blank">Create food components first</a>.
+      </div>
+      {% else %}
+      <table class="table table-sm" id="componentsTable">
+        <thead>
+          <tr>
+            <th>Food Component</th>
+            <th>Type</th>
+            <th>Portion (oz)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="componentsBody">
+          {% if meal_item and meal_item.components %}
+          {% for comp in meal_item.components %}
+          <tr>
+            <td>
+              <select name="component_ids[]" class="form-select form-select-sm" onchange="updateComponentInfo(this)">
+                <option value="">-- Select component --</option>
+                {% for fc in food_components %}
+                <option value="{{ fc.id }}"
+                        data-type="{{ fc.component_type.name }}"
+                        data-default-portion="{{ fc.default_portion_oz }}"
+                        {% if fc.id == comp.food_component_id %}selected{% endif %}>
+                  {{ fc.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="component-type">{{ comp.food_component.component_type.name }}</td>
+            <td>
+              <input type="number" step="0.01" name="component_portions[]" class="form-control form-control-sm" value="{{ comp.portion_oz }}" style="width: 80px;">
+            </td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeComponentRow(this)">×</button>
+            </td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+
+      <small class="text-muted">
+        <strong>Tip:</strong> Components help track CACFP requirements (meat, grain, vegetable, fruit, milk) and calculate portions for invoicing.
+      </small>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <button type="submit" class="btn btn-primary">{{ 'Update' if meal_item else 'Create' }} Meal Item</button>
+    <a href="/catering/meal-items" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+
+<script>
+const foodComponents = [
+  {% for fc in food_components %}
+  {
+    id: '{{ fc.id }}',
+    name: '{{ fc.name }}',
+    type: '{{ fc.component_type.name }}',
+    defaultPortion: {{ fc.default_portion_oz }}
+  },
+  {% endfor %}
+];
+
+function addComponentRow() {
+  const tbody = document.getElementById('componentsBody');
+  const row = document.createElement('tr');
+  row.innerHTML = `
+    <td>
+      <select name="component_ids[]" class="form-select form-select-sm" onchange="updateComponentInfo(this)">
+        <option value="">-- Select component --</option>
+        {% for fc in food_components %}
+        <option value="{{ fc.id }}"
+                data-type="{{ fc.component_type.name }}"
+                data-default-portion="{{ fc.default_portion_oz }}">
+          {{ fc.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </td>
+    <td class="component-type text-muted">-</td>
+    <td>
+      <input type="number" step="0.01" name="component_portions[]" class="form-control form-control-sm" value="" style="width: 80px;" placeholder="oz">
+    </td>
+    <td>
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeComponentRow(this)">×</button>
+    </td>
+  `;
+  tbody.appendChild(row);
+}
+
+function removeComponentRow(btn) {
+  btn.closest('tr').remove();
+}
+
+function updateComponentInfo(select) {
+  const row = select.closest('tr');
+  const selectedOption = select.options[select.selectedIndex];
+  const typeCell = row.querySelector('.component-type');
+  const portionInput = row.querySelector('input[name="component_portions[]"]');
+
+  if (selectedOption.value) {
+    typeCell.textContent = selectedOption.dataset.type;
+    if (!portionInput.value) {
+      portionInput.value = selectedOption.dataset.defaultPortion;
+    }
+  } else {
+    typeCell.textContent = '-';
+  }
+}
+</script>
+
+{% if meal_item and meal_item.components %}
+<div class="card mt-4">
+  <div class="card-header bg-light">
+    <h5 class="mb-0">Food Components</h5>
+  </div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Food Component</th>
+          <th>Type</th>
+          <th>Portion (oz)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for comp in meal_item.components %}
+        <tr>
+          <td>{{ comp.food_component.name }}</td>
+          <td>{{ comp.food_component.component_type.name }}</td>
+          <td>{{ comp.portion_oz }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

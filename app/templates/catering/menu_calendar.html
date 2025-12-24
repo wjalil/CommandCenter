@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+{% block title %}{{ program.name }} - {{ month_name }} {{ year }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-8">
+    <h2>📅 {{ program.name }} - {{ month_name }} {{ year }}</h2>
+    <p class="text-muted">{{ program.client_name }} | {{ program.total_children }} children ({{ program.vegan_count }} vegan)</p>
+  </div>
+  <div class="col-md-4 text-end">
+    <div class="btn-group">
+      <a href="/catering/monthly-menus" class="btn btn-outline-secondary">← Back to Menus</a>
+      <form method="POST" action="/catering/monthly-menus/{{ monthly_menu.id }}/generate-invoices" style="display: inline;">
+        <button type="submit" class="btn btn-info">📋 Generate All Invoices</button>
+      </form>
+      <button type="button" class="btn btn-success" onclick="saveAllChanges()">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-info">
+  <strong>Service Days:</strong> {{ service_days|join(', ') }} |
+  <strong>Meal Types:</strong> {{ meal_types|join(', ') }}
+</div>
+
+<!-- Calendar Grid -->
+<div class="card">
+  <div class="card-body">
+    <table class="table table-bordered menu-calendar">
+      <thead>
+        <tr>
+          <th class="text-center">Sunday</th>
+          <th class="text-center">Monday</th>
+          <th class="text-center">Tuesday</th>
+          <th class="text-center">Wednesday</th>
+          <th class="text-center">Thursday</th>
+          <th class="text-center">Friday</th>
+          <th class="text-center">Saturday</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for week in calendar_weeks %}
+        <tr>
+          {% for day in week %}
+          <td class="calendar-day {% if not day.in_month %}text-muted{% elif not day.is_service_day %}bg-light{% endif %}"
+              style="vertical-align: top; height: 150px; {% if day.in_month and day.is_service_day %}cursor: pointer;{% endif %}"
+              {% if day.in_month and day.is_service_day %}
+              onclick="openMealEditor('{{ day.date }}', {{ day.day }})"
+              {% endif %}>
+
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <strong>{{ day.day if day.in_month else '' }}</strong>
+              <div>
+                {% if day.in_month and day.is_service_day and day.menu_day %}
+                <form method="POST" action="/catering/invoices/generate/{{ day.menu_day.id }}" style="display: inline;">
+                  <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size: 0.7rem; padding: 0px 4px;" title="Generate Invoice">📄</button>
+                </form>
+                {% endif %}
+                {% if day.in_month and not day.is_service_day %}
+                <small class="badge bg-secondary">Closed</small>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if day.in_month and day.is_service_day %}
+            <div class="meal-preview" id="preview-{{ day.date }}">
+              {% if day.menu_day %}
+                {% if 'Breakfast' in meal_types and day.menu_day.breakfast_item %}
+                <div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;">
+                  <strong>B:</strong>
+                  {% if day.menu_day.breakfast_item.components %}
+                    {{ day.menu_day.breakfast_item.components | map(attribute='food_component.name') | join(', ') }}
+                  {% else %}
+                    {{ day.menu_day.breakfast_item.name[:20] }}{% if day.menu_day.breakfast_item.name|length > 20 %}...{% endif %}
+                  {% endif %}
+                </div>
+                {% endif %}
+                {% if 'Lunch' in meal_types and day.menu_day.lunch_item %}
+                <div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;">
+                  <strong>L:</strong>
+                  {% if day.menu_day.lunch_item.components %}
+                    {{ day.menu_day.lunch_item.components | map(attribute='food_component.name') | join(', ') }}
+                  {% else %}
+                    {{ day.menu_day.lunch_item.name[:20] }}{% if day.menu_day.lunch_item.name|length > 20 %}...{% endif %}
+                  {% endif %}
+                </div>
+                {% endif %}
+                {% if 'Snack' in meal_types and day.menu_day.snack_item %}
+                <div class="meal-item" style="font-size: 0.75rem;">
+                  <strong>S:</strong>
+                  {% if day.menu_day.snack_item.components %}
+                    {{ day.menu_day.snack_item.components | map(attribute='food_component.name') | join(', ') }}
+                  {% else %}
+                    {{ day.menu_day.snack_item.name[:20] }}{% if day.menu_day.snack_item.name|length > 20 %}...{% endif %}
+                  {% endif %}
+                </div>
+                {% endif %}
+              {% else %}
+                <small class="text-muted">Click to add meals</small>
+              {% endif %}
+            </div>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Meal Editor Modal -->
+<div class="modal fade" id="mealEditorModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Meals for <span id="modalDate"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editingDate">
+
+        {% if 'Breakfast' in meal_types %}
+        <div class="mb-4">
+          <h6>Breakfast</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular</label>
+              <select class="form-select" id="breakfast_item_id">
+                <option value="">-- No breakfast --</option>
+                {% for item in breakfast_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Alternative</label>
+              <select class="form-select" id="breakfast_vegan_item_id">
+                <option value="">-- No vegan option --</option>
+                {% for item in breakfast_vegan_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if 'Lunch' in meal_types %}
+        <div class="mb-4">
+          <h6>Lunch</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular</label>
+              <select class="form-select" id="lunch_item_id">
+                <option value="">-- No lunch --</option>
+                {% for item in lunch_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Alternative</label>
+              <select class="form-select" id="lunch_vegan_item_id">
+                <option value="">-- No vegan option --</option>
+                {% for item in lunch_vegan_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if 'Snack' in meal_types %}
+        <div class="mb-4">
+          <h6>Snack</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular</label>
+              <select class="form-select" id="snack_item_id">
+                <option value="">-- No snack --</option>
+                {% for item in snack_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Alternative</label>
+              <select class="form-select" id="snack_vegan_item_id">
+                <option value="">-- No vegan option --</option>
+                {% for item in snack_vegan_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label class="form-label">Notes</label>
+          <textarea class="form-control" id="notes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="saveDayMeals()">Save Day</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.menu-calendar td {
+  min-width: 120px;
+  padding: 8px;
+}
+.calendar-day:hover {
+  background-color: #f8f9fa;
+}
+.meal-item {
+  border-left: 3px solid #0d6efd;
+  padding-left: 5px;
+  margin-bottom: 3px;
+}
+</style>
+
+<script>
+// Store pending changes
+let pendingChanges = {};
+
+// Current menu days from server
+let menuDays = {{ menu_days_json|safe }};
+
+function openMealEditor(dateStr, dayNum) {
+  document.getElementById('editingDate').value = dateStr;
+  document.getElementById('modalDate').textContent = dateStr;
+
+  // Find existing menu day data
+  const menuDay = menuDays.find(d => d.service_date === dateStr) || {};
+
+  // Populate form fields
+  {% if 'Breakfast' in meal_types %}
+  document.getElementById('breakfast_item_id').value = menuDay.breakfast_item_id || '';
+  {% if program.vegan_count > 0 %}
+  document.getElementById('breakfast_vegan_item_id').value = menuDay.breakfast_vegan_item_id || '';
+  {% endif %}
+  {% endif %}
+
+  {% if 'Lunch' in meal_types %}
+  document.getElementById('lunch_item_id').value = menuDay.lunch_item_id || '';
+  {% if program.vegan_count > 0 %}
+  document.getElementById('lunch_vegan_item_id').value = menuDay.lunch_vegan_item_id || '';
+  {% endif %}
+  {% endif %}
+
+  {% if 'Snack' in meal_types %}
+  document.getElementById('snack_item_id').value = menuDay.snack_item_id || '';
+  {% if program.vegan_count > 0 %}
+  document.getElementById('snack_vegan_item_id').value = menuDay.snack_vegan_item_id || '';
+  {% endif %}
+  {% endif %}
+
+  document.getElementById('notes').value = menuDay.notes || '';
+
+  // Show modal
+  new bootstrap.Modal(document.getElementById('mealEditorModal')).show();
+}
+
+function saveDayMeals() {
+  const dateStr = document.getElementById('editingDate').value;
+
+  const dayData = {
+    service_date: dateStr,
+    {% if 'Breakfast' in meal_types %}
+    breakfast_item_id: document.getElementById('breakfast_item_id').value || null,
+    {% if program.vegan_count > 0 %}
+    breakfast_vegan_item_id: document.getElementById('breakfast_vegan_item_id').value || null,
+    {% endif %}
+    {% endif %}
+    {% if 'Lunch' in meal_types %}
+    lunch_item_id: document.getElementById('lunch_item_id').value || null,
+    {% if program.vegan_count > 0 %}
+    lunch_vegan_item_id: document.getElementById('lunch_vegan_item_id').value || null,
+    {% endif %}
+    {% endif %}
+    {% if 'Snack' in meal_types %}
+    snack_item_id: document.getElementById('snack_item_id').value || null,
+    {% if program.vegan_count > 0 %}
+    snack_vegan_item_id: document.getElementById('snack_vegan_item_id').value || null,
+    {% endif %}
+    {% endif %}
+    notes: document.getElementById('notes').value || null
+  };
+
+  // Store in pending changes
+  pendingChanges[dateStr] = dayData;
+
+  // Update preview
+  updateDayPreview(dateStr, dayData);
+
+  // Close modal
+  bootstrap.Modal.getInstance(document.getElementById('mealEditorModal')).hide();
+
+  alert('Day saved! Click "Save Changes" button to save all changes to server.');
+}
+
+function updateDayPreview(dateStr, dayData) {
+  const mealItems = {{ meal_items_map|safe }};
+  const mealItemComponents = {{ meal_items_components_map|safe }};
+  let html = '';
+
+  {% if 'Breakfast' in meal_types %}
+  if (dayData.breakfast_item_id && mealItems[dayData.breakfast_item_id]) {
+    const components = mealItemComponents[dayData.breakfast_item_id];
+    const displayName = components && components.length > 0 ? components.join(', ') : mealItems[dayData.breakfast_item_id];
+    html += `<div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;"><strong>B:</strong> ${displayName}</div>`;
+  }
+  {% endif %}
+
+  {% if 'Lunch' in meal_types %}
+  if (dayData.lunch_item_id && mealItems[dayData.lunch_item_id]) {
+    const components = mealItemComponents[dayData.lunch_item_id];
+    const displayName = components && components.length > 0 ? components.join(', ') : mealItems[dayData.lunch_item_id];
+    html += `<div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;"><strong>L:</strong> ${displayName}</div>`;
+  }
+  {% endif %}
+
+  {% if 'Snack' in meal_types %}
+  if (dayData.snack_item_id && mealItems[dayData.snack_item_id]) {
+    const components = mealItemComponents[dayData.snack_item_id];
+    const displayName = components && components.length > 0 ? components.join(', ') : mealItems[dayData.snack_item_id];
+    html += `<div class="meal-item" style="font-size: 0.75rem;"><strong>S:</strong> ${displayName}</div>`;
+  }
+  {% endif %}
+
+  if (!html) {
+    html = '<small class="text-muted">Click to add meals</small>';
+  }
+
+  document.getElementById('preview-' + dateStr).innerHTML = html;
+}
+
+async function saveAllChanges() {
+  if (Object.keys(pendingChanges).length === 0) {
+    alert('No changes to save!');
+    return;
+  }
+
+  const menuDaysArray = Object.values(pendingChanges);
+
+  try {
+    const response = await fetch('/catering/monthly-menus/{{ monthly_menu.id }}/menu-days/bulk', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ menu_days: menuDaysArray })
+    });
+
+    if (response.ok) {
+      alert('All changes saved successfully!');
+      pendingChanges = {};
+      location.reload();
+    } else {
+      const error = await response.json();
+      alert('Error saving changes: ' + (error.detail || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Error saving changes: ' + err.message);
+  }
+}
+</script>
+{% endblock %}

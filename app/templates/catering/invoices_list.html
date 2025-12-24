@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Catering Invoices{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-8">
+    <h2>💵 Catering Invoices</h2>
+    <p class="text-muted">Track service invoices and payments</p>
+  </div>
+  <div class="col-md-4 text-end">
+    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
+  </div>
+</div>
+
+{% if invoices %}
+<table class="nice-table">
+  <thead>
+    <tr>
+      <th>Invoice #</th>
+      <th>Program</th>
+      <th>Service Date</th>
+      <th>Meals</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for invoice in invoices %}
+    <tr>
+      <td><strong>{{ invoice.invoice_number }}</strong></td>
+      <td>{{ invoice.program.name }}</td>
+      <td>{{ invoice.service_date.strftime('%b %d, %Y') }}</td>
+      <td>
+        {{ invoice.regular_meal_count }} regular
+        {% if invoice.vegan_meal_count > 0 %}
+        <br><small class="text-success">+ {{ invoice.vegan_meal_count }} vegan</small>
+        {% endif %}
+      </td>
+      <td>
+        {% if invoice.status == 'draft' %}
+        <span class="badge bg-secondary">Draft</span>
+        {% elif invoice.status == 'finalized' %}
+        <span class="badge bg-success">Finalized</span>
+        {% elif invoice.status == 'sent' %}
+        <span class="badge bg-primary">Sent</span>
+        {% elif invoice.status == 'paid' %}
+        <span class="badge bg-success">Paid</span>
+        {% endif %}
+      </td>
+      <td>
+        <div class="btn-group btn-group-sm">
+          <a href="/catering/invoices/{{ invoice.id }}/view" class="btn btn-outline-primary">View</a>
+          <a href="/catering/invoices/{{ invoice.id }}/pdf" class="btn btn-outline-secondary">PDF</a>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">
+  <h5>No Invoices Yet</h5>
+  <p>Invoices can be generated from monthly menus or created manually.</p>
+  <a href="/catering/monthly-menus" class="btn btn-primary">View Menus</a>
+</div>
+{% endif %}
+{% endblock %}

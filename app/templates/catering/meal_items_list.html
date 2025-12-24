@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Meal Items{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-8">
+    <h2>🥗 Meal Items</h2>
+    <p class="text-muted">CACFP-compliant meal recipes</p>
+  </div>
+  <div class="col-md-4 text-end">
+    <a href="/catering/meal-items/create" class="btn btn-primary">+ New Meal Item</a>
+    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if meal_type_filter == 'all' %}active{% endif %}" href="/catering/meal-items">All</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if meal_type_filter == 'Breakfast' %}active{% endif %}" href="/catering/meal-items?meal_type=Breakfast">Breakfast</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if meal_type_filter == 'Lunch' %}active{% endif %}" href="/catering/meal-items?meal_type=Lunch">Lunch</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if meal_type_filter == 'Snack' %}active{% endif %}" href="/catering/meal-items?meal_type=Snack">Snack</a>
+  </li>
+</ul>
+
+{% if meal_items %}
+<div class="row">
+  {% for item in meal_items %}
+  <div class="col-md-6 col-lg-4 mb-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">
+          {{ item.name }}
+          {% if item.is_vegan %}
+          <span class="badge bg-success">Vegan</span>
+          {% elif item.is_vegetarian %}
+          <span class="badge bg-info">Vegetarian</span>
+          {% endif %}
+        </h5>
+        <p class="card-text">
+          <small class="text-muted">{{ item.meal_type }}</small><br>
+          {{ item.description or 'No description' }}
+        </p>
+        <div class="mb-2">
+          <strong>Components:</strong>
+          <ul class="small mb-0">
+            {% for comp in item.components %}
+            <li>{{ comp.food_component.name }} ({{ comp.portion_oz }} oz)</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      <div class="card-footer bg-white">
+        <div class="d-flex gap-2">
+          <a href="/catering/meal-items/{{ item.id }}/edit" class="btn btn-outline-primary btn-sm flex-fill">✏️ Edit</a>
+          <button class="btn btn-outline-danger btn-sm" onclick="deleteMealItem('{{ item.id }}')">🗑️</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+  <h5>No Meal Items Yet</h5>
+  <p>Create your first CACFP-compliant meal item to get started.</p>
+  <a href="/catering/meal-items/create" class="btn btn-primary">+ Create Meal Item</a>
+</div>
+{% endif %}
+
+<script>
+function deleteMealItem(itemId) {
+  if (confirm('Delete this meal item? This cannot be undone.')) {
+    fetch(`/catering/meal-items/${itemId}`, {
+      method: 'DELETE',
+    }).then(() => location.reload());
+  }
+}
+</script>
+{% endblock %}

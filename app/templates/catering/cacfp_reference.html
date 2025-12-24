@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}CACFP Reference{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-8">
+    <h2>📊 CACFP Reference Data</h2>
+    <p class="text-muted">USDA meal pattern requirements and portion guidelines</p>
+  </div>
+  <div class="col-md-4 text-end">
+    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header bg-light">
+    <h5 class="mb-0">Age Groups</h5>
+  </div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Age Group</th>
+          <th>Age Range (months)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ag in age_groups %}
+        <tr>
+          <td><strong>{{ ag.name }}</strong></td>
+          <td>
+            {{ ag.age_min_months }}{% if ag.age_max_months %} - {{ ag.age_max_months }}{% else %}+{% endif %} months
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header bg-light">
+    <h5 class="mb-0">Component Types</h5>
+  </div>
+  <div class="card-body">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ct in component_types %}
+        <tr>
+          <td><strong>{{ ct.name }}</strong></td>
+          <td>{{ ct.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header bg-light">
+    <h5 class="mb-0">Portion Requirements</h5>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped">
+        <thead>
+          <tr>
+            <th>Age Group</th>
+            <th>Meal Type</th>
+            <th>Component</th>
+            <th>Min Portion (oz)</th>
+            <th>Max Portion (oz)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rule in portion_rules %}
+          <tr>
+            <td><small>{{ rule.age_group.name }}</small></td>
+            <td><small>{{ rule.meal_type }}</small></td>
+            <td><small><strong>{{ rule.component_type.name }}</strong></small></td>
+            <td><small>{{ rule.min_portion_oz }}</small></td>
+            <td><small>{{ rule.max_portion_oz or 'N/A' }}</small></td>
+            <td><small class="text-muted">{{ rule.notes or '' }}</small></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-info mt-4">
+  <strong>ℹ️ About CACFP:</strong>
+  <p class="mb-0">
+    The Child and Adult Care Food Program (CACFP) is a federal program that provides reimbursements
+    for nutritious meals and snacks to eligible children and adults. These portion requirements
+    are based on USDA guidelines and ensure proper nutrition.
+  </p>
+</div>
+{% endblock %}

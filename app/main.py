@@ -34,6 +34,7 @@ from app.api.admin import schedule_grid_routes
 from app.api.admin import admin_settings_routes
 from app.api.admin import admin_customer_routes
 from app.api import taskboard_routes
+from app.api.catering import router as catering_router
 
 load_dotenv()
 
@@ -197,3 +198,4 @@ app.include_router(schedule_grid_routes.router)
 app.include_router(admin_settings_routes.router)
 app.include_router(admin_customer_routes.router)
 app.include_router(taskboard_routes.router)
+app.include_router(catering_router, prefix="/catering")
