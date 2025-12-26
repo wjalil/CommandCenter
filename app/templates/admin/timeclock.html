@@ -11,7 +11,7 @@
     .kpi-card { border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.05); }
     .table th { font-weight: 600; color: #445; }
     .status-badge { font-size: .8rem; }
-    .offcanvas-lg { width: 520px; }
+    .offcanvas-lg { width: 600px; }
     .btn-preset { white-space: nowrap; }
   </style>
 </head>
@@ -180,12 +180,117 @@
 
 <!-- Right-side entries drawer -->
 <div class="offcanvas offcanvas-end offcanvas-lg" tabindex="-1" id="entriesDrawer">
-  <div class="offcanvas-header">
-    <h5 class="offcanvas-title" id="drawerTitle">Entries</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  <div class="offcanvas-header flex-column align-items-start pb-2">
+    <div class="d-flex w-100 justify-content-between align-items-center">
+      <h5 class="offcanvas-title mb-0" id="drawerTitle">Entries</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="mt-2">
+      <button type="button" class="btn btn-sm btn-success" id="createManualEntryBtn">
+        + Manual Entry
+      </button>
+    </div>
   </div>
   <div class="offcanvas-body">
     <div id="entriesContainer" class="vstack gap-2"></div>
+  </div>
+</div>
+
+<!-- Edit Entry Modal -->
+<div class="modal fade" id="editEntryModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Time Entry</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editEntryForm" method="POST">
+        <div class="modal-body">
+          <input type="hidden" name="start" value="{{ start }}">
+          <input type="hidden" name="end" value="{{ end }}">
+
+          <div class="mb-3">
+            <label class="form-label">Clock In (ET) *</label>
+            <input type="datetime-local" id="editClockIn" name="clock_in" class="form-control" required>
+            <small class="text-muted">Times stored as UTC, displayed in ET</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Clock Out (ET)</label>
+            <input type="datetime-local" id="editClockOut" name="clock_out" class="form-control">
+            <small class="text-muted">Leave blank for OPEN entries</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea id="editNotes" name="notes" class="form-control" rows="2"></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Reason for Edit (optional)</label>
+            <input type="text" id="editReason" name="edit_reason" class="form-control"
+                   placeholder="e.g., Forgot to clock out">
+          </div>
+
+          <div class="alert alert-warning small mb-0">
+            <strong>Warning:</strong> Editing will recalculate gross pay based on new times.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Create Manual Entry Modal -->
+<div class="modal fade" id="createEntryModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create Manual Time Entry</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/admin/timeclock/entries/create">
+        <div class="modal-body">
+          <input type="hidden" id="createUserId" name="user_id">
+          <input type="hidden" name="start" value="{{ start }}">
+          <input type="hidden" name="end" value="{{ end }}">
+
+          <div class="mb-3">
+            <label class="form-label">Worker</label>
+            <input type="text" id="createWorkerName" class="form-control" readonly disabled>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Clock In (ET) *</label>
+            <input type="datetime-local" name="clock_in" class="form-control" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Clock Out (ET)</label>
+            <input type="datetime-local" name="clock_out" class="form-control">
+            <small class="text-muted">Leave blank to create OPEN entry</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea name="notes" class="form-control" rows="2"
+                      placeholder="Reason for manual entry"></textarea>
+          </div>
+
+          <div class="alert alert-info small mb-0">
+            <strong>Note:</strong> Manual entry will use worker's current hourly rate.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Create Entry</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -276,12 +381,42 @@
     const rate = (e.hourly_rate ?? 0).toFixed(2);
     const statusColor = (s) => ({ OPEN:'secondary', CLOSED:'info', APPROVED:'primary', PAID:'success' }[s] || 'secondary');
     const dt = (iso) => iso ? fmtDateTime.format(new Date(iso)) : '—';
+
+    // Build badges for manual/edited entries
+    let badges = '';
+    if (e.is_manual) {
+      badges += '<span class="badge bg-warning text-dark ms-1" title="Manual Entry">M</span>';
+    }
+    if (e.edited_at) {
+      const editInfo = `Edited by ${e.edited_by_name || 'Admin'} on ${dt(e.edited_at)}`;
+      badges += `<span class="badge bg-secondary ms-1" title="${editInfo}">✎</span>`;
+    }
+
+    // Edit reason tooltip
+    const editReasonHtml = e.edit_reason ?
+      `<div class="mt-2 text-muted small"><em>Edit reason: ${escapeHtml(e.edit_reason)}</em></div>` : '';
+
+    // Show edit/delete buttons only for non-PAID entries
+    const canEdit = e.status !== 'PAID';
+    const actionButtons = canEdit ? `
+      <div class="d-flex gap-2 mt-2">
+        <button class="btn btn-sm btn-outline-primary edit-entry-btn"
+                data-entry='${JSON.stringify(e).replace(/'/g, "&#39;")}'>
+          ✏️ Edit
+        </button>
+        <button class="btn btn-sm btn-outline-danger delete-entry-btn"
+                data-entry-id="${e.id}">
+          🗑️ Delete
+        </button>
+      </div>
+    ` : '<div class="mt-2 text-muted small">PAID entries cannot be edited</div>';
+
     return `
       <div class="card">
         <div class="card-body">
           <div class="d-flex justify-content-between">
             <div>
-              <div class="fw-semibold">Clock In: ${dt(e.clock_in)}</div>
+              <div class="fw-semibold">Clock In: ${dt(e.clock_in)} ${badges}</div>
               <div class="text-muted small">Clock Out: ${dt(e.clock_out)}</div>
             </div>
             <span class="badge bg-${statusColor(e.status)} status-badge">${e.status}</span>
@@ -292,11 +427,109 @@
             <div class="col-4"><div class="text-muted small">Gross</div><div class="fw-semibold">$${gross}</div></div>
           </div>
           ${e.notes ? `<div class="mt-2 text-muted small">Notes: ${escapeHtml(e.notes)}</div>` : ''}
+          ${editReasonHtml}
+          ${actionButtons}
         </div>
       </div>
     `;
   }
   function escapeHtml(s){return (s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+
+  // ---- Edit/Delete Entry Handlers ----
+  const editModal = new bootstrap.Modal(document.getElementById('editEntryModal'));
+  const createModal = new bootstrap.Modal(document.getElementById('createEntryModal'));
+  let currentDrawerUserId = null;
+  let currentDrawerUserName = null;
+
+  // Event delegation for edit/delete buttons (since cards are dynamically loaded)
+  document.getElementById('entriesContainer').addEventListener('click', (e) => {
+    // Edit button clicked
+    if (e.target.closest('.edit-entry-btn')) {
+      const btn = e.target.closest('.edit-entry-btn');
+      const entry = JSON.parse(btn.getAttribute('data-entry'));
+      openEditModal(entry);
+    }
+
+    // Delete button clicked
+    if (e.target.closest('.delete-entry-btn')) {
+      const btn = e.target.closest('.delete-entry-btn');
+      const entryId = btn.getAttribute('data-entry-id');
+      deleteEntry(entryId);
+    }
+  });
+
+  // Open edit modal with entry data
+  function openEditModal(entry) {
+    // Convert UTC ISO to datetime-local format (browser handles ET conversion)
+    const clockInLocal = utcToLocalInput(entry.clock_in);
+    const clockOutLocal = entry.clock_out ? utcToLocalInput(entry.clock_out) : '';
+
+    // Populate form
+    document.getElementById('editClockIn').value = clockInLocal;
+    document.getElementById('editClockOut').value = clockOutLocal;
+    document.getElementById('editNotes').value = entry.notes || '';
+    document.getElementById('editReason').value = '';
+
+    // Set form action
+    document.getElementById('editEntryForm').action = `/admin/timeclock/entries/${entry.id}/edit`;
+
+    editModal.show();
+  }
+
+  // Delete entry with confirmation
+  async function deleteEntry(entryId) {
+    if (!confirm('Delete this time entry? This cannot be undone.')) return;
+
+    const resp = await fetch(`/admin/timeclock/entries/${entryId}`, { method: 'DELETE' });
+    if (resp.ok) {
+      // Reload drawer data by clicking the active view button
+      const activeBtn = document.querySelector('.view-entries.btn-primary') || document.querySelector('.view-entries');
+      if (activeBtn) activeBtn.click();
+    } else {
+      const data = await resp.json();
+      alert('Error: ' + (data.error || 'Failed to delete'));
+    }
+  }
+
+  // Convert UTC ISO string to datetime-local input format (in ET)
+  function utcToLocalInput(isoUtc) {
+    if (!isoUtc) return '';
+    const d = new Date(isoUtc);
+
+    // Format date and time components in ET timezone
+    const etDateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: ET,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(d);
+
+    const etTimeStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: ET,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(d);
+
+    // Combine as YYYY-MM-DDTHH:MM for datetime-local input
+    return `${etDateStr}T${etTimeStr}`;
+  }
+
+  // Track current drawer user for "Create Manual Entry" button
+  const originalViewEntriesListeners = document.querySelectorAll('.view-entries');
+  originalViewEntriesListeners.forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentDrawerUserId = btn.getAttribute('data-user');
+      currentDrawerUserName = btn.getAttribute('data-name');
+    });
+  });
+
+  // Handle "Create Manual Entry" button in drawer
+  document.getElementById('createManualEntryBtn')?.addEventListener('click', () => {
+    document.getElementById('createUserId').value = currentDrawerUserId;
+    document.getElementById('createWorkerName').value = currentDrawerUserName;
+    createModal.show();
+  });
 
   // ---- Preset buttons (ET week boundaries, Monday start) ----
   const startInput = document.getElementById('startInput');

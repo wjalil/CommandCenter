@@ -44,8 +44,17 @@ class TimeEntry(Base):
 
     is_seed = Column(Boolean, default=False)
 
-    user = relationship("User", backref="time_entries")
+    # Audit trail for edits/manual entries
+    created_by_id = Column(String, ForeignKey("users.id"), nullable=True)
+    edited_by_id = Column(String, ForeignKey("users.id"), nullable=True)
+    edited_at = Column(DateTime, nullable=True)
+    is_manual = Column(Boolean, default=False, nullable=False)
+    edit_reason = Column(String, nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id], backref="time_entries")
     shift = relationship("Shift", backref="time_entries")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    edited_by = relationship("User", foreign_keys=[edited_by_id])
 
     __table_args__ = (
         CheckConstraint(
