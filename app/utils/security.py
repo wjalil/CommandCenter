@@ -8,7 +8,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png"]
 
 # Encryption for sensitive API keys (RESEND, etc.)
@@ -56,7 +56,7 @@ async def validate_and_read_image(file: UploadFile) -> bytes:
     contents = await file.read()
 
     if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="File too large (5MB max).")
+        raise HTTPException(status_code=400, detail="File too large (10MB max).")
     
     return contents
 
