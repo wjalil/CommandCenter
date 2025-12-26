@@ -15,6 +15,60 @@
       padding-bottom: 4rem;
     }
 
+    /* Quick Actions */
+    .quick-actions {
+      padding: 1.5rem 0;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .quick-action-btn {
+      background: white;
+      border: none;
+      border-radius: 12px;
+      padding: 1.25rem 1rem;
+      text-align: center;
+      text-decoration: none;
+      color: #2b2f42;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      min-height: 100px;
+      justify-content: center;
+    }
+
+    .quick-action-btn:active {
+      transform: scale(0.97);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    }
+
+    .quick-action-btn .icon {
+      font-size: 2rem;
+    }
+
+    .quick-action-btn .label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #2b2f42;
+    }
+
+    @media (min-width: 768px) {
+      .quick-actions {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (min-width: 1024px) {
+      .quick-actions {
+        grid-template-columns: repeat(5, 1fr);
+      }
+    }
+
     .navbar {
       background-color: #ffffff !important;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
@@ -116,6 +170,40 @@
 
 <div class="container mt-5">
   <h2>🧠 Mission Control Dashboard</h2>
+
+  <!-- Quick Actions -->
+  <div class="quick-actions">
+    <a href="/admin/schedule/grid" class="quick-action-btn">
+      <div class="icon">📅</div>
+      <div class="label">Manage Shifts</div>
+    </a>
+
+    <a href="/admin/timeclock" class="quick-action-btn">
+      <div class="icon">⏱️</div>
+      <div class="label">Time Clock</div>
+    </a>
+
+    {% if enabled_modules.get("taskboard", True) %}
+    <a href="/admin/taskboard" class="quick-action-btn">
+      <div class="icon">📋</div>
+      <div class="label">Task Board</div>
+    </a>
+    {% endif %}
+
+    {% if enabled_modules.get("vending", True) %}
+    <a href="/admin/vending-logs" class="quick-action-btn">
+      <div class="icon">📸</div>
+      <div class="label">Vending Log</div>
+    </a>
+    {% endif %}
+
+    {% if enabled_modules.get("shopping", True) %}
+    <a href="/shopping/view" class="quick-action-btn">
+      <div class="icon">🛒</div>
+      <div class="label">Shopping Cart</div>
+    </a>
+    {% endif %}
+  </div>
 
   <!-- Row 1 -->
   <div class="row g-4 mb-4">
