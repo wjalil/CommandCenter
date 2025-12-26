@@ -210,6 +210,57 @@ async def admin_toggle_need_alias(payload: dict, db: AsyncSession = Depends(get_
     return await toggle_need(payload, db, user)
 
 
+# Batch add multiple items at once
+@router.post("/shopping/batch-add")
+async def batch_add_items(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Add multiple items to shopping list at once"""
+    if not can(user, "cart.toggle_own"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    tenant_id = user.tenant_id
+    item_ids = payload.get("item_ids", [])
+    if not item_ids or not isinstance(item_ids, list):
+        raise HTTPException(status_code=400, detail="item_ids array required")
+
+    quantity = max(1, min(int(payload.get("quantity", 1)), 999))
+    supplier_id_raw = payload.get("supplier_id")
+    supplier_id = _to_int_or_none(str(supplier_id_raw)) if supplier_id_raw else None
+    supplier_id = await _validate_supplier_for_tenant(db, tenant_id, supplier_id)
+
+    added_count = 0
+    for item_id in item_ids:
+        if not item_id:
+            continue
+
+        need = await _get_or_create_need(db, tenant_id, str(item_id))
+        prev_status = need.status
+
+        need.needed = True
+        need.quantity = quantity
+        need.supplier_id = supplier_id
+        if need.status == "SKIPPED":
+            need.status = "NEEDED"
+
+        db.add(
+            ShoppingEvent(
+                tenant_id=tenant_id,
+                item_id=str(item_id),
+                from_status=prev_status,
+                to_status="NEEDED",
+                quantity=quantity,
+                actor=user.name,
+            )
+        )
+        added_count += 1
+
+    await db.commit()
+    return JSONResponse({"ok": True, "added": added_count})
+
+
 # ----------------------------
 # Shared: “Work the list” view
 # ----------------------------
@@ -396,6 +447,121 @@ async def shopping_set_status(
             note=notes,
         )
     )
+    await db.commit()
+    return JSONResponse({"ok": True})
+
+
+# ----------------------------
+# Item Management (Create/Edit/Delete items in catalog)
+# ----------------------------
+
+@router.post("/shopping/items/create")
+async def create_item(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Create a new item in the catalog"""
+    if not can(user, "cart.set_status_any"):  # Only admins/managers
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    tenant_id = user.tenant_id
+    name = payload.get("name", "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Item name is required")
+
+    # Check for duplicate
+    existing = await db.execute(
+        select(Item).where(Item.tenant_id == tenant_id, Item.name == name)
+    )
+    if existing.scalars().first():
+        raise HTTPException(status_code=400, detail="Item with this name already exists")
+
+    # Parse optional fields
+    category_id = _to_int_or_none(payload.get("category_id"))
+    business_line_id = _to_int_or_none(payload.get("business_line_id"))
+    default_supplier_id = _to_int_or_none(payload.get("default_supplier_id"))
+    par_level = _to_int_or_none(payload.get("par_level")) or 1
+    unit = payload.get("unit", "ea").strip()
+    notes = payload.get("notes", "").strip()
+
+    new_item = Item(
+        tenant_id=tenant_id,
+        name=name,
+        category_id=category_id,
+        business_line_id=business_line_id,
+        default_supplier_id=default_supplier_id,
+        par_level=max(1, par_level),
+        unit=unit,
+        notes=notes,
+    )
+    db.add(new_item)
+    await db.commit()
+    await db.refresh(new_item)
+
+    return JSONResponse({"ok": True, "item_id": new_item.id})
+
+
+@router.post("/shopping/items/{item_id}/update")
+async def update_item(
+    item_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Update an existing item"""
+    if not can(user, "cart.set_status_any"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    tenant_id = user.tenant_id
+    item = (await db.execute(
+        select(Item).where(Item.id == item_id, Item.tenant_id == tenant_id)
+    )).scalars().first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # Update fields
+    if "name" in payload:
+        name = payload["name"].strip()
+        if name:
+            item.name = name
+    if "category_id" in payload:
+        item.category_id = _to_int_or_none(payload["category_id"])
+    if "business_line_id" in payload:
+        item.business_line_id = _to_int_or_none(payload["business_line_id"])
+    if "default_supplier_id" in payload:
+        item.default_supplier_id = _to_int_or_none(payload["default_supplier_id"])
+    if "par_level" in payload:
+        item.par_level = max(1, _to_int_or_none(payload["par_level"]) or 1)
+    if "unit" in payload:
+        item.unit = payload["unit"].strip()
+    if "notes" in payload:
+        item.notes = payload["notes"].strip()
+
+    await db.commit()
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/shopping/items/{item_id}")
+async def delete_item(
+    item_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Delete an item from the catalog"""
+    if not can(user, "cart.set_status_any"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    tenant_id = user.tenant_id
+    item = (await db.execute(
+        select(Item).where(Item.id == item_id, Item.tenant_id == tenant_id)
+    )).scalars().first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    await db.delete(item)
     await db.commit()
     return JSONResponse({"ok": True})
 

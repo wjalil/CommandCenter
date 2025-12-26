@@ -24,6 +24,13 @@
   }
   .btn-teal:hover{ background: var(--teal-2); color:#fff; }
 
+  .btn-quick{
+    background: var(--success); color: #fff; border:none; border-radius:8px;
+    padding: 6px 16px; font-size: 0.9rem; font-weight: 600;
+    box-shadow: 0 2px 6px rgba(34,197,94,.2);
+  }
+  .btn-quick:hover{ opacity: 0.9; color:#fff; }
+
   .badge-light{
     background: #f3f4f6; color: #111827; border:1px solid #e5e7eb;
     white-space: normal; display: inline-block; margin-top: 4px;
@@ -35,9 +42,10 @@
   .item-card{
     border:1px solid var(--line); border-radius: 16px; background: var(--card);
     box-shadow: 0 1px 4px rgba(2,6,23,.04);
-    transition: transform .12s ease, box-shadow .12s ease;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .15s;
   }
   .item-card:hover{ transform: translateY(-1px); box-shadow: 0 8px 24px rgba(2,6,23,.06); }
+  .item-card.selected{ border-color: var(--teal); border-width: 2px; }
   .item-card .card-body{ padding: 16px; }
   @media (min-width: 768px){ .item-card .card-body{ padding: 20px; } }
 
@@ -50,13 +58,37 @@
 
   .header-wrap{ margin-bottom: 12px; }
   @media (min-width:768px){ .header-wrap{ margin-bottom: 16px; } }
+
+  .batch-toolbar{
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 2px solid var(--teal);
+    padding: 16px;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+    z-index: 1000;
+  }
+
+  .checkbox-wrapper{
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+  }
+  .checkbox-wrapper input[type="checkbox"]{
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+  }
 </style>
 
-<div class="container page-wrap" x-data="{ q:'', bl:'', cat:'' }">
+<div class="container page-wrap" x-data="appData()" x-cloak>
   <!-- Header / Actions -->
   <div class="d-flex flex-wrap align-items-center justify-content-between header-wrap">
     <h2 class="page-title mb-2 mb-md-0">🛒 Shopping · Add Items</h2>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
       {% set is_admin = user and user.role in ['admin','manager'] %}
       <a href="{{ '/admin/dashboard' if is_admin else '/worker/home' }}" class="btn btn-ghost">🏠 Home</a>
 
@@ -67,7 +99,18 @@
         🔎 Filters
       </button>
 
-      <a href="/shopping/view" class="btn btn-ghost">📋 View Shopping Cart</a>
+      {% if is_admin %}
+      <button class="btn btn-ghost" @click="showCreateModal = true">
+        ➕ New Item
+      </button>
+      {% endif %}
+
+      <button class="btn btn-ghost" @click="batchMode = !batchMode">
+        <span x-show="!batchMode">☑️ Batch Mode</span>
+        <span x-show="batchMode">✕ Exit Batch</span>
+      </button>
+
+      <a href="/shopping/view" class="btn btn-ghost">📋 View Cart</a>
     </div>
   </div>
 
@@ -96,14 +139,14 @@
           </div>
         </div>
         <div class="mt-2 subtext">
-          Tip: Fill in notes before tapping <strong>Add</strong> to save fewer clicks later.
+          💡 <strong>Quick Add</strong> = 1-click with defaults · <strong>Batch Mode</strong> = Select multiple, configure once
         </div>
       </div>
     </div>
   </div>
 
   <!-- Grid -->
-  <div class="row grid-wrap">
+  <div class="row grid-wrap" :style="batchMode && selectedItems.length > 0 ? 'margin-bottom: 100px' : ''">
     {% for item in items %}
     <div class="col-12 col-md-6 col-lg-4"
          x-show="
@@ -111,8 +154,18 @@
            ('{{ item.business_line_id or '' }}' == bl || bl=='') &&
            ('{{ item.category_id or '' }}' == cat || cat=='')
          ">
-      <div class="item-card h-100">
-        <div class="card-body d-flex flex-column">
+      <div class="item-card h-100"
+           :class="isSelected('{{ item.id }}') ? 'selected' : ''"
+           style="position: relative;">
+
+        <!-- Batch mode checkbox -->
+        <div class="checkbox-wrapper" x-show="batchMode">
+          <input type="checkbox"
+                 :checked="isSelected('{{ item.id }}')"
+                 @change="toggleItem('{{ item.id }}')">
+        </div>
+
+        <div class="card-body d-flex flex-column" :style="batchMode ? 'padding-left: 50px' : ''">
           <div class="d-flex justify-content-between align-items-start gap-2">
             <div class="me-2">
               <strong style="color:var(--ink)">{{ item.name }}</strong>
@@ -127,37 +180,267 @@
             {% endif %}
           </div>
 
-          <div class="mt-3 d-flex flex-wrap align-items-center gap-2"
-               x-data="{ qty: {{ item.par_level or 1 }}, sup: '{{ item.default_supplier_id or '' }}', notes:'', ok:false, busy:false }">
-            <div class="btn-group" role="group" aria-label="Quantity">
-              <button class="btn btn-outline-secondary btn-sm" @click="qty=Math.max(1,qty-1)">–</button>
-              <input type="number" min="1" class="form-control form-control-sm" style="width:84px" x-model.number="qty">
-              <button class="btn btn-outline-secondary btn-sm" @click="qty++">+</button>
-            </div>
-
-            <select class="form-select form-select-sm" style="max-width:230px" x-model="sup">
-              <option value="">Supplier…</option>
-              {% for s in suppliers %}
-              <option value="{{ s.id }}" {% if item.default_supplier_id==s.id %}selected{% endif %}>{{ s.name }}</option>
-              {% endfor %}
-            </select>
-
-            <button class="btn btn-sm btn-teal" :class="ok?'btn-success btn-teal':''" :disabled="busy"
-              @click="busy=true; ok=false;
-                fetch('/shopping/toggle',{method:'POST',headers:{'Content-Type':'application/json'},
-                  body: JSON.stringify({item_id:'{{ item.id }}', needed:true, quantity:qty, supplier_id: sup?Number(sup):null, notes:notes})})
-                .then(r=>{ if(!r.ok) throw new Error(); ok=true; })
-                .catch(()=>alert('Could not add. Try again.'))
-                .finally(()=>busy=false)">
-              <span x-show="!ok">Add</span><span x-show="ok">✓</span>
+          <!-- Quick add & detailed add -->
+          <div class="mt-3" x-show="!batchMode">
+            <!-- Quick Add Button -->
+            <button class="btn btn-quick w-100 mb-2"
+                    x-data="{ loading: false, done: false }"
+                    :disabled="loading"
+                    @click="loading=true; done=false;
+                      quickAdd('{{ item.id }}', {{ item.par_level or 1 }}, '{{ item.default_supplier_id or '' }}')
+                      .then(()=>{ done=true; setTimeout(()=>done=false, 1500); })
+                      .finally(()=>loading=false)">
+              <span x-show="!done">⚡ Quick Add</span>
+              <span x-show="done">✓ Added!</span>
             </button>
+
+            <!-- Detailed controls (collapsible) -->
+            <details>
+              <summary class="text-muted small" style="cursor: pointer; user-select: none;">Configure first...</summary>
+              <div class="mt-2" x-data="{ qty: {{ item.par_level or 1 }}, sup: '{{ item.default_supplier_id or '' }}', notes:'', ok:false, busy:false }">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <div class="btn-group" role="group" aria-label="Quantity">
+                    <button class="btn btn-outline-secondary btn-sm" @click="qty=Math.max(1,qty-1)">–</button>
+                    <input type="number" min="1" class="form-control form-control-sm" style="width:70px" x-model.number="qty">
+                    <button class="btn btn-outline-secondary btn-sm" @click="qty++">+</button>
+                  </div>
+
+                  <select class="form-select form-select-sm flex-grow-1" x-model="sup">
+                    <option value="">Supplier…</option>
+                    {% for s in suppliers %}
+                    <option value="{{ s.id }}" {% if item.default_supplier_id==s.id %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <textarea class="form-control form-control-sm mt-2" rows="1" placeholder="Notes (optional)" x-model="notes"></textarea>
+
+                <button class="btn btn-sm btn-teal mt-2 w-100" :class="ok?'btn-success':''" :disabled="busy"
+                  @click="busy=true; ok=false;
+                    fetch('/shopping/toggle',{method:'POST',headers:{'Content-Type':'application/json'},
+                      body: JSON.stringify({item_id:'{{ item.id }}', needed:true, quantity:qty, supplier_id: sup?Number(sup):null, notes:notes})})
+                    .then(r=>{ if(!r.ok) throw new Error(); ok=true; })
+                    .catch(()=>alert('Could not add. Try again.'))
+                    .finally(()=>busy=false)">
+                  <span x-show="!ok">Add with options</span><span x-show="ok">✓</span>
+                </button>
+              </div>
+            </details>
           </div>
 
-          <textarea class="form-control form-control-sm mt-2" rows="1" placeholder="Notes (optional)" x-model="notes"></textarea>
+          <!-- Batch mode info -->
+          <div class="mt-3 text-muted small" x-show="batchMode && isSelected('{{ item.id }}')">
+            ✓ Selected for batch add
+          </div>
         </div>
       </div>
     </div>
     {% endfor %}
   </div>
+
+  <!-- Batch toolbar (sticky bottom) -->
+  <div class="batch-toolbar" x-show="batchMode && selectedItems.length > 0">
+    <div class="container">
+      <div class="row align-items-center g-3">
+        <div class="col-12 col-md-auto">
+          <strong><span x-text="selectedItems.length"></span> items selected</strong>
+        </div>
+        <div class="col-6 col-md-auto">
+          <label class="form-label mb-1 small">Quantity</label>
+          <input type="number" class="form-control form-control-sm" min="1" x-model.number="batchQty" style="width: 80px;">
+        </div>
+        <div class="col-6 col-md">
+          <label class="form-label mb-1 small">Supplier</label>
+          <select class="form-select form-select-sm" x-model="batchSupplier">
+            <option value="">Default</option>
+            {% for s in suppliers %}
+            <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto ms-auto">
+          <button class="btn btn-teal" @click="batchAdd()" :disabled="batchAdding">
+            <span x-show="!batchAdding">Add All (<span x-text="selectedItems.length"></span>)</span>
+            <span x-show="batchAdding">Adding...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Item Modal -->
+  <div class="modal fade" :class="showCreateModal ? 'show d-block' : ''" style="background: rgba(0,0,0,0.5);"
+       x-show="showCreateModal" @click.self="showCreateModal = false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">➕ Create New Item</h5>
+          <button type="button" class="btn-close" @click="showCreateModal = false"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Item Name *</label>
+            <input type="text" class="form-control" x-model="newItem.name" placeholder="e.g., Tomatoes">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Business Line</label>
+            <select class="form-select" x-model="newItem.business_line_id">
+              <option value="">None</option>
+              {% for b in business_lines %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Category</label>
+            <select class="form-select" x-model="newItem.category_id">
+              <option value="">None</option>
+              {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="row">
+            <div class="col-6">
+              <label class="form-label">Default Supplier</label>
+              <select class="form-select" x-model="newItem.default_supplier_id">
+                <option value="">None</option>
+                {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-3">
+              <label class="form-label">Par Level</label>
+              <input type="number" class="form-control" x-model.number="newItem.par_level" min="1" placeholder="1">
+            </div>
+            <div class="col-3">
+              <label class="form-label">Unit</label>
+              <input type="text" class="form-control" x-model="newItem.unit" placeholder="ea">
+            </div>
+          </div>
+          <div class="mb-3 mt-3">
+            <label class="form-label">Notes</label>
+            <textarea class="form-control" rows="2" x-model="newItem.notes"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showCreateModal = false">Cancel</button>
+          <button class="btn btn-teal" @click="createItem()" :disabled="creating || !newItem.name.trim()">
+            <span x-show="!creating">Create Item</span>
+            <span x-show="creating">Creating...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script>
+function appData() {
+  return {
+    q: '',
+    bl: '',
+    cat: '',
+    batchMode: false,
+    selectedItems: [],
+    batchQty: 1,
+    batchSupplier: '',
+    batchAdding: false,
+    showCreateModal: false,
+    creating: false,
+    newItem: {
+      name: '',
+      category_id: '',
+      business_line_id: '',
+      default_supplier_id: '',
+      par_level: 1,
+      unit: 'ea',
+      notes: ''
+    },
+
+    toggleItem(itemId) {
+      const idx = this.selectedItems.indexOf(itemId);
+      if (idx > -1) {
+        this.selectedItems.splice(idx, 1);
+      } else {
+        this.selectedItems.push(itemId);
+      }
+    },
+
+    isSelected(itemId) {
+      return this.selectedItems.includes(itemId);
+    },
+
+    async quickAdd(itemId, qty, supplierId) {
+      const res = await fetch('/shopping/toggle', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          item_id: itemId,
+          needed: true,
+          quantity: qty,
+          supplier_id: supplierId ? Number(supplierId) : null
+        })
+      });
+      if (!res.ok) throw new Error('Failed to add');
+    },
+
+    async batchAdd() {
+      if (this.selectedItems.length === 0) return;
+      this.batchAdding = true;
+
+      try {
+        const res = await fetch('/shopping/batch-add', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            item_ids: this.selectedItems,
+            quantity: this.batchQty,
+            supplier_id: this.batchSupplier ? Number(this.batchSupplier) : null
+          })
+        });
+
+        if (!res.ok) throw new Error();
+
+        const data = await res.json();
+        alert(`✓ Added ${data.added} items to cart!`);
+        this.selectedItems = [];
+        this.batchMode = false;
+      } catch {
+        alert('Error adding items. Please try again.');
+      } finally {
+        this.batchAdding = false;
+      }
+    },
+
+    async createItem() {
+      if (!this.newItem.name.trim()) return;
+      this.creating = true;
+
+      try {
+        const res = await fetch('/shopping/items/create', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            name: this.newItem.name.trim(),
+            category_id: this.newItem.category_id || null,
+            business_line_id: this.newItem.business_line_id || null,
+            default_supplier_id: this.newItem.default_supplier_id || null,
+            par_level: this.newItem.par_level || 1,
+            unit: this.newItem.unit || 'ea',
+            notes: this.newItem.notes || ''
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to create');
+        }
+
+        alert('✓ Item created! Reloading...');
+        window.location.reload();
+      } catch (e) {
+        alert('Error: ' + e.message);
+      } finally {
+        this.creating = false;
+      }
+    }
+  };
+}
+</script>
 {% endblock %}
