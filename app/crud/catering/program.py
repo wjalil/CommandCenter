@@ -80,7 +80,11 @@ async def update_program(db: AsyncSession, program_id: str, tenant_id: int, upda
     if not program:
         return None
 
-    update_data = updates.model_dump(exclude_unset=True, exclude={'holidays'})
+    # Support both Pydantic v1 (.dict()) and v2 (.model_dump())
+    if hasattr(updates, 'model_dump'):
+        update_data = updates.model_dump(exclude_unset=True, exclude={'holidays'})
+    else:
+        update_data = updates.dict(exclude_unset=True, exclude={'holidays'})
 
     # Handle JSON fields
     if 'service_days' in update_data:

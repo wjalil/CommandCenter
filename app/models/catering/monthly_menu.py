@@ -63,6 +63,7 @@ class CateringMenuDay(Base):
     snack_vegan_item = relationship("CateringMealItem", foreign_keys=[snack_vegan_item_id], back_populates="menu_days_snack_vegan")
 
     invoices = relationship("CateringInvoice", back_populates="menu_day")
+    components = relationship("MenuDayComponent", back_populates="menu_day", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("monthly_menu_id", "service_date", name="uq_menu_day"),

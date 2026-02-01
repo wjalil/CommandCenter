@@ -19,6 +19,7 @@ class FoodComponent(Base):
     component_type = relationship("CACFPComponentType", back_populates="food_components")
     tenant = relationship("Tenant", back_populates="food_components")
     meal_components = relationship("CateringMealComponent", back_populates="food_component")
+    menu_day_components = relationship("MenuDayComponent", back_populates="food_component")
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "name", name="uq_food_component_tenant_name"),

@@ -22,6 +22,13 @@ async def create_invoice(db: AsyncSession, invoice: CateringInvoiceCreate):
         service_date=invoice.service_date,
         regular_meal_count=invoice.regular_meal_count,
         vegan_meal_count=invoice.vegan_meal_count,
+        # Per-meal counts
+        breakfast_count=invoice.breakfast_count,
+        breakfast_vegan_count=invoice.breakfast_vegan_count,
+        lunch_count=invoice.lunch_count,
+        lunch_vegan_count=invoice.lunch_vegan_count,
+        snack_count=invoice.snack_count,
+        snack_vegan_count=invoice.snack_vegan_count,
         status="draft",
         tenant_id=invoice.tenant_id
     )
@@ -117,14 +124,29 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
     if existing.scalar_one_or_none():
         return None  # Invoice already exists
 
-    # Create invoice
+    # Get per-meal counts (fall back to legacy total_children if not set)
+    breakfast_count = program.breakfast_count if program.breakfast_count is not None else program.total_children
+    breakfast_vegan = program.breakfast_vegan_count or 0
+    lunch_count = program.lunch_count if program.lunch_count is not None else program.total_children
+    lunch_vegan = program.lunch_vegan_count or 0
+    snack_count = program.snack_count if program.snack_count is not None else program.total_children
+
+    # Create invoice with per-meal counts
     invoice_data = CateringInvoiceCreate(
         program_id=program.id,
         monthly_menu_id=monthly_menu.id,
         menu_day_id=menu_day_id,
         service_date=menu_day.service_date,
+        # Legacy fields (for backward compat)
         regular_meal_count=program.total_children - program.vegan_count,
         vegan_meal_count=program.vegan_count,
+        # Per-meal counts
+        breakfast_count=breakfast_count if menu_day.breakfast_item_id else None,
+        breakfast_vegan_count=breakfast_vegan if menu_day.breakfast_item_id else 0,
+        lunch_count=lunch_count - lunch_vegan if menu_day.lunch_item_id else None,
+        lunch_vegan_count=lunch_vegan if menu_day.lunch_item_id else 0,
+        snack_count=snack_count if menu_day.snack_item_id else None,
+        snack_vegan_count=0,  # Snack vegan not tracked
         tenant_id=tenant_id
     )
 

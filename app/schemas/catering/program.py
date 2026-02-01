@@ -29,8 +29,16 @@ class CateringProgramBase(BaseModel):
     client_phone: Optional[str] = None
     address: Optional[str] = None
     age_group_id: int
-    total_children: int
-    vegan_count: int = 0
+    total_children: int  # Legacy fallback
+    vegan_count: int = 0  # Legacy fallback
+
+    # Per-meal counts (if None, falls back to total_children)
+    breakfast_count: Optional[int] = None
+    breakfast_vegan_count: int = 0
+    lunch_count: Optional[int] = None
+    lunch_vegan_count: int = 0
+    snack_count: Optional[int] = None
+
     invoice_prefix: str  # e.g., "BC", "LC"
     service_days: List[str]  # ["Monday", "Tuesday", ...]
     meal_types_required: List[str]  # ["Breakfast", "Lunch", "Snack"]
@@ -53,6 +61,14 @@ class CateringProgramUpdate(BaseModel):
     age_group_id: Optional[int] = None
     total_children: Optional[int] = None
     vegan_count: Optional[int] = None
+
+    # Per-meal counts
+    breakfast_count: Optional[int] = None
+    breakfast_vegan_count: Optional[int] = None
+    lunch_count: Optional[int] = None
+    lunch_vegan_count: Optional[int] = None
+    snack_count: Optional[int] = None
+
     invoice_prefix: Optional[str] = None
     service_days: Optional[List[str]] = None
     meal_types_required: Optional[List[str]] = None

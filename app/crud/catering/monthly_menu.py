@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from app.models.catering import CateringMonthlyMenu, CateringMenuDay
+from app.models.catering import CateringMonthlyMenu, CateringMenuDay, MenuDayComponent, FoodComponent
 from app.schemas.catering import MonthlyMenuCreate, MonthlyMenuUpdate, MenuDayAssignment
 import uuid
 from datetime import datetime
@@ -48,6 +48,7 @@ async def get_monthly_menu(db: AsyncSession, menu_id: str, tenant_id: int):
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.breakfast_item),
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.lunch_item),
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.snack_item),
+            selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component).selectinload(FoodComponent.component_type),
             selectinload(CateringMonthlyMenu.program)
         )
     )

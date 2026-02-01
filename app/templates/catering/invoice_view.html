@@ -52,9 +52,9 @@
       {% if menu_day %}
 
         <!-- Breakfast -->
-        {% if menu_day.breakfast_item %}
+        {% if menu_day.breakfast_item and invoice.breakfast_count %}
         <tr>
-          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.regular_meal_count + invoice.vegan_meal_count }}</td>
+          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.breakfast_count }}</td>
           <td style="padding: 10px; border: 1px solid #dee2e6;">
             <strong>Breakfast</strong> (
             {%- if menu_day.breakfast_item.components -%}
@@ -71,9 +71,9 @@
         {% endif %}
 
         <!-- Lunch - Regular -->
-        {% if menu_day.lunch_item and invoice.regular_meal_count > 0 %}
+        {% if menu_day.lunch_item and invoice.lunch_count and invoice.lunch_count > 0 %}
         <tr>
-          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.regular_meal_count }}</td>
+          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.lunch_count }}</td>
           <td style="padding: 10px; border: 1px solid #dee2e6;">
             <strong>Lunch</strong> (
             {%- if menu_day.lunch_item.components -%}
@@ -90,9 +90,9 @@
         {% endif %}
 
         <!-- Lunch - Vegan -->
-        {% if menu_day.lunch_vegan_item and invoice.vegan_meal_count > 0 %}
+        {% if menu_day.lunch_vegan_item and invoice.lunch_vegan_count > 0 %}
         <tr>
-          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.vegan_meal_count }}</td>
+          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.lunch_vegan_count }}</td>
           <td style="padding: 10px; border: 1px solid #dee2e6;">
             <strong>Lunch - Vegan</strong> (
             {%- if menu_day.lunch_vegan_item.components -%}
@@ -109,9 +109,9 @@
         {% endif %}
 
         <!-- Snack -->
-        {% if menu_day.snack_item %}
+        {% if menu_day.snack_item and invoice.snack_count %}
         <tr>
-          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.regular_meal_count + invoice.vegan_meal_count }}</td>
+          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.snack_count }}</td>
           <td style="padding: 10px; border: 1px solid #dee2e6;">
             <strong>Snack</strong> (
             {%- if menu_day.snack_item.components -%}

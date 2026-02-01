@@ -37,6 +37,7 @@ from app.schemas.catering import (
     CateringMealItemCreate,
     MonthlyMenuCreate
 )
+from decimal import Decimal
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -80,14 +81,27 @@ async def programs_list(
     tenant_id = request.state.tenant_id
     programs = await program_crud.get_programs(db, tenant_id)
 
-    # Parse JSON fields for display
+    # Convert to dicts to safely parse JSON fields without modifying SQLAlchemy objects
+    programs_data = []
     for program in programs:
-        program.service_days = json.loads(program.service_days)
-        program.meal_types_required = json.loads(program.meal_types_required)
+        service_days = json.loads(program.service_days) if isinstance(program.service_days, str) else (program.service_days or [])
+        meal_types = json.loads(program.meal_types_required) if isinstance(program.meal_types_required, str) else (program.meal_types_required or [])
+
+        programs_data.append({
+            "id": program.id,
+            "name": program.name,
+            "client_name": program.client_name,
+            "total_children": program.total_children,
+            "vegan_count": program.vegan_count,
+            "is_active": program.is_active,
+            "age_group": program.age_group,
+            "service_days": service_days,
+            "meal_types_required": meal_types,
+        })
 
     return templates.TemplateResponse("catering/programs_list.html", {
         "request": request,
-        "programs": programs,
+        "programs": programs_data,
     })
 
 
@@ -107,42 +121,55 @@ async def program_create_form(
     })
 
 
+def parse_optional_int(value) -> Optional[int]:
+    """Convert form value to int or None (handles empty strings)"""
+    if value is None or value == '' or value == 'None':
+        return None
+    return int(value)
+
+
 @router.post("/programs/create")
 async def program_create(
     request: Request,
-    name: str = Form(...),
-    client_name: str = Form(...),
-    client_email: Optional[str] = Form(None),
-    client_phone: Optional[str] = Form(None),
-    address: Optional[str] = Form(None),
-    age_group_id: int = Form(...),
-    total_children: int = Form(...),
-    vegan_count: int = Form(0),
-    invoice_prefix: str = Form(...),
-    service_days: List[str] = Form(...),
-    meal_types_required: List[str] = Form(...),
-    start_date: date = Form(...),
-    end_date: Optional[str] = Form(None),
-    is_active: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
 ):
     """Create a new program"""
     tenant_id = request.state.tenant_id
+    form = await request.form()
 
-    # Validate vegan count doesn't exceed total children
-    if vegan_count > total_children:
-        from fastapi import HTTPException
-        raise HTTPException(
-            status_code=400,
-            detail=f"Vegan count ({vegan_count}) cannot exceed total children ({total_children})"
-        )
+    # Parse required fields
+    name = form.get("name")
+    client_name = form.get("client_name")
+    client_email = form.get("client_email") or None
+    client_phone = form.get("client_phone") or None
+    address = form.get("address") or None
+    age_group_id = int(form.get("age_group_id"))
+    invoice_prefix = form.get("invoice_prefix")
+    service_days = form.getlist("service_days")
+    meal_types_required = form.getlist("meal_types_required")
+    start_date_str = form.get("start_date")
+    end_date_str = form.get("end_date")
+    is_active = "is_active" in form
 
-    # Parse end_date - convert empty string to None
+    # Parse optional meal counts (handle empty strings)
+    breakfast_count = parse_optional_int(form.get("breakfast_count"))
+    breakfast_vegan_count = int(form.get("breakfast_vegan_count") or 0)
+    lunch_count = parse_optional_int(form.get("lunch_count"))
+    lunch_vegan_count = int(form.get("lunch_vegan_count") or 0)
+    snack_count = parse_optional_int(form.get("snack_count"))
+
+    # Set legacy total_children from the highest meal count for backward compat
+    counts = [c for c in [breakfast_count, lunch_count, snack_count] if c is not None]
+    total_children = max(counts) if counts else 0
+    vegan_count = lunch_vegan_count  # Use lunch vegan as the legacy fallback
+
+    # Parse dates
+    from datetime import datetime as dt
+    parsed_start_date = dt.strptime(start_date_str, "%Y-%m-%d").date() if start_date_str else None
     parsed_end_date = None
-    if end_date and end_date.strip():
-        from datetime import datetime
-        parsed_end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+    if end_date_str and end_date_str.strip():
+        parsed_end_date = dt.strptime(end_date_str, "%Y-%m-%d").date()
 
     from app.schemas.catering import CateringProgramCreate
     program_data = CateringProgramCreate(
@@ -154,10 +181,15 @@ async def program_create(
         age_group_id=age_group_id,
         total_children=total_children,
         vegan_count=vegan_count,
+        breakfast_count=breakfast_count,
+        breakfast_vegan_count=breakfast_vegan_count,
+        lunch_count=lunch_count,
+        lunch_vegan_count=lunch_vegan_count,
+        snack_count=snack_count,
         invoice_prefix=invoice_prefix,
         service_days=service_days,
         meal_types_required=meal_types_required,
-        start_date=start_date,
+        start_date=parsed_start_date,
         end_date=parsed_end_date,
         is_active=is_active,
         tenant_id=tenant_id,
@@ -182,15 +214,39 @@ async def program_edit_form(
     if not program:
         return RedirectResponse(url="/catering/programs", status_code=303)
 
-    # Parse JSON fields for form display
-    program.service_days = json.loads(program.service_days)
-    program.meal_types_required = json.loads(program.meal_types_required)
+    # Parse JSON fields into separate variables (don't modify the model object)
+    service_days = json.loads(program.service_days) if isinstance(program.service_days, str) else (program.service_days or [])
+    meal_types_required = json.loads(program.meal_types_required) if isinstance(program.meal_types_required, str) else (program.meal_types_required or [])
 
     age_groups = await cacfp_rules.get_all_age_groups(db)
 
+    # Create a dict with program data for the template
+    program_data = {
+        "id": program.id,
+        "name": program.name,
+        "client_name": program.client_name,
+        "client_email": program.client_email,
+        "client_phone": program.client_phone,
+        "address": program.address,
+        "age_group_id": program.age_group_id,
+        "total_children": program.total_children,
+        "vegan_count": program.vegan_count,
+        "breakfast_count": program.breakfast_count,
+        "breakfast_vegan_count": program.breakfast_vegan_count,
+        "lunch_count": program.lunch_count,
+        "lunch_vegan_count": program.lunch_vegan_count,
+        "snack_count": program.snack_count,
+        "invoice_prefix": program.invoice_prefix,
+        "start_date": program.start_date,
+        "end_date": program.end_date,
+        "is_active": program.is_active,
+        "service_days": service_days,
+        "meal_types_required": meal_types_required,
+    }
+
     return templates.TemplateResponse("catering/program_form.html", {
         "request": request,
-        "program": program,
+        "program": program_data,
         "age_groups": age_groups,
     })
 
@@ -199,39 +255,45 @@ async def program_edit_form(
 async def program_update(
     request: Request,
     program_id: str,
-    name: str = Form(...),
-    client_name: str = Form(...),
-    client_email: Optional[str] = Form(None),
-    client_phone: Optional[str] = Form(None),
-    address: Optional[str] = Form(None),
-    age_group_id: int = Form(...),
-    total_children: int = Form(...),
-    vegan_count: int = Form(0),
-    invoice_prefix: str = Form(...),
-    service_days: List[str] = Form(...),
-    meal_types_required: List[str] = Form(...),
-    start_date: date = Form(...),
-    end_date: Optional[str] = Form(None),
-    is_active: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
 ):
     """Update a program"""
     tenant_id = request.state.tenant_id
+    form = await request.form()
 
-    # Validate vegan count doesn't exceed total children
-    if vegan_count > total_children:
-        from fastapi import HTTPException
-        raise HTTPException(
-            status_code=400,
-            detail=f"Vegan count ({vegan_count}) cannot exceed total children ({total_children})"
-        )
+    # Parse required fields
+    name = form.get("name")
+    client_name = form.get("client_name")
+    client_email = form.get("client_email") or None
+    client_phone = form.get("client_phone") or None
+    address = form.get("address") or None
+    age_group_id = int(form.get("age_group_id"))
+    invoice_prefix = form.get("invoice_prefix")
+    service_days = form.getlist("service_days")
+    meal_types_required = form.getlist("meal_types_required")
+    start_date_str = form.get("start_date")
+    end_date_str = form.get("end_date")
+    is_active = "is_active" in form
 
-    # Parse end_date - convert empty string to None
+    # Parse optional meal counts (handle empty strings)
+    breakfast_count = parse_optional_int(form.get("breakfast_count"))
+    breakfast_vegan_count = int(form.get("breakfast_vegan_count") or 0)
+    lunch_count = parse_optional_int(form.get("lunch_count"))
+    lunch_vegan_count = int(form.get("lunch_vegan_count") or 0)
+    snack_count = parse_optional_int(form.get("snack_count"))
+
+    # Set legacy total_children from the highest meal count for backward compat
+    counts = [c for c in [breakfast_count, lunch_count, snack_count] if c is not None]
+    total_children = max(counts) if counts else 0
+    vegan_count = lunch_vegan_count  # Use lunch vegan as the legacy fallback
+
+    # Parse dates
+    from datetime import datetime as dt
+    parsed_start_date = dt.strptime(start_date_str, "%Y-%m-%d").date() if start_date_str else None
     parsed_end_date = None
-    if end_date and end_date.strip():
-        from datetime import datetime
-        parsed_end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+    if end_date_str and end_date_str.strip():
+        parsed_end_date = dt.strptime(end_date_str, "%Y-%m-%d").date()
 
     from app.schemas.catering import CateringProgramUpdate
     program_data = CateringProgramUpdate(
@@ -243,10 +305,15 @@ async def program_update(
         age_group_id=age_group_id,
         total_children=total_children,
         vegan_count=vegan_count,
+        breakfast_count=breakfast_count,
+        breakfast_vegan_count=breakfast_vegan_count,
+        lunch_count=lunch_count,
+        lunch_vegan_count=lunch_vegan_count,
+        snack_count=snack_count,
         invoice_prefix=invoice_prefix,
         service_days=service_days,
         meal_types_required=meal_types_required,
-        start_date=start_date,
+        start_date=parsed_start_date,
         end_date=parsed_end_date,
         is_active=is_active,
     )
@@ -562,9 +629,9 @@ async def menu_calendar_view(
     if not program:
         return RedirectResponse(url="/catering/monthly-menus", status_code=303)
 
-    # Parse program settings
-    service_days = json.loads(program.service_days)
-    meal_types = json.loads(program.meal_types_required)
+    # Parse program settings (read-only, don't modify model)
+    service_days = json.loads(program.service_days) if isinstance(program.service_days, str) else (program.service_days or [])
+    meal_types = json.loads(program.meal_types_required) if isinstance(program.meal_types_required, str) else (program.meal_types_required or [])
 
     # Get all meal items
     all_meal_items = await meal_item_crud.get_meal_items(db, tenant_id)
@@ -588,6 +655,22 @@ async def menu_calendar_view(
     # Get existing menu days
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
 
+    # Helper to build component preview strings for a menu day
+    def get_component_preview(menu_day):
+        """Returns dict with breakfast, lunch, snack component name strings"""
+        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
+            return preview
+
+        for slot in ['breakfast', 'lunch', 'snack']:
+            names = [
+                comp.food_component.name
+                for comp in menu_day.components
+                if comp.meal_slot == slot and not comp.is_vegan and comp.food_component
+            ]
+            preview[slot] = ', '.join(names)
+        return preview
+
     # Build calendar data structure
     calendar_weeks = []
     for week in month_weeks:
@@ -600,20 +683,23 @@ async def menu_calendar_view(
                     'date': '',
                     'in_month': False,
                     'is_service_day': False,
-                    'menu_day': None
+                    'menu_day': None,
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
                 })
             else:
                 date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)
                 date_str = date_obj.isoformat()
                 day_name = date_obj.strftime('%A')
                 is_service_day = day_name in service_days
+                menu_day = menu_days_dict.get(date_str)
 
                 week_data.append({
                     'day': day_num,
                     'date': date_str,
                     'in_month': True,
                     'is_service_day': is_service_day,
-                    'menu_day': menu_days_dict.get(date_str)
+                    'menu_day': menu_day,
+                    'component_preview': get_component_preview(menu_day)
                 })
         calendar_weeks.append(week_data)
 
@@ -643,6 +729,43 @@ async def menu_calendar_view(
         else:
             meal_items_components_map[item.id] = []
 
+    # Get all food components for component-first mode
+    food_components = await food_component_crud.get_food_components(db, tenant_id)
+
+    # Build food_components_map for JavaScript
+    food_components_map = {}
+    for comp in food_components:
+        food_components_map[comp.id] = {
+            "name": comp.name,
+            "type": comp.component_type.name if comp.component_type else None,
+            "is_vegan": comp.is_vegan,
+            "default_portion_oz": float(comp.default_portion_oz) if comp.default_portion_oz else None
+        }
+
+    # Build menu_day_components_json for each day
+    menu_day_components = {}
+    for day in monthly_menu.menu_days:
+        date_str = day.service_date.isoformat()
+        menu_day_components[date_str] = {
+            "breakfast": [],
+            "breakfast_vegan": [],
+            "lunch": [],
+            "lunch_vegan": [],
+            "snack": [],
+            "snack_vegan": []
+        }
+        if hasattr(day, 'components') and day.components:
+            for comp in day.components:
+                slot_key = comp.meal_slot
+                if comp.is_vegan:
+                    slot_key = f"{comp.meal_slot}_vegan"
+                menu_day_components[date_str][slot_key].append({
+                    "id": comp.id,
+                    "component_id": comp.component_id,
+                    "name": comp.food_component.name if comp.food_component else None,
+                    "type": comp.food_component.component_type.name if comp.food_component and comp.food_component.component_type else None
+                })
+
     return templates.TemplateResponse("catering/menu_calendar.html", {
         "request": request,
         "monthly_menu": monthly_menu,
@@ -661,6 +784,9 @@ async def menu_calendar_view(
         "menu_days_json": menu_days_json,
         "meal_items_map": json.dumps(meal_items_map),
         "meal_items_components_map": json.dumps(meal_items_components_map),
+        "food_components": food_components,
+        "food_components_map": json.dumps(food_components_map),
+        "menu_day_components_json": json.dumps(menu_day_components),
     })
 
 
@@ -838,3 +964,245 @@ async def cacfp_reference(
         "component_types": component_types,
         "portion_rules": portion_rules,
     })
+
+
+# ==================== SEED JANUARY MENU DATA ====================
+
+@router.post("/seed-sample-data")
+async def seed_sample_data(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Seed food components and meal items based on January 2026 menu"""
+    from app.models.catering import CateringMealComponent
+
+    tenant_id = request.state.tenant_id
+
+    # Check if data already exists
+    existing = await food_component_crud.get_food_components(db, tenant_id)
+    if existing:
+        return RedirectResponse(url="/catering?error=Data+already+exists", status_code=303)
+
+    # Component Type IDs (from CACFP)
+    MILK, PROTEIN, GRAIN, VEGETABLE, FRUIT = 1, 2, 3, 4, 5
+
+    # Food Components based on January 2026 menu
+    # Format: (name, type_id, portion_oz, is_vegan, is_vegetarian)
+    food_components_data = [
+        # MILK/DAIRY
+        ("Whole Milk", MILK, 6.0, False, True),
+        ("Yogurt", MILK, 4.0, False, True),
+        ("Cream Cheese", MILK, 1.0, False, True),
+
+        # PROTEINS
+        ("Beef Meatballs", PROTEIN, 2.0, False, False),
+        ("Dominican Chicken", PROTEIN, 2.0, False, False),
+        ("Chicken Dumplings", PROTEIN, 2.0, False, False),
+        ("Chicken Nuggets", PROTEIN, 2.0, False, False),
+        ("Orange Chicken", PROTEIN, 2.0, False, False),
+        ("Chicken Samosas", PROTEIN, 2.0, False, False),
+        ("Chicken Burger Patty", PROTEIN, 2.0, False, False),
+        ("Chicken Tenders", PROTEIN, 2.0, False, False),
+        ("Korean BBQ Chicken", PROTEIN, 2.0, False, False),
+        ("Shredded Chicken", PROTEIN, 2.0, False, False),
+        ("Popcorn Chicken", PROTEIN, 2.0, False, False),
+        ("Beef Ravioli", PROTEIN, 3.0, False, False),
+        ("Beef Chili", PROTEIN, 3.0, False, False),
+        ("Mozzarella Sticks", PROTEIN, 2.0, False, True),
+        ("Cheese Pizza Slice", PROTEIN, 2.0, False, True),
+        ("Mac & Cheese", PROTEIN, 4.0, False, True),
+        ("Egg Patty", PROTEIN, 1.5, False, True),
+        ("Scrambled Eggs", PROTEIN, 1.5, False, True),
+        ("Cheddar Cheese", PROTEIN, 1.0, False, True),
+
+        # GRAINS - Breakfast
+        ("French Toast", GRAIN, 2.0, True, True),
+        ("Waffle", GRAIN, 2.0, True, True),
+        ("Pancakes", GRAIN, 2.0, True, True),
+        ("Mini Croissant", GRAIN, 1.5, True, True),
+        ("Whole Grain Toast", GRAIN, 1.0, True, True),
+        ("English Muffin", GRAIN, 2.0, True, True),
+        ("Hashbrowns", GRAIN, 2.0, True, True),
+
+        # GRAINS - Lunch/Other
+        ("Penne Pasta", GRAIN, 4.0, True, True),
+        ("White Rice", GRAIN, 4.0, True, True),
+        ("Brown Rice", GRAIN, 4.0, True, True),
+        ("Jasmine Rice", GRAIN, 4.0, True, True),
+        ("Flour Tortilla", GRAIN, 2.0, True, True),
+
+        # GRAINS - Snacks
+        ("Cheez-Its", GRAIN, 0.75, True, True),
+        ("Animal Crackers", GRAIN, 0.75, True, True),
+        ("Goldfish Crackers", GRAIN, 0.75, True, True),
+        ("Blueberry Muffin", GRAIN, 2.0, True, True),
+        ("Corn Bread", GRAIN, 2.0, True, True),
+        ("Corn Muffin", GRAIN, 2.0, True, True),
+
+        # VEGETABLES
+        ("Green Beans", VEGETABLE, 2.0, True, True),
+        ("Pinto Beans", VEGETABLE, 2.0, True, True),
+        ("Kidney Beans", VEGETABLE, 2.0, True, True),
+        ("Yams", VEGETABLE, 3.0, True, True),
+        ("California Mixed Veggies", VEGETABLE, 2.0, True, True),
+        ("Carrots", VEGETABLE, 2.0, True, True),
+        ("Corn", VEGETABLE, 2.0, True, True),
+        ("Mashed Potatoes", VEGETABLE, 3.0, True, True),
+        ("Broccoli", VEGETABLE, 2.0, True, True),
+        ("Sweet Potato Fries", VEGETABLE, 3.0, True, True),
+        ("Roasted Potatoes", VEGETABLE, 3.0, True, True),
+        ("Marinara Sauce", VEGETABLE, 2.0, True, True),
+
+        # FRUITS
+        ("Banana", FRUIT, 3.0, True, True),
+        ("Strawberries", FRUIT, 2.0, True, True),
+        ("Apple", FRUIT, 2.0, True, True),
+        ("Orange", FRUIT, 2.0, True, True),
+        ("Mandarin Orange", FRUIT, 2.0, True, True),
+        ("Apple Slices", FRUIT, 2.0, True, True),
+    ]
+
+    # Create food components
+    from app.schemas.catering import FoodComponentCreate
+    component_map = {}
+
+    for name, type_id, portion, is_vegan, is_veg in food_components_data:
+        comp_data = FoodComponentCreate(
+            name=name,
+            component_type_id=type_id,
+            default_portion_oz=Decimal(str(portion)),
+            is_vegan=is_vegan,
+            is_vegetarian=is_veg,
+            tenant_id=tenant_id
+        )
+        comp = await food_component_crud.create_food_component(db, comp_data)
+        component_map[name] = comp.id
+
+    # Meal Items based on actual January 2026 menu
+    # Format: (name, desc, meal_type, is_vegan, [(component_name, portion), ...])
+    meal_items_data = [
+        # ========== BREAKFAST ==========
+        ("French Toast w/ Banana", "French toast served with fresh banana", "Breakfast", False,
+         [("French Toast", 2.0), ("Banana", 3.0), ("Whole Milk", 6.0)]),
+        ("Waffle w/ Strawberries", "Golden waffle with fresh strawberries", "Breakfast", False,
+         [("Waffle", 2.0), ("Strawberries", 2.0), ("Whole Milk", 6.0)]),
+        ("Pancakes w/ Apple", "Fluffy pancakes with fresh apple", "Breakfast", False,
+         [("Pancakes", 2.0), ("Apple", 2.0), ("Whole Milk", 6.0)]),
+        ("Mini Croissant w/ Orange", "Mini croissant with orange slices", "Breakfast", False,
+         [("Mini Croissant", 1.5), ("Orange", 2.0), ("Whole Milk", 6.0)]),
+        ("Egg Patty w/ Toast", "Egg patty with whole grain toast", "Breakfast", False,
+         [("Egg Patty", 1.5), ("Whole Grain Toast", 1.0), ("Whole Milk", 6.0)]),
+        ("Waffle w/ Banana", "Golden waffle with fresh banana", "Breakfast", False,
+         [("Waffle", 2.0), ("Banana", 3.0), ("Whole Milk", 6.0)]),
+        ("English Muffin w/ Cream Cheese & Banana", "English muffin with cream cheese and banana", "Breakfast", False,
+         [("English Muffin", 2.0), ("Cream Cheese", 1.0), ("Banana", 3.0), ("Whole Milk", 6.0)]),
+        ("Hashbrowns w/ Toast", "Crispy hashbrowns with whole grain toast", "Breakfast", False,
+         [("Hashbrowns", 2.0), ("Whole Grain Toast", 1.0), ("Whole Milk", 6.0)]),
+        ("French Toast w/ Apple", "French toast with fresh apple", "Breakfast", False,
+         [("French Toast", 2.0), ("Apple", 2.0), ("Whole Milk", 6.0)]),
+        ("Pancakes w/ Orange", "Fluffy pancakes with orange slices", "Breakfast", False,
+         [("Pancakes", 2.0), ("Orange", 2.0), ("Whole Milk", 6.0)]),
+        ("Pancakes w/ Banana", "Fluffy pancakes with fresh banana", "Breakfast", False,
+         [("Pancakes", 2.0), ("Banana", 3.0), ("Whole Milk", 6.0)]),
+        ("French Toast w/ Strawberries", "French toast with fresh strawberries", "Breakfast", False,
+         [("French Toast", 2.0), ("Strawberries", 2.0), ("Whole Milk", 6.0)]),
+        ("Waffle w/ Apple", "Golden waffle with fresh apple", "Breakfast", False,
+         [("Waffle", 2.0), ("Apple", 2.0), ("Whole Milk", 6.0)]),
+        ("Scrambled Eggs w/ Toast", "Scrambled eggs with whole grain toast", "Breakfast", False,
+         [("Scrambled Eggs", 1.5), ("Whole Grain Toast", 1.0), ("Whole Milk", 6.0)]),
+        ("Hashbrowns w/ Toast & Orange", "Hashbrowns and toast with orange", "Breakfast", False,
+         [("Hashbrowns", 2.0), ("Whole Grain Toast", 1.0), ("Orange", 2.0), ("Whole Milk", 6.0)]),
+
+        # ========== LUNCH ==========
+        ("Beef Meatballs w/ Penne & Green Beans", "Savory beef meatballs with penne pasta and green beans", "Lunch", False,
+         [("Beef Meatballs", 2.0), ("Penne Pasta", 4.0), ("Green Beans", 2.0), ("Whole Milk", 6.0)]),
+        ("Dominican Chicken w/ Rice & Pinto Beans", "Seasoned Dominican chicken with rice and beans", "Lunch", False,
+         [("Dominican Chicken", 2.0), ("White Rice", 4.0), ("Pinto Beans", 2.0), ("Whole Milk", 6.0)]),
+        ("Mac & Cheese w/ Yams & Mixed Veggies", "Creamy mac and cheese with yams and vegetables", "Lunch", False,
+         [("Mac & Cheese", 4.0), ("Yams", 3.0), ("California Mixed Veggies", 2.0), ("Whole Milk", 6.0)]),
+        ("Chicken Dumplings w/ Carrots & Corn", "Chicken dumplings with carrots and corn", "Lunch", False,
+         [("Chicken Dumplings", 2.0), ("Carrots", 2.0), ("Corn", 2.0), ("Whole Milk", 6.0)]),
+        ("Chicken Nuggets w/ Mashed Potatoes & Broccoli", "Crispy chicken nuggets with mashed potatoes and broccoli", "Lunch", False,
+         [("Chicken Nuggets", 2.0), ("Mashed Potatoes", 3.0), ("Broccoli", 2.0), ("Whole Milk", 6.0)]),
+        ("Orange Chicken w/ Rice & Carrots", "Sweet orange chicken with rice and carrots", "Lunch", False,
+         [("Orange Chicken", 2.0), ("White Rice", 4.0), ("Carrots", 2.0), ("Whole Milk", 6.0)]),
+        ("Chicken Samosas w/ Corn & Sweet Potato Fries", "Chicken samosas with corn and sweet potato fries", "Lunch", False,
+         [("Chicken Samosas", 2.0), ("Corn", 2.0), ("Sweet Potato Fries", 3.0), ("Whole Milk", 6.0)]),
+        ("Cheese Pizza w/ Broccoli & Carrots", "Cheese pizza slice with broccoli and carrots", "Lunch", False,
+         [("Cheese Pizza Slice", 2.0), ("Broccoli", 2.0), ("Carrots", 2.0), ("Whole Milk", 6.0)]),
+        ("Beef Ravioli w/ Marinara & Green Beans", "Beef ravioli with marinara sauce and green beans", "Lunch", False,
+         [("Beef Ravioli", 3.0), ("Marinara Sauce", 2.0), ("Green Beans", 2.0), ("Whole Milk", 6.0)]),
+        ("Chicken Burger w/ Mashed Potatoes & Corn", "Chicken burger patty with mashed potatoes and corn", "Lunch", False,
+         [("Chicken Burger Patty", 2.0), ("Mashed Potatoes", 3.0), ("Corn", 2.0), ("Whole Milk", 6.0)]),
+        ("Beef & Bean Burrito w/ Roasted Potato & Corn", "Beef and bean burrito with potatoes and corn", "Lunch", False,
+         [("Beef Chili", 2.0), ("Flour Tortilla", 2.0), ("Roasted Potatoes", 3.0), ("Corn", 2.0), ("Whole Milk", 6.0)]),
+        ("Mozzarella Sticks w/ Marinara & Green Beans", "Crispy mozzarella sticks with marinara and green beans", "Lunch", False,
+         [("Mozzarella Sticks", 2.0), ("Marinara Sauce", 2.0), ("Green Beans", 2.0), ("Whole Milk", 6.0)]),
+        ("Beef Meatballs w/ Penne & Carrots", "Beef meatballs with penne pasta and carrots", "Lunch", False,
+         [("Beef Meatballs", 2.0), ("Penne Pasta", 4.0), ("Carrots", 2.0), ("Whole Milk", 6.0)]),
+        ("Chicken Tenders w/ Mashed Potatoes & Corn", "Crispy chicken tenders with mashed potatoes and corn", "Lunch", False,
+         [("Chicken Tenders", 2.0), ("Mashed Potatoes", 3.0), ("Corn", 2.0), ("Whole Milk", 6.0)]),
+        ("Beef Chili w/ Brown Rice & Kidney Beans", "Hearty beef chili with brown rice and kidney beans", "Lunch", False,
+         [("Beef Chili", 3.0), ("Brown Rice", 4.0), ("Kidney Beans", 2.0), ("Whole Milk", 6.0)]),
+        ("Korean BBQ Chicken w/ Jasmine Rice & Corn", "Korean BBQ chicken with jasmine rice and corn", "Lunch", False,
+         [("Korean BBQ Chicken", 2.0), ("Jasmine Rice", 4.0), ("Corn", 2.0), ("Whole Milk", 6.0)]),
+        ("Shredded Chicken Quesadilla w/ Corn & Potatoes", "Shredded chicken quesadilla with corn and roasted potatoes", "Lunch", False,
+         [("Shredded Chicken", 2.0), ("Flour Tortilla", 2.0), ("Cheddar Cheese", 1.0), ("Corn", 2.0), ("Roasted Potatoes", 3.0), ("Whole Milk", 6.0)]),
+        ("Popcorn Chicken w/ Mashed Potatoes & Corn", "Popcorn chicken with mashed potatoes and corn", "Lunch", False,
+         [("Popcorn Chicken", 2.0), ("Mashed Potatoes", 3.0), ("Corn", 2.0), ("Whole Milk", 6.0)]),
+
+        # ========== SNACKS ==========
+        ("Cheez-Its w/ Banana", "Cheez-It crackers with fresh banana", "Snack", False,
+         [("Cheez-Its", 0.75), ("Banana", 3.0), ("Whole Milk", 4.0)]),
+        ("Animal Crackers w/ Banana", "Animal crackers with fresh banana", "Snack", False,
+         [("Animal Crackers", 0.75), ("Banana", 3.0), ("Whole Milk", 4.0)]),
+        ("Goldfish Crackers w/ Banana", "Goldfish crackers with fresh banana", "Snack", False,
+         [("Goldfish Crackers", 0.75), ("Banana", 3.0), ("Whole Milk", 4.0)]),
+        ("Blueberry Muffin w/ Apple", "Blueberry muffin with fresh apple", "Snack", False,
+         [("Blueberry Muffin", 2.0), ("Apple", 2.0), ("Whole Milk", 4.0)]),
+        ("Corn Bread w/ Orange", "Corn bread with orange slices", "Snack", False,
+         [("Corn Bread", 2.0), ("Orange", 2.0), ("Whole Milk", 4.0)]),
+        ("Cheez-Its w/ Strawberries", "Cheez-It crackers with fresh strawberries", "Snack", False,
+         [("Cheez-Its", 0.75), ("Strawberries", 2.0), ("Whole Milk", 4.0)]),
+        ("Corn Muffin w/ Yogurt", "Corn muffin served with yogurt", "Snack", False,
+         [("Corn Muffin", 2.0), ("Yogurt", 4.0)]),
+        ("Animal Crackers w/ Apple", "Animal crackers with fresh apple", "Snack", False,
+         [("Animal Crackers", 0.75), ("Apple", 2.0), ("Whole Milk", 4.0)]),
+        ("Mini Croissant w/ Yogurt", "Mini croissant served with yogurt", "Snack", False,
+         [("Mini Croissant", 1.5), ("Yogurt", 4.0)]),
+        ("Blueberry Muffin w/ Yogurt", "Blueberry muffin served with yogurt", "Snack", False,
+         [("Blueberry Muffin", 2.0), ("Yogurt", 4.0)]),
+        ("Goldfish Crackers w/ Mandarin Orange", "Goldfish crackers with mandarin oranges", "Snack", False,
+         [("Goldfish Crackers", 0.75), ("Mandarin Orange", 2.0), ("Whole Milk", 4.0)]),
+        ("Goldfish Crackers w/ Apple Slices", "Goldfish crackers with apple slices", "Snack", False,
+         [("Goldfish Crackers", 0.75), ("Apple Slices", 2.0), ("Whole Milk", 4.0)]),
+        ("Cheez-Its w/ Apple", "Cheez-It crackers with fresh apple", "Snack", False,
+         [("Cheez-Its", 0.75), ("Apple", 2.0), ("Whole Milk", 4.0)]),
+    ]
+
+    # Create meal items with components
+    for name, desc, meal_type, is_vegan, components in meal_items_data:
+        meal_item = CateringMealItem(
+            name=name,
+            description=desc,
+            meal_type=meal_type,
+            is_vegan=is_vegan,
+            is_vegetarian=True,
+            tenant_id=tenant_id
+        )
+        db.add(meal_item)
+        await db.flush()
+
+        for comp_name, portion in components:
+            if comp_name in component_map:
+                meal_comp = CateringMealComponent(
+                    meal_item_id=meal_item.id,
+                    food_component_id=component_map[comp_name],
+                    portion_oz=Decimal(str(portion))
+                )
+                db.add(meal_comp)
+
+    await db.commit()
+
+    return RedirectResponse(url="/catering?success=Sample+data+loaded", status_code=303)

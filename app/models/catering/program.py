@@ -15,8 +15,16 @@ class CateringProgram(Base):
     client_phone = Column(String, nullable=True)
     address = Column(Text, nullable=True)
     age_group_id = Column(Integer, ForeignKey("cacfp_age_groups.id"), nullable=False)
-    total_children = Column(Integer, nullable=False)
-    vegan_count = Column(Integer, default=0, nullable=False)
+    total_children = Column(Integer, nullable=False)  # Legacy - kept for backward compat
+    vegan_count = Column(Integer, default=0, nullable=False)  # Legacy - kept for backward compat
+
+    # Per-meal counts (nullable = use legacy total_children as fallback)
+    breakfast_count = Column(Integer, nullable=True)
+    breakfast_vegan_count = Column(Integer, default=0, nullable=False)
+    lunch_count = Column(Integer, nullable=True)
+    lunch_vegan_count = Column(Integer, default=0, nullable=False)
+    snack_count = Column(Integer, nullable=True)
+
     invoice_prefix = Column(String, nullable=False)  # BC, LC, etc.
     last_invoice_number = Column(Integer, default=0, nullable=False)
     service_days = Column(String, nullable=False)  # JSON: ["Monday", "Tuesday", ...]

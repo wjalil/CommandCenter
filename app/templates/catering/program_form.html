@@ -53,16 +53,55 @@
         </div>
       </div>
 
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Total Children *</label>
-          <input type="number" name="total_children" class="form-control" value="{{ program.total_children if program else '' }}" min="1" required>
-          <small class="form-text text-muted">Total number of meals to provide daily</small>
+      <!-- Legacy total (hidden, used as fallback) -->
+      <input type="hidden" name="total_children" value="{{ program.total_children if program else 0 }}">
+      <input type="hidden" name="vegan_count" value="{{ program.vegan_count if program else 0 }}">
+
+      <!-- Per-meal counts section -->
+      <div class="card mb-3">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">Meal Counts</h6>
         </div>
-        <div class="col-md-6 mb-3">
-          <label class="form-label">Vegan Count</label>
-          <input type="number" name="vegan_count" class="form-control" value="{{ program.vegan_count if program else 0 }}" min="0">
-          <small class="form-text text-muted">How many of the total meals are vegan (subset, not additional)</small>
+        <div class="card-body">
+          <p class="text-muted small">Enter the number of meals to prepare for each meal type. Leave blank to use the same count for all meals.</p>
+
+          <div class="row" id="breakfast-counts" style="display: none;">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Breakfast Count *</label>
+              <input type="number" name="breakfast_count" id="breakfast_count" class="form-control" value="{{ program.breakfast_count if program and program.breakfast_count else '' }}" min="1">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Breakfast Vegan Count</label>
+              <input type="number" name="breakfast_vegan_count" class="form-control" value="{{ program.breakfast_vegan_count if program else 0 }}" min="0">
+              <small class="form-text text-muted">Optional - for future use</small>
+            </div>
+          </div>
+
+          <div class="row" id="lunch-counts" style="display: none;">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Lunch Count *</label>
+              <input type="number" name="lunch_count" id="lunch_count" class="form-control" value="{{ program.lunch_count if program and program.lunch_count else '' }}" min="1">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Lunch Vegan Count</label>
+              <input type="number" name="lunch_vegan_count" class="form-control" value="{{ program.lunch_vegan_count if program else 0 }}" min="0">
+              <small class="form-text text-muted">Subset of lunch count that are vegan</small>
+            </div>
+          </div>
+
+          <div class="row" id="snack-counts" style="display: none;">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Snack Count *</label>
+              <input type="number" name="snack_count" id="snack_count" class="form-control" value="{{ program.snack_count if program and program.snack_count else '' }}" min="1">
+            </div>
+            <div class="col-md-6 mb-3">
+              <!-- Empty for alignment -->
+            </div>
+          </div>
+
+          <div id="no-meals-warning" class="alert alert-info" style="display: none;">
+            Select meal types below to configure counts.
+          </div>
         </div>
       </div>
 
@@ -126,4 +165,37 @@
     <a href="/catering/programs" class="btn btn-outline-secondary">Cancel</a>
   </div>
 </form>
+
+<script>
+function updateMealCountVisibility() {
+  const breakfastChecked = document.getElementById('meal_Breakfast').checked;
+  const lunchChecked = document.getElementById('meal_Lunch').checked;
+  const snackChecked = document.getElementById('meal_Snack').checked;
+
+  document.getElementById('breakfast-counts').style.display = breakfastChecked ? 'flex' : 'none';
+  document.getElementById('lunch-counts').style.display = lunchChecked ? 'flex' : 'none';
+  document.getElementById('snack-counts').style.display = snackChecked ? 'flex' : 'none';
+
+  const anyChecked = breakfastChecked || lunchChecked || snackChecked;
+  document.getElementById('no-meals-warning').style.display = anyChecked ? 'none' : 'block';
+
+  // Update required attributes
+  document.getElementById('breakfast_count').required = breakfastChecked;
+  document.getElementById('lunch_count').required = lunchChecked;
+  document.getElementById('snack_count').required = snackChecked;
+}
+
+// Run on page load
+document.addEventListener('DOMContentLoaded', function() {
+  updateMealCountVisibility();
+
+  // Add event listeners to meal type checkboxes
+  ['Breakfast', 'Lunch', 'Snack'].forEach(function(meal) {
+    const checkbox = document.getElementById('meal_' + meal);
+    if (checkbox) {
+      checkbox.addEventListener('change', updateMealCountVisibility);
+    }
+  });
+});
+</script>
 {% endblock %}

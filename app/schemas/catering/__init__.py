@@ -41,12 +41,23 @@ from .monthly_menu import (
     MenuDayCreate,
     MenuDayUpdate,
     MenuDayRead,
+    MenuDayComponentSummary,
     MonthlyMenuBase,
     MonthlyMenuCreate,
     MonthlyMenuUpdate,
     MonthlyMenuRead,
     MenuDayAssignment,
     BulkMenuDayUpdate,
+)
+
+from .menu_day_component import (
+    MealSlot,
+    MenuDayComponentBase,
+    MenuDayComponentCreate,
+    MenuDayComponentRead,
+    MenuDayComponentAssignment,
+    BulkMenuDayComponentUpdate,
+    BulkComponentsRequest,
 )
 
 from .invoice import (
@@ -93,12 +104,21 @@ __all__ = [
     "MenuDayCreate",
     "MenuDayUpdate",
     "MenuDayRead",
+    "MenuDayComponentSummary",
     "MonthlyMenuBase",
     "MonthlyMenuCreate",
     "MonthlyMenuUpdate",
     "MonthlyMenuRead",
     "MenuDayAssignment",
     "BulkMenuDayUpdate",
+    # Menu Day Components
+    "MealSlot",
+    "MenuDayComponentBase",
+    "MenuDayComponentCreate",
+    "MenuDayComponentRead",
+    "MenuDayComponentAssignment",
+    "BulkMenuDayComponentUpdate",
+    "BulkComponentsRequest",
     # Invoices
     "InvoiceStatus",
     "CateringInvoiceBase",

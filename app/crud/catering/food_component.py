@@ -48,7 +48,11 @@ async def update_food_component(db: AsyncSession, component_id: int, tenant_id: 
     if not component:
         return None
 
-    update_data = updates.model_dump(exclude_unset=True)
+    # Support both Pydantic v1 (.dict()) and v2 (.model_dump())
+    if hasattr(updates, 'model_dump'):
+        update_data = updates.model_dump(exclude_unset=True)
+    else:
+        update_data = updates.dict(exclude_unset=True)
     for key, value in update_data.items():
         setattr(component, key, value)
 

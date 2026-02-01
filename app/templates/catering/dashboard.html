@@ -101,10 +101,28 @@
         <div class="btn-group" role="group">
           <a href="/catering/programs/create" class="btn btn-outline-primary">+ New Program</a>
           <a href="/catering/meal-items/create" class="btn btn-outline-success">+ New Meal Item</a>
-          <a href="/catering/monthly-menus/generate" class="btn btn-outline-info">📅 Generate Menu</a>
+          <a href="/catering/monthly-menus/create" class="btn btn-outline-info">+ New Menu</a>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+{% if meal_item_count == 0 %}
+<div class="row mt-4">
+  <div class="col-md-12">
+    <div class="card border-success">
+      <div class="card-header bg-success text-white">
+        <h5 class="mb-0">Get Started Quickly</h5>
+      </div>
+      <div class="card-body">
+        <p>No meal items yet? Load sample data to get started immediately with 68 food components and 32 ready-to-use meals (breakfast, lunch, snack - including vegan options).</p>
+        <form method="POST" action="/catering/seed-sample-data" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerHTML='Loading...';">
+          <button type="submit" class="btn btn-success btn-lg">Load Sample Data</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

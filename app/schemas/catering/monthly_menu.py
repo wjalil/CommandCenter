@@ -1,7 +1,10 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import date, datetime
 from enum import Enum
+
+if TYPE_CHECKING:
+    from .menu_day_component import MenuDayComponentRead
 
 
 class MenuStatus(str, Enum):
@@ -30,9 +33,23 @@ class MenuDayUpdate(MenuDayBase):
     pass
 
 
+class MenuDayComponentSummary(BaseModel):
+    """Summary of a component for display in MenuDayRead"""
+    id: str
+    component_id: int
+    component_name: str
+    component_type: str
+    meal_slot: str
+    is_vegan: bool
+
+    class Config:
+        from_attributes = True
+
+
 class MenuDayRead(MenuDayBase):
     id: str
     monthly_menu_id: str
+    components: List[MenuDayComponentSummary] = []
 
     class Config:
         from_attributes = True

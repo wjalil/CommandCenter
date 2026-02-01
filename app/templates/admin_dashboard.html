@@ -203,6 +203,13 @@
       <div class="label">Shopping Cart</div>
     </a>
     {% endif %}
+
+    {% if enabled_modules.get("catering", True) %}
+    <a href="/catering" class="quick-action-btn">
+      <div class="icon">🍱</div>
+      <div class="label">Catering</div>
+    </a>
+    {% endif %}
   </div>
 
   <!-- Row 1 -->
@@ -235,6 +242,16 @@
           <div class="section-label">Catering Modules</div>
           <h5 class="card-title">🧰 Delivery & Invoicing</h5>
           <ul class="list-unstyled">
+            {% if enabled_modules.get("catering", True) %}
+            <li class="mb-2">
+              <a href="/catering" class="card-link fw-bold text-success d-flex align-items-center">
+                <span>🍱 CACFP Menu Builder</span>
+                <span class="badge bg-success ms-2">New</span>
+              </a>
+              <div class="text-muted small ms-4">Programs, menus, invoices</div>
+            </li>
+            {% endif %}
+
             {% if enabled_modules.get("driver_order", True) %}
             <li class="mb-2">
               <a href="/modules/driver_order" class="card-link fw-bold text-primary d-flex align-items-center">

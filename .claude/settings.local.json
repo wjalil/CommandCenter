@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -m alembic current:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}

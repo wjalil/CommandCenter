@@ -15,8 +15,17 @@ class CateringInvoice(Base):
     monthly_menu_id = Column(String, ForeignKey("catering_monthly_menus.id"), nullable=True)
     menu_day_id = Column(String, ForeignKey("catering_menu_days.id"), nullable=True)
     service_date = Column(Date, nullable=False)
-    regular_meal_count = Column(Integer, nullable=False)
-    vegan_meal_count = Column(Integer, default=0, nullable=False)
+    regular_meal_count = Column(Integer, nullable=False)  # Legacy - kept for backward compat
+    vegan_meal_count = Column(Integer, default=0, nullable=False)  # Legacy - kept for backward compat
+
+    # Per-meal counts for accurate invoicing
+    breakfast_count = Column(Integer, nullable=True)
+    breakfast_vegan_count = Column(Integer, default=0, nullable=False)
+    lunch_count = Column(Integer, nullable=True)
+    lunch_vegan_count = Column(Integer, default=0, nullable=False)
+    snack_count = Column(Integer, nullable=True)
+    snack_vegan_count = Column(Integer, default=0, nullable=False)
+
     status = Column(String, default="draft", nullable=False)  # draft, finalized, sent
     pdf_filename = Column(String, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)

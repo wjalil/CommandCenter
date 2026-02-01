@@ -14,8 +14,16 @@ class InvoiceStatus(str, Enum):
 class CateringInvoiceBase(BaseModel):
     program_id: str
     service_date: date
-    regular_meal_count: int
-    vegan_meal_count: int = 0
+    regular_meal_count: int  # Legacy
+    vegan_meal_count: int = 0  # Legacy
+
+    # Per-meal counts
+    breakfast_count: Optional[int] = None
+    breakfast_vegan_count: int = 0
+    lunch_count: Optional[int] = None
+    lunch_vegan_count: int = 0
+    snack_count: Optional[int] = None
+    snack_vegan_count: int = 0
 
 
 class CateringInvoiceCreate(CateringInvoiceBase):
@@ -27,6 +35,15 @@ class CateringInvoiceCreate(CateringInvoiceBase):
 class CateringInvoiceUpdate(BaseModel):
     regular_meal_count: Optional[int] = None
     vegan_meal_count: Optional[int] = None
+
+    # Per-meal counts
+    breakfast_count: Optional[int] = None
+    breakfast_vegan_count: Optional[int] = None
+    lunch_count: Optional[int] = None
+    lunch_vegan_count: Optional[int] = None
+    snack_count: Optional[int] = None
+    snack_vegan_count: Optional[int] = None
+
     status: Optional[InvoiceStatus] = None
     pdf_filename: Optional[str] = None
 

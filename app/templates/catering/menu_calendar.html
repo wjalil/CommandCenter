@@ -18,9 +18,17 @@
   </div>
 </div>
 
-<div class="alert alert-info">
-  <strong>Service Days:</strong> {{ service_days|join(', ') }} |
-  <strong>Meal Types:</strong> {{ meal_types|join(', ') }}
+<div class="alert alert-info d-flex justify-content-between align-items-center">
+  <div>
+    <strong>Service Days:</strong> {{ service_days|join(', ') }} |
+    <strong>Meal Types:</strong> {{ meal_types|join(', ') }}
+  </div>
+  <div class="btn-group" role="group" aria-label="Editor mode">
+    <input type="radio" class="btn-check" name="editorMode" id="modePrebuilt" value="prebuilt" checked>
+    <label class="btn btn-outline-primary" for="modePrebuilt">Pre-built Meals</label>
+    <input type="radio" class="btn-check" name="editorMode" id="modeComponents" value="components">
+    <label class="btn btn-outline-primary" for="modeComponents">Components</label>
+  </div>
 </div>
 
 <!-- Calendar Grid -->
@@ -65,35 +73,62 @@
             {% if day.in_month and day.is_service_day %}
             <div class="meal-preview" id="preview-{{ day.date }}">
               {% if day.menu_day %}
-                {% if 'Breakfast' in meal_types and day.menu_day.breakfast_item %}
-                <div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;">
-                  <strong>B:</strong>
-                  {% if day.menu_day.breakfast_item.components %}
-                    {{ day.menu_day.breakfast_item.components | map(attribute='food_component.name') | join(', ') }}
-                  {% else %}
-                    {{ day.menu_day.breakfast_item.name[:20] }}{% if day.menu_day.breakfast_item.name|length > 20 %}...{% endif %}
+                {# Check if using pre-built meals #}
+                {% set has_meals = day.menu_day.breakfast_item or day.menu_day.lunch_item or day.menu_day.snack_item %}
+                {# Check if using component-first mode (use pre-computed preview) #}
+                {% set has_components = day.component_preview.breakfast or day.component_preview.lunch or day.component_preview.snack %}
+
+                {% if has_meals %}
+                  {# Show pre-built meals #}
+                  {% if 'Breakfast' in meal_types and day.menu_day.breakfast_item %}
+                  <div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;">
+                    <strong>B:</strong>
+                    {% if day.menu_day.breakfast_item.components %}
+                      {{ day.menu_day.breakfast_item.components | map(attribute='food_component.name') | join(', ') }}
+                    {% else %}
+                      {{ day.menu_day.breakfast_item.name[:20] }}{% if day.menu_day.breakfast_item.name|length > 20 %}...{% endif %}
+                    {% endif %}
+                  </div>
                   {% endif %}
-                </div>
-                {% endif %}
-                {% if 'Lunch' in meal_types and day.menu_day.lunch_item %}
-                <div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;">
-                  <strong>L:</strong>
-                  {% if day.menu_day.lunch_item.components %}
-                    {{ day.menu_day.lunch_item.components | map(attribute='food_component.name') | join(', ') }}
-                  {% else %}
-                    {{ day.menu_day.lunch_item.name[:20] }}{% if day.menu_day.lunch_item.name|length > 20 %}...{% endif %}
+                  {% if 'Lunch' in meal_types and day.menu_day.lunch_item %}
+                  <div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;">
+                    <strong>L:</strong>
+                    {% if day.menu_day.lunch_item.components %}
+                      {{ day.menu_day.lunch_item.components | map(attribute='food_component.name') | join(', ') }}
+                    {% else %}
+                      {{ day.menu_day.lunch_item.name[:20] }}{% if day.menu_day.lunch_item.name|length > 20 %}...{% endif %}
+                    {% endif %}
+                  </div>
                   {% endif %}
-                </div>
-                {% endif %}
-                {% if 'Snack' in meal_types and day.menu_day.snack_item %}
-                <div class="meal-item" style="font-size: 0.75rem;">
-                  <strong>S:</strong>
-                  {% if day.menu_day.snack_item.components %}
-                    {{ day.menu_day.snack_item.components | map(attribute='food_component.name') | join(', ') }}
-                  {% else %}
-                    {{ day.menu_day.snack_item.name[:20] }}{% if day.menu_day.snack_item.name|length > 20 %}...{% endif %}
+                  {% if 'Snack' in meal_types and day.menu_day.snack_item %}
+                  <div class="meal-item" style="font-size: 0.75rem;">
+                    <strong>S:</strong>
+                    {% if day.menu_day.snack_item.components %}
+                      {{ day.menu_day.snack_item.components | map(attribute='food_component.name') | join(', ') }}
+                    {% else %}
+                      {{ day.menu_day.snack_item.name[:20] }}{% if day.menu_day.snack_item.name|length > 20 %}...{% endif %}
+                    {% endif %}
+                  </div>
                   {% endif %}
-                </div>
+                {% elif has_components %}
+                  {# Show component-first assignments using pre-computed preview #}
+                  {% if 'Breakfast' in meal_types and day.component_preview.breakfast %}
+                  <div class="meal-item component-item" style="font-size: 0.75rem; margin-bottom: 2px;">
+                    <strong>B:</strong> {{ day.component_preview.breakfast }}
+                  </div>
+                  {% endif %}
+                  {% if 'Lunch' in meal_types and day.component_preview.lunch %}
+                  <div class="meal-item component-item" style="font-size: 0.75rem; margin-bottom: 2px;">
+                    <strong>L:</strong> {{ day.component_preview.lunch }}
+                  </div>
+                  {% endif %}
+                  {% if 'Snack' in meal_types and day.component_preview.snack %}
+                  <div class="meal-item component-item" style="font-size: 0.75rem;">
+                    <strong>S:</strong> {{ day.component_preview.snack }}
+                  </div>
+                  {% endif %}
+                {% else %}
+                  <small class="text-muted">Click to add meals</small>
                 {% endif %}
               {% else %}
                 <small class="text-muted">Click to add meals</small>
@@ -109,7 +144,104 @@
   </div>
 </div>
 
-<!-- Meal Editor Modal -->
+<!-- Component Editor Modal (for component-first mode) -->
+<div class="modal fade" id="componentEditorModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Components for <span id="componentModalDate"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="componentEditingDate">
+
+        {% if 'Breakfast' in meal_types %}
+        <div class="mb-4">
+          <h6>Breakfast</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular Components</label>
+              <div class="component-selector" data-slot="breakfast" data-vegan="false">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-breakfast"></div>
+              </div>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Components</label>
+              <div class="component-selector" data-slot="breakfast_vegan" data-vegan="true">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-breakfast_vegan"></div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if 'Lunch' in meal_types %}
+        <div class="mb-4">
+          <h6>Lunch</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular Components</label>
+              <div class="component-selector" data-slot="lunch" data-vegan="false">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-lunch"></div>
+              </div>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Components</label>
+              <div class="component-selector" data-slot="lunch_vegan" data-vegan="true">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-lunch_vegan"></div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if 'Snack' in meal_types %}
+        <div class="mb-4">
+          <h6>Snack</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular Components</label>
+              <div class="component-selector" data-slot="snack" data-vegan="false">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-snack"></div>
+              </div>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Components</label>
+              <div class="component-selector" data-slot="snack_vegan" data-vegan="true">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-snack_vegan"></div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="saveDayComponents()">Save Day</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Meal Editor Modal (for pre-built meals mode) -->
 <div class="modal fade" id="mealEditorModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -230,16 +362,472 @@
   padding-left: 5px;
   margin-bottom: 3px;
 }
+.meal-item.component-item {
+  border-left-color: #198754;
+}
+
+/* Component Typeahead Styles */
+.component-selector {
+  position: relative;
+}
+.component-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  z-index: 1000;
+  display: none;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.component-dropdown.show {
+  display: block;
+}
+.component-dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+.component-dropdown-item:hover,
+.component-dropdown-item.highlighted {
+  background-color: #e9ecef;
+}
+.component-dropdown-item:last-child {
+  border-bottom: none;
+}
+.component-dropdown-item .comp-name {
+  font-weight: 500;
+}
+.component-dropdown-item .comp-type {
+  font-size: 0.8em;
+  color: #6c757d;
+  margin-left: 8px;
+}
+.component-dropdown-empty {
+  padding: 8px 12px;
+  color: #6c757d;
+  font-style: italic;
+}
+.selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  min-height: 32px;
+}
+.component-tag {
+  display: inline-flex;
+  align-items: center;
+  background-color: #e7f1ff;
+  border: 1px solid #b6d4fe;
+  border-radius: 16px;
+  padding: 4px 10px;
+  font-size: 0.85em;
+}
+.component-tag .tag-remove {
+  margin-left: 6px;
+  cursor: pointer;
+  color: #6c757d;
+  font-weight: bold;
+  line-height: 1;
+}
+.component-tag .tag-remove:hover {
+  color: #dc3545;
+}
 </style>
 
 <script>
-// Store pending changes
+// Store pending changes for pre-built meals mode
 let pendingChanges = {};
+// Store pending changes for component mode
+let pendingComponentChanges = {};
 
 // Current menu days from server
 let menuDays = {{ menu_days_json|safe }};
 
+// Food components map from server
+const foodComponentsMap = {{ food_components_map|safe }};
+
+// Menu day components from server
+let menuDayComponents = {{ menu_day_components_json|safe }};
+
+// Get current editor mode
+function getEditorMode() {
+  return document.querySelector('input[name="editorMode"]:checked').value;
+}
+
 function openMealEditor(dateStr, dayNum) {
+  const mode = getEditorMode();
+
+  if (mode === 'components') {
+    openComponentEditor(dateStr, dayNum);
+  } else {
+    openPrebuiltMealEditor(dateStr, dayNum);
+  }
+}
+
+// Selected components for the current modal session (by slot)
+let selectedComponents = {
+  breakfast: [],
+  breakfast_vegan: [],
+  lunch: [],
+  lunch_vegan: [],
+  snack: [],
+  snack_vegan: []
+};
+
+// All components as array for searching
+const allComponentsList = Object.entries(foodComponentsMap).map(([id, data]) => ({
+  id: parseInt(id),
+  name: data.name,
+  type: data.type,
+  is_vegan: data.is_vegan
+}));
+
+// Current highlighted index in dropdown
+let highlightedIndex = -1;
+let currentDropdown = null;
+
+function openComponentEditor(dateStr, dayNum) {
+  document.getElementById('componentEditingDate').value = dateStr;
+  document.getElementById('componentModalDate').textContent = dateStr;
+
+  // Get existing component data for this day
+  const dayComponents = menuDayComponents[dateStr] || {
+    breakfast: [], breakfast_vegan: [],
+    lunch: [], lunch_vegan: [],
+    snack: [], snack_vegan: []
+  };
+
+  // Reset selected components
+  selectedComponents = {
+    breakfast: [...(dayComponents.breakfast || [])],
+    breakfast_vegan: [...(dayComponents.breakfast_vegan || [])],
+    lunch: [...(dayComponents.lunch || [])],
+    lunch_vegan: [...(dayComponents.lunch_vegan || [])],
+    snack: [...(dayComponents.snack || [])],
+    snack_vegan: [...(dayComponents.snack_vegan || [])]
+  };
+
+  // Clear all search inputs
+  document.querySelectorAll('.component-search').forEach(input => {
+    input.value = '';
+  });
+
+  // Render tags for each slot
+  renderAllTags();
+
+  // Hide all dropdowns
+  document.querySelectorAll('.component-dropdown').forEach(d => d.classList.remove('show'));
+
+  // Show modal
+  new bootstrap.Modal(document.getElementById('componentEditorModal')).show();
+}
+
+function renderAllTags() {
+  const slots = ['breakfast', 'breakfast_vegan', 'lunch', 'lunch_vegan', 'snack', 'snack_vegan'];
+  slots.forEach(slot => {
+    const container = document.getElementById(`tags-${slot}`);
+    if (container) {
+      renderTags(slot, container);
+    }
+  });
+}
+
+function renderTags(slot, container) {
+  const items = selectedComponents[slot] || [];
+  container.innerHTML = items.map(item => `
+    <span class="component-tag" data-id="${item.component_id}">
+      ${item.name}
+      <span class="tag-remove" onclick="removeComponent('${slot}', ${item.component_id})">&times;</span>
+    </span>
+  `).join('');
+}
+
+function removeComponent(slot, componentId) {
+  selectedComponents[slot] = selectedComponents[slot].filter(c => c.component_id !== componentId);
+  const container = document.getElementById(`tags-${slot}`);
+  if (container) {
+    renderTags(slot, container);
+  }
+}
+
+function addComponent(slot, componentId) {
+  // Check if already added
+  if (selectedComponents[slot].some(c => c.component_id === componentId)) {
+    return;
+  }
+
+  const compData = foodComponentsMap[componentId];
+  if (compData) {
+    selectedComponents[slot].push({
+      component_id: componentId,
+      name: compData.name,
+      type: compData.type
+    });
+
+    const container = document.getElementById(`tags-${slot}`);
+    if (container) {
+      renderTags(slot, container);
+    }
+  }
+}
+
+function filterComponents(query, isVeganSlot) {
+  const q = query.toLowerCase().trim();
+  if (!q) return [];
+
+  return allComponentsList
+    .filter(c => {
+      // For vegan slots, only show vegan components
+      if (isVeganSlot && !c.is_vegan) return false;
+      // Match by name or type
+      return c.name.toLowerCase().includes(q) || (c.type && c.type.toLowerCase().includes(q));
+    })
+    .slice(0, 10); // Limit results
+}
+
+function showDropdown(dropdown, results, slot) {
+  if (results.length === 0) {
+    dropdown.innerHTML = '<div class="component-dropdown-empty">No matches found</div>';
+  } else {
+    dropdown.innerHTML = results.map((c, idx) => `
+      <div class="component-dropdown-item${idx === 0 ? ' highlighted' : ''}"
+           data-id="${c.id}"
+           data-index="${idx}"
+           onclick="selectDropdownItem('${slot}', ${c.id})">
+        <span class="comp-name">${c.name}</span>
+        <span class="comp-type">${c.type || ''}</span>
+      </div>
+    `).join('');
+  }
+  dropdown.classList.add('show');
+  highlightedIndex = results.length > 0 ? 0 : -1;
+  currentDropdown = dropdown;
+}
+
+function hideDropdown(dropdown) {
+  dropdown.classList.remove('show');
+  dropdown.innerHTML = '';
+  highlightedIndex = -1;
+  currentDropdown = null;
+}
+
+function selectDropdownItem(slot, componentId) {
+  addComponent(slot, componentId);
+
+  // Clear and hide
+  const selector = document.querySelector(`.component-selector[data-slot="${slot}"]`);
+  if (selector) {
+    const input = selector.querySelector('.component-search');
+    const dropdown = selector.querySelector('.component-dropdown');
+    input.value = '';
+    hideDropdown(dropdown);
+    input.focus();
+  }
+}
+
+function navigateDropdown(direction) {
+  if (!currentDropdown) return;
+
+  const items = currentDropdown.querySelectorAll('.component-dropdown-item');
+  if (items.length === 0) return;
+
+  items[highlightedIndex]?.classList.remove('highlighted');
+
+  if (direction === 'down') {
+    highlightedIndex = (highlightedIndex + 1) % items.length;
+  } else {
+    highlightedIndex = (highlightedIndex - 1 + items.length) % items.length;
+  }
+
+  items[highlightedIndex]?.classList.add('highlighted');
+  items[highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+}
+
+function selectHighlighted(slot) {
+  if (!currentDropdown || highlightedIndex < 0) return false;
+
+  const item = currentDropdown.querySelector(`.component-dropdown-item[data-index="${highlightedIndex}"]`);
+  if (item) {
+    const id = parseInt(item.dataset.id);
+    selectDropdownItem(slot, id);
+    return true;
+  }
+  return false;
+}
+
+// Initialize typeahead event listeners
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.component-selector').forEach(selector => {
+    const slot = selector.dataset.slot;
+    const isVegan = selector.dataset.vegan === 'true';
+    const input = selector.querySelector('.component-search');
+    const dropdown = selector.querySelector('.component-dropdown');
+
+    input.addEventListener('input', function() {
+      const query = this.value;
+      if (query.length < 1) {
+        hideDropdown(dropdown);
+        return;
+      }
+      const results = filterComponents(query, isVegan);
+      showDropdown(dropdown, results, slot);
+    });
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (!dropdown.classList.contains('show') && this.value) {
+          const results = filterComponents(this.value, isVegan);
+          showDropdown(dropdown, results, slot);
+        } else {
+          navigateDropdown('down');
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        navigateDropdown('up');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectHighlighted(slot)) {
+          // Selected from dropdown
+        }
+      } else if (e.key === 'Escape') {
+        hideDropdown(dropdown);
+      }
+    });
+
+    input.addEventListener('blur', function() {
+      // Delay to allow click on dropdown item
+      setTimeout(() => hideDropdown(dropdown), 200);
+    });
+
+    input.addEventListener('focus', function() {
+      if (this.value.length >= 1) {
+        const results = filterComponents(this.value, isVegan);
+        showDropdown(dropdown, results, slot);
+      }
+    });
+  });
+});
+
+function saveDayComponents() {
+  const dateStr = document.getElementById('componentEditingDate').value;
+  const components = [];
+
+  // Collect from selectedComponents
+  {% if 'Breakfast' in meal_types %}
+  selectedComponents.breakfast.forEach(c => {
+    components.push({ component_id: c.component_id, meal_slot: 'breakfast', is_vegan: false });
+  });
+  {% if program.vegan_count > 0 %}
+  selectedComponents.breakfast_vegan.forEach(c => {
+    components.push({ component_id: c.component_id, meal_slot: 'breakfast', is_vegan: true });
+  });
+  {% endif %}
+  {% endif %}
+
+  {% if 'Lunch' in meal_types %}
+  selectedComponents.lunch.forEach(c => {
+    components.push({ component_id: c.component_id, meal_slot: 'lunch', is_vegan: false });
+  });
+  {% if program.vegan_count > 0 %}
+  selectedComponents.lunch_vegan.forEach(c => {
+    components.push({ component_id: c.component_id, meal_slot: 'lunch', is_vegan: true });
+  });
+  {% endif %}
+  {% endif %}
+
+  {% if 'Snack' in meal_types %}
+  selectedComponents.snack.forEach(c => {
+    components.push({ component_id: c.component_id, meal_slot: 'snack', is_vegan: false });
+  });
+  {% if program.vegan_count > 0 %}
+  selectedComponents.snack_vegan.forEach(c => {
+    components.push({ component_id: c.component_id, meal_slot: 'snack', is_vegan: true });
+  });
+  {% endif %}
+  {% endif %}
+
+  // Store in pending component changes
+  pendingComponentChanges[dateStr] = {
+    service_date: dateStr,
+    components: components,
+    replace_existing: true
+  };
+
+  // Update local state for preview
+  updateMenuDayComponentsLocal(dateStr, components);
+
+  // Update preview
+  updateComponentDayPreview(dateStr);
+
+  // Close modal
+  bootstrap.Modal.getInstance(document.getElementById('componentEditorModal')).hide();
+
+  alert('Day saved! Click "Save Changes" button to save all changes to server.');
+}
+
+function updateMenuDayComponentsLocal(dateStr, components) {
+  // Update the local menuDayComponents state
+  menuDayComponents[dateStr] = {
+    breakfast: [],
+    breakfast_vegan: [],
+    lunch: [],
+    lunch_vegan: [],
+    snack: [],
+    snack_vegan: []
+  };
+
+  components.forEach(comp => {
+    const slotKey = comp.is_vegan ? `${comp.meal_slot}_vegan` : comp.meal_slot;
+    const compData = foodComponentsMap[comp.component_id];
+    menuDayComponents[dateStr][slotKey].push({
+      component_id: comp.component_id,
+      name: compData ? compData.name : 'Unknown',
+      type: compData ? compData.type : 'Unknown'
+    });
+  });
+}
+
+function updateComponentDayPreview(dateStr) {
+  const dayComponents = menuDayComponents[dateStr] || {};
+  let html = '';
+
+  {% if 'Breakfast' in meal_types %}
+  const breakfastComps = (dayComponents.breakfast || []).map(c => c.name);
+  if (breakfastComps.length > 0) {
+    html += `<div class="meal-item component-item" style="font-size: 0.75rem; margin-bottom: 2px;"><strong>B:</strong> ${breakfastComps.join(', ')}</div>`;
+  }
+  {% endif %}
+
+  {% if 'Lunch' in meal_types %}
+  const lunchComps = (dayComponents.lunch || []).map(c => c.name);
+  if (lunchComps.length > 0) {
+    html += `<div class="meal-item component-item" style="font-size: 0.75rem; margin-bottom: 2px;"><strong>L:</strong> ${lunchComps.join(', ')}</div>`;
+  }
+  {% endif %}
+
+  {% if 'Snack' in meal_types %}
+  const snackComps = (dayComponents.snack || []).map(c => c.name);
+  if (snackComps.length > 0) {
+    html += `<div class="meal-item component-item" style="font-size: 0.75rem;"><strong>S:</strong> ${snackComps.join(', ')}</div>`;
+  }
+  {% endif %}
+
+  if (!html) {
+    html = '<small class="text-muted">Click to add components</small>';
+  }
+
+  document.getElementById('preview-' + dateStr).innerHTML = html;
+}
+
+function openPrebuiltMealEditor(dateStr, dayNum) {
   document.getElementById('editingDate').value = dateStr;
   document.getElementById('modalDate').textContent = dateStr;
 
@@ -349,32 +937,69 @@ function updateDayPreview(dateStr, dayData) {
 }
 
 async function saveAllChanges() {
-  if (Object.keys(pendingChanges).length === 0) {
+  const hasMealChanges = Object.keys(pendingChanges).length > 0;
+  const hasComponentChanges = Object.keys(pendingComponentChanges).length > 0;
+
+  if (!hasMealChanges && !hasComponentChanges) {
     alert('No changes to save!');
     return;
   }
 
-  const menuDaysArray = Object.values(pendingChanges);
+  let success = true;
 
-  try {
-    const response = await fetch('/catering/monthly-menus/{{ monthly_menu.id }}/menu-days/bulk', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ menu_days: menuDaysArray })
-    });
+  // Save pre-built meal changes
+  if (hasMealChanges) {
+    const menuDaysArray = Object.values(pendingChanges);
+    try {
+      const response = await fetch('/catering/monthly-menus/{{ monthly_menu.id }}/menu-days/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ menu_days: menuDaysArray })
+      });
 
-    if (response.ok) {
-      alert('All changes saved successfully!');
-      pendingChanges = {};
-      location.reload();
-    } else {
-      const error = await response.json();
-      alert('Error saving changes: ' + (error.detail || 'Unknown error'));
+      if (response.ok) {
+        pendingChanges = {};
+      } else {
+        const error = await response.json();
+        alert('Error saving meal changes: ' + (error.detail || 'Unknown error'));
+        success = false;
+      }
+    } catch (err) {
+      alert('Error saving meal changes: ' + err.message);
+      success = false;
     }
-  } catch (err) {
-    alert('Error saving changes: ' + err.message);
+  }
+
+  // Save component changes
+  if (hasComponentChanges) {
+    const componentDaysArray = Object.values(pendingComponentChanges);
+    try {
+      const response = await fetch('/catering/monthly-menus/{{ monthly_menu.id }}/menu-days/components/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ menu_days: componentDaysArray })
+      });
+
+      if (response.ok) {
+        pendingComponentChanges = {};
+      } else {
+        const error = await response.json();
+        alert('Error saving component changes: ' + (error.detail || 'Unknown error'));
+        success = false;
+      }
+    } catch (err) {
+      alert('Error saving component changes: ' + err.message);
+      success = false;
+    }
+  }
+
+  if (success) {
+    alert('All changes saved successfully!');
+    location.reload();
   }
 }
 </script>

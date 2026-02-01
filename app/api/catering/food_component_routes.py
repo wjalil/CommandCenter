@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -10,6 +10,7 @@ from app.schemas.catering import (
 from app.crud.catering import food_component
 from app.db import get_db
 from app.utils.tenant import get_current_tenant_id
+from fastapi.responses import RedirectResponse
 
 router = APIRouter()
 
@@ -77,3 +78,35 @@ async def delete_food_component(
     if not comp:
         raise HTTPException(status_code=404, detail="Food component not found")
     return {"message": "Food component deleted"}
+
+
+# NEW ROUTE: Form-based POST (for modal HTML)
+# ----------------------
+@router.post("/form")
+async def create_food_component_form(
+    request: Request,
+    name: str = Form(...),
+    component_type_id: int = Form(...),
+    default_portion_oz: float = Form(...),
+    is_vegan: bool = Form(False),
+    is_vegetarian: bool = Form(False),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Handle form submission from the modal.
+    Safe: does not break existing JSON route.
+    """
+    tenant_id = get_current_tenant_id(request)
+    component = FoodComponentCreate(
+        name=name,
+        component_type_id=component_type_id,
+        default_portion_oz=default_portion_oz,
+        is_vegan=is_vegan,
+        is_vegetarian=is_vegetarian,
+        tenant_id=tenant_id
+    )
+    await food_component.create_food_component(db, component)
+
+    # redirect back to the list page after creation
+    
+    return RedirectResponse(url="/catering/food-components", status_code=303)

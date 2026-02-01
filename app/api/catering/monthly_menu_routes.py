@@ -7,9 +7,10 @@ from app.schemas.catering import (
     MonthlyMenuUpdate,
     MonthlyMenuRead,
     MenuDayRead,
-    BulkMenuDayUpdate
+    BulkMenuDayUpdate,
+    BulkComponentsRequest
 )
-from app.crud.catering import monthly_menu
+from app.crud.catering import monthly_menu, menu_day_component
 from app.db import get_db
 from app.utils.tenant import get_current_tenant_id
 
@@ -105,3 +106,61 @@ async def delete_monthly_menu(
     if not menu:
         raise HTTPException(status_code=404, detail="Monthly menu not found")
     return {"message": "Monthly menu deleted"}
+
+
+@router.post("/{menu_id}/menu-days/components/bulk")
+async def bulk_assign_components(
+    request: Request,
+    menu_id: str,
+    data: BulkComponentsRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Bulk assign food components to multiple menu days"""
+    tenant_id = get_current_tenant_id(request)
+
+    # Verify the menu exists and belongs to tenant
+    menu = await monthly_menu.get_monthly_menu(db, menu_id, tenant_id)
+    if not menu:
+        raise HTTPException(status_code=404, detail="Monthly menu not found")
+
+    # Process bulk assignment
+    result = await menu_day_component.bulk_assign_components_to_days(
+        db, menu_id, data.menu_days
+    )
+
+    return {
+        "success": True,
+        "message": f"Assigned {result['components_assigned']} components across {result['days_updated']} days"
+    }
+
+
+@router.get("/{menu_id}/menu-days/{day_id}/components")
+async def get_day_components(
+    request: Request,
+    menu_id: str,
+    day_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get components for a specific menu day"""
+    tenant_id = get_current_tenant_id(request)
+
+    # Verify the menu exists and belongs to tenant
+    menu = await monthly_menu.get_monthly_menu(db, menu_id, tenant_id)
+    if not menu:
+        raise HTTPException(status_code=404, detail="Monthly menu not found")
+
+    components = await menu_day_component.get_menu_day_components(db, day_id)
+
+    return [
+        {
+            "id": comp.id,
+            "component_id": comp.component_id,
+            "component_name": comp.food_component.name if comp.food_component else None,
+            "component_type": comp.food_component.component_type.name if comp.food_component and comp.food_component.component_type else None,
+            "meal_slot": comp.meal_slot,
+            "is_vegan": comp.is_vegan,
+            "quantity": float(comp.quantity) if comp.quantity else None,
+            "notes": comp.notes
+        }
+        for comp in components
+    ]

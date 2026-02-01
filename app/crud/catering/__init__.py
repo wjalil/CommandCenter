@@ -4,6 +4,7 @@ from . import meal_item
 from . import program
 from . import monthly_menu
 from . import invoice
+from . import menu_day_component
 
 __all__ = [
     "cacfp_rules",
@@ -12,4 +13,5 @@ __all__ = [
     "program",
     "monthly_menu",
     "invoice",
+    "menu_day_component",
 ]
