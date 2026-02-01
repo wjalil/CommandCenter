@@ -8,8 +8,9 @@
     <p class="text-muted">{{ program.client_name }} | {{ program.total_children }} children ({{ program.vegan_count }} vegan)</p>
   </div>
   <div class="col-md-4 text-end">
-    <div class="btn-group">
+    <div class="d-flex flex-wrap justify-content-end gap-2">
       <a href="/catering/monthly-menus" class="btn btn-outline-secondary">← Back to Menus</a>
+      <a href="/catering/food-components" class="btn btn-outline-success">➕ Add Component</a>
       <form method="POST" action="/catering/monthly-menus/{{ monthly_menu.id }}/generate-invoices" style="display: inline;">
         <button type="submit" class="btn btn-info">📋 Generate All Invoices</button>
       </form>
@@ -24,9 +25,9 @@
     <strong>Meal Types:</strong> {{ meal_types|join(', ') }}
   </div>
   <div class="btn-group" role="group" aria-label="Editor mode">
-    <input type="radio" class="btn-check" name="editorMode" id="modePrebuilt" value="prebuilt" checked>
+    <input type="radio" class="btn-check" name="editorMode" id="modePrebuilt" value="prebuilt">
     <label class="btn btn-outline-primary" for="modePrebuilt">Pre-built Meals</label>
-    <input type="radio" class="btn-check" name="editorMode" id="modeComponents" value="components">
+    <input type="radio" class="btn-check" name="editorMode" id="modeComponents" value="components"checked>
     <label class="btn btn-outline-primary" for="modeComponents">Components</label>
   </div>
 </div>
