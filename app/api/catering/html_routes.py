@@ -1132,18 +1132,21 @@ async def view_invoice(
     if not invoice:
         return RedirectResponse(url="/catering/invoices", status_code=303)
 
-    # Get menu day with all meal item details
-    from app.models.catering import CateringMenuDay
+    # Get menu day with all meal item details AND component-first mode components
+    from app.models.catering import CateringMenuDay, CateringMealItem, CateringMealComponent, MenuDayComponent
     result = await db.execute(
         select(CateringMenuDay)
         .where(CateringMenuDay.id == invoice.menu_day_id)
         .options(
-            selectinload(CateringMenuDay.breakfast_item).selectinload('components').selectinload('food_component'),
-            selectinload(CateringMenuDay.breakfast_vegan_item).selectinload('components').selectinload('food_component'),
-            selectinload(CateringMenuDay.lunch_item).selectinload('components').selectinload('food_component'),
-            selectinload(CateringMenuDay.lunch_vegan_item).selectinload('components').selectinload('food_component'),
-            selectinload(CateringMenuDay.snack_item).selectinload('components').selectinload('food_component'),
-            selectinload(CateringMenuDay.snack_vegan_item).selectinload('components').selectinload('food_component'),
+            # Component-first mode
+            selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component),
+            # Pre-built meal item mode
+            selectinload(CateringMenuDay.breakfast_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.breakfast_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.lunch_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
         )
     )
     menu_day = result.scalar_one_or_none()
@@ -1162,10 +1165,84 @@ async def download_invoice_pdf(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
 ):
-    """Download invoice as PDF (placeholder - use browser print for now)"""
-    # For now, redirect to view page where user can print
-    # TODO: Implement proper PDF generation with ReportLab
-    return RedirectResponse(url=f"/catering/invoices/{invoice_id}/view", status_code=303)
+    """Download invoice as PDF"""
+    tenant_id = request.state.tenant_id
+
+    invoice = await invoice_crud.get_invoice(db, invoice_id, tenant_id)
+    if not invoice:
+        return RedirectResponse(url="/catering/invoices", status_code=303)
+
+    # Get menu day with all meal item details AND component-first mode components
+    from app.models.catering import CateringMenuDay, CateringMealItem, CateringMealComponent, MenuDayComponent
+    menu_day = None
+    if invoice.menu_day_id:
+        result = await db.execute(
+            select(CateringMenuDay)
+            .where(CateringMenuDay.id == invoice.menu_day_id)
+            .options(
+                # Component-first mode
+                selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component),
+                # Pre-built meal item mode
+                selectinload(CateringMenuDay.breakfast_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+                selectinload(CateringMenuDay.breakfast_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+                selectinload(CateringMenuDay.lunch_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+                selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+                selectinload(CateringMenuDay.snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+                selectinload(CateringMenuDay.snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            )
+        )
+        menu_day = result.scalar_one_or_none()
+
+    # Render the template to HTML string
+    html_content = templates.TemplateResponse("catering/invoice_view.html", {
+        "request": request,
+        "invoice": invoice,
+        "menu_day": menu_day,
+    }).body.decode('utf-8')
+
+    # Generate PDF using WeasyPrint
+    try:
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html_content, base_url=str(request.base_url)).write_pdf()
+
+        # Clean filename
+        date_str = invoice.service_date.strftime('%Y-%m-%d')
+        filename = f"Invoice_{invoice.invoice_number}_{date_str}.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except ImportError as e:
+        import logging
+        logging.error(f"WeasyPrint not installed: {e}")
+        return RedirectResponse(
+            url=f"/catering/invoices/{invoice_id}/view?error=PDF+library+not+installed",
+            status_code=303
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Invoice PDF generation failed: {e}")
+        return RedirectResponse(
+            url=f"/catering/invoices/{invoice_id}/view?error=PDF+generation+failed",
+            status_code=303
+        )
+
+
+@router.post("/invoices/{invoice_id}/delete")
+async def delete_invoice_route(
+    request: Request,
+    invoice_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Delete an invoice"""
+    tenant_id = request.state.tenant_id
+    await invoice_crud.delete_invoice(db, invoice_id, tenant_id)
+    return RedirectResponse(url="/catering/invoices", status_code=303)
 
 
 # ==================== FOOD COMPONENTS ====================

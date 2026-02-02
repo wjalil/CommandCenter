@@ -2,14 +2,16 @@
 {% block title %}Meal Items{% endblock %}
 
 {% block content %}
+{% set active = 'meals' %}
+{% include "catering/_nav.html" %}
+
 <div class="row mb-4">
   <div class="col-md-8">
-    <h2>🥗 Meal Items</h2>
+    <h2>Meal Items</h2>
     <p class="text-muted">CACFP-compliant meal recipes</p>
   </div>
   <div class="col-md-4 text-end">
     <a href="/catering/meal-items/create" class="btn btn-primary">+ New Meal Item</a>
-    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
   </div>
 </div>
 

@@ -2,14 +2,16 @@
 {% block title %}Monthly Menus{% endblock %}
 
 {% block content %}
+{% set active = 'menus' %}
+{% include "catering/_nav.html" %}
+
 <div class="row mb-4">
   <div class="col-md-8">
-    <h2>📅 Monthly Menus</h2>
+    <h2>Monthly Menus</h2>
     <p class="text-muted">Plan and manage monthly meal calendars</p>
   </div>
   <div class="col-md-4 text-end">
-    <a href="/catering/monthly-menus/create" class="btn btn-primary">📅 Create Menu</a>
-    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
+    <a href="/catering/monthly-menus/create" class="btn btn-primary">+ Create Menu</a>
   </div>
 </div>
 

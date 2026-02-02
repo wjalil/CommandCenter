@@ -7,7 +7,7 @@ from . import monthly_menu_routes
 from . import invoice_routes
 from . import services_routes
 from . import html_routes
-
+from . import catering_weekly_ingredients
 # Create main catering router
 router = APIRouter()
 
@@ -22,5 +22,6 @@ router.include_router(program_routes.router, prefix="/programs", tags=["Catering
 router.include_router(monthly_menu_routes.router, prefix="/monthly-menus", tags=["Monthly Menus"])
 router.include_router(invoice_routes.router, prefix="/invoices", tags=["Invoices"])
 router.include_router(services_routes.router, prefix="/services", tags=["Catering Services"])
+router.include_router(catering_weekly_ingredients.router, prefix="/weekly-ingredients", tags=["Weekly Ingredients"])
 
 __all__ = ["router"]

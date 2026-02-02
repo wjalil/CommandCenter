@@ -164,18 +164,20 @@ class InvoiceGenerator:
         """
         Generate PDF for an invoice.
 
-        This is a placeholder for future PDF generation using ReportLab or WeasyPrint.
+        Note: PDF generation is handled via the HTML routes using WeasyPrint.
+        Use the /catering/invoices/{invoice_id}/pdf endpoint instead.
 
         Args:
             invoice_id: Invoice to generate PDF for
-            output_path: Where to save the PDF
+            output_path: Where to save the PDF (not used - PDFs are returned as response)
 
         Returns:
-            Path to generated PDF file
+            This method redirects to the route-based PDF generation.
         """
-        # TODO: Implement PDF generation
-        # For now, return a placeholder
+        # PDF generation is implemented in html_routes.py using WeasyPrint
+        # This service method is kept for API compatibility
+        # Use GET /catering/invoices/{invoice_id}/pdf to download PDF
         raise NotImplementedError(
-            "PDF generation will be implemented in a future phase. "
-            "Consider using ReportLab, WeasyPrint, or a template-based approach."
+            "Use the /catering/invoices/{invoice_id}/pdf route endpoint for PDF generation. "
+            "PDF is generated server-side using WeasyPrint."
         )

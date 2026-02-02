@@ -2,13 +2,13 @@
 {% block title %}Catering Invoices{% endblock %}
 
 {% block content %}
+{% set active = 'invoices' %}
+{% include "catering/_nav.html" %}
+
 <div class="row mb-4">
   <div class="col-md-8">
-    <h2>💵 Catering Invoices</h2>
+    <h2>Catering Invoices</h2>
     <p class="text-muted">Track service invoices and payments</p>
-  </div>
-  <div class="col-md-4 text-end">
-    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
   </div>
 </div>
 

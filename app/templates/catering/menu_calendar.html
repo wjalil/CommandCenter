@@ -2,20 +2,22 @@
 {% block title %}{{ program.name }} - {{ month_name }} {{ year }}{% endblock %}
 
 {% block content %}
+{% set active = 'menus' %}
+{% include "catering/_nav.html" %}
+
 <div class="row mb-4">
   <div class="col-md-8">
-    <h2>📅 {{ program.name }} - {{ month_name }} {{ year }}</h2>
+    <h2>{{ program.name }} - {{ month_name }} {{ year }}</h2>
     <p class="text-muted">{{ program.client_name }} | {{ program.total_children }} children ({{ program.vegan_count }} vegan)</p>
   </div>
   <div class="col-md-4 text-end">
     <div class="d-flex flex-wrap justify-content-end gap-2">
-      <a href="/catering/monthly-menus" class="btn btn-outline-secondary">← Back to Menus</a>
-      <a href="/catering/monthly-menus/{{ monthly_menu.id }}/share" class="btn btn-outline-primary">📤 Share Menu</a>
-      <a href="/catering/food-components" class="btn btn-outline-success">➕ Add Component</a>
+      <a href="/catering/monthly-menus/{{ monthly_menu.id }}/share" class="btn btn-outline-primary btn-sm">Share</a>
+      <a href="/catering/weekly-ingredients/monthly-menus/{{ monthly_menu.id }}" class="btn btn-outline-info btn-sm">Ingredients</a>
       <form method="POST" action="/catering/monthly-menus/{{ monthly_menu.id }}/generate-invoices" style="display: inline;">
-        <button type="submit" class="btn btn-info">📋 Generate All Invoices</button>
+        <button type="submit" class="btn btn-info btn-sm">Generate Invoices</button>
       </form>
-      <button type="button" class="btn btn-success" onclick="saveAllChanges()">💾 Save Changes</button>
+      <button type="button" class="btn btn-success btn-sm" onclick="saveAllChanges()">Save Changes</button>
     </div>
   </div>
 </div>

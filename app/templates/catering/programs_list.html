@@ -2,14 +2,16 @@
 {% block title %}Catering Programs{% endblock %}
 
 {% block content %}
+{% set active = 'programs' %}
+{% include "catering/_nav.html" %}
+
 <div class="row mb-4">
   <div class="col-md-8">
-    <h2>📋 Catering Programs</h2>
+    <h2>Catering Programs</h2>
     <p class="text-muted">Manage client programs and service schedules</p>
   </div>
   <div class="col-md-4 text-end">
     <a href="/catering/programs/create" class="btn btn-primary">+ New Program</a>
-    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
   </div>
 </div>
 

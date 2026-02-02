@@ -2,11 +2,16 @@
 {% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
 
 {% block content %}
+{% set active = 'invoices' %}
+{% include "catering/_nav.html" %}
+
 <div class="row mb-3">
   <div class="col-md-12">
-    <a href="/catering/invoices" class="btn btn-outline-secondary btn-sm">← Back to Invoices</a>
-    <a href="/catering/invoices/{{ invoice.id }}/pdf" class="btn btn-primary btn-sm">📄 Download PDF</a>
-    <button class="btn btn-success btn-sm" onclick="window.print()">🖨️ Print</button>
+    <a href="/catering/invoices/{{ invoice.id }}/pdf" class="btn btn-primary btn-sm">Download PDF</a>
+    <button class="btn btn-success btn-sm" onclick="window.print()">Print</button>
+    <form method="POST" action="/catering/invoices/{{ invoice.id }}/delete" style="display: inline;" onsubmit="return confirm('Delete this invoice?');">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
   </div>
 </div>
 
@@ -50,81 +55,186 @@
     </thead>
     <tbody>
       {% if menu_day %}
+        {# Check if using component-first mode #}
+        {% set has_components = menu_day.components and menu_day.components|length > 0 %}
 
-        <!-- Breakfast -->
-        {% if menu_day.breakfast_item and invoice.breakfast_count %}
-        <tr>
-          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.breakfast_count }}</td>
-          <td style="padding: 10px; border: 1px solid #dee2e6;">
-            <strong>Breakfast</strong> (
-            {%- if menu_day.breakfast_item.components -%}
-              {%- for comp in menu_day.breakfast_item.components -%}
-                {{ comp.food_component.name }} {{ comp.portion_oz }}oz
+        {% if has_components %}
+          {# Component-first mode: group by meal_slot with CACFP portions #}
+
+          {# Breakfast - Regular #}
+          {% set breakfast_comps = menu_day.components|selectattr('meal_slot', 'equalto', 'breakfast')|selectattr('is_vegan', 'equalto', false)|list %}
+          {% if breakfast_comps and invoice.breakfast_count %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.breakfast_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Breakfast</strong> (
+              {%- for comp in breakfast_comps|sort(attribute='sort_order') -%}
+                {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
                 {%- if not loop.last %}, {% endif -%}
               {%- endfor -%}
-            {%- else -%}
-              {{ menu_day.breakfast_item.name }}
-            {%- endif -%}
-            )
-          </td>
-        </tr>
-        {% endif %}
+              )
+            </td>
+          </tr>
+          {% endif %}
 
-        <!-- Lunch - Regular -->
-        {% if menu_day.lunch_item and invoice.lunch_count and invoice.lunch_count > 0 %}
-        <tr>
-          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.lunch_count }}</td>
-          <td style="padding: 10px; border: 1px solid #dee2e6;">
-            <strong>Lunch</strong> (
-            {%- if menu_day.lunch_item.components -%}
-              {%- for comp in menu_day.lunch_item.components -%}
-                {{ comp.food_component.name }} {{ comp.portion_oz }}oz
+          {# Breakfast - Vegan #}
+          {% set breakfast_vegan_comps = menu_day.components|selectattr('meal_slot', 'equalto', 'breakfast')|selectattr('is_vegan', 'equalto', true)|list %}
+          {% if breakfast_vegan_comps and invoice.breakfast_vegan_count > 0 %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.breakfast_vegan_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Breakfast - Vegan</strong> (
+              {%- for comp in breakfast_vegan_comps|sort(attribute='sort_order') -%}
+                {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
                 {%- if not loop.last %}, {% endif -%}
               {%- endfor -%}
-            {%- else -%}
-              {{ menu_day.lunch_item.name }}
-            {%- endif -%}
-            )
-          </td>
-        </tr>
-        {% endif %}
+              )
+            </td>
+          </tr>
+          {% endif %}
 
-        <!-- Lunch - Vegan -->
-        {% if menu_day.lunch_vegan_item and invoice.lunch_vegan_count > 0 %}
-        <tr>
-          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.lunch_vegan_count }}</td>
-          <td style="padding: 10px; border: 1px solid #dee2e6;">
-            <strong>Lunch - Vegan</strong> (
-            {%- if menu_day.lunch_vegan_item.components -%}
-              {%- for comp in menu_day.lunch_vegan_item.components -%}
-                {{ comp.food_component.name }} {{ comp.portion_oz }}oz
+          {# Lunch - Regular #}
+          {% set lunch_comps = menu_day.components|selectattr('meal_slot', 'equalto', 'lunch')|selectattr('is_vegan', 'equalto', false)|list %}
+          {% if lunch_comps and invoice.lunch_count and invoice.lunch_count > 0 %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.lunch_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Lunch</strong> (
+              {%- for comp in lunch_comps|sort(attribute='sort_order') -%}
+                {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
                 {%- if not loop.last %}, {% endif -%}
               {%- endfor -%}
-            {%- else -%}
-              {{ menu_day.lunch_vegan_item.name }}
-            {%- endif -%}
-            )
-          </td>
-        </tr>
-        {% endif %}
+              )
+            </td>
+          </tr>
+          {% endif %}
 
-        <!-- Snack -->
-        {% if menu_day.snack_item and invoice.snack_count %}
-        <tr>
-          <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.snack_count }}</td>
-          <td style="padding: 10px; border: 1px solid #dee2e6;">
-            <strong>Snack</strong> (
-            {%- if menu_day.snack_item.components -%}
-              {%- for comp in menu_day.snack_item.components -%}
-                {{ comp.food_component.name }} {{ comp.portion_oz }}oz
+          {# Lunch - Vegan #}
+          {% set lunch_vegan_comps = menu_day.components|selectattr('meal_slot', 'equalto', 'lunch')|selectattr('is_vegan', 'equalto', true)|list %}
+          {% if lunch_vegan_comps and invoice.lunch_vegan_count > 0 %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.lunch_vegan_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Lunch - Vegan</strong> (
+              {%- for comp in lunch_vegan_comps|sort(attribute='sort_order') -%}
+                {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
                 {%- if not loop.last %}, {% endif -%}
               {%- endfor -%}
-            {%- else -%}
-              {{ menu_day.snack_item.name }}
-            {%- endif -%}
-            )
-          </td>
-        </tr>
+              )
+            </td>
+          </tr>
+          {% endif %}
+
+          {# Snack - Regular #}
+          {% set snack_comps = menu_day.components|selectattr('meal_slot', 'equalto', 'snack')|selectattr('is_vegan', 'equalto', false)|list %}
+          {% if snack_comps and invoice.snack_count %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.snack_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Snack</strong> (
+              {%- for comp in snack_comps|sort(attribute='sort_order') -%}
+                {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                {%- if not loop.last %}, {% endif -%}
+              {%- endfor -%}
+              )
+            </td>
+          </tr>
+          {% endif %}
+
+          {# Snack - Vegan #}
+          {% set snack_vegan_comps = menu_day.components|selectattr('meal_slot', 'equalto', 'snack')|selectattr('is_vegan', 'equalto', true)|list %}
+          {% if snack_vegan_comps and invoice.snack_vegan_count > 0 %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.snack_vegan_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Snack - Vegan</strong> (
+              {%- for comp in snack_vegan_comps|sort(attribute='sort_order') -%}
+                {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                {%- if not loop.last %}, {% endif -%}
+              {%- endfor -%}
+              )
+            </td>
+          </tr>
+          {% endif %}
+
+        {% else %}
+          {# Pre-built meal item mode #}
+
+          <!-- Breakfast -->
+          {% if menu_day.breakfast_item and invoice.breakfast_count %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.breakfast_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Breakfast</strong> (
+              {%- if menu_day.breakfast_item.components -%}
+                {%- for comp in menu_day.breakfast_item.components -%}
+                  {{ comp.food_component.name }} {{ comp.portion_oz }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              {%- else -%}
+                {{ menu_day.breakfast_item.name }}
+              {%- endif -%}
+              )
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Lunch - Regular -->
+          {% if menu_day.lunch_item and invoice.lunch_count and invoice.lunch_count > 0 %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.lunch_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Lunch</strong> (
+              {%- if menu_day.lunch_item.components -%}
+                {%- for comp in menu_day.lunch_item.components -%}
+                  {{ comp.food_component.name }} {{ comp.portion_oz }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              {%- else -%}
+                {{ menu_day.lunch_item.name }}
+              {%- endif -%}
+              )
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Lunch - Vegan -->
+          {% if menu_day.lunch_vegan_item and invoice.lunch_vegan_count > 0 %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.lunch_vegan_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Lunch - Vegan</strong> (
+              {%- if menu_day.lunch_vegan_item.components -%}
+                {%- for comp in menu_day.lunch_vegan_item.components -%}
+                  {{ comp.food_component.name }} {{ comp.portion_oz }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              {%- else -%}
+                {{ menu_day.lunch_vegan_item.name }}
+              {%- endif -%}
+              )
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Snack -->
+          {% if menu_day.snack_item and invoice.snack_count %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center;">{{ invoice.snack_count }}</td>
+            <td style="padding: 10px; border: 1px solid #dee2e6;">
+              <strong>Snack</strong> (
+              {%- if menu_day.snack_item.components -%}
+                {%- for comp in menu_day.snack_item.components -%}
+                  {{ comp.food_component.name }} {{ comp.portion_oz }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              {%- else -%}
+                {{ menu_day.snack_item.name }}
+              {%- endif -%}
+              )
+            </td>
+          </tr>
+          {% endif %}
         {% endif %}
 
       {% endif %}

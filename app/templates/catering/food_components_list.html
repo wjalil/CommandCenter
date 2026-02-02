@@ -2,10 +2,13 @@
 {% block title %}Food Components{% endblock %}
 
 {% block content %}
+{% set active = 'components' %}
+{% include "catering/_nav.html" %}
+
 <div class="row mb-3">
   <div class="col-md-8">
-    <h2>🥛 Food Components</h2>
-    <p class="text-muted">Individual food items and portion sizes</p>
+    <h2>Food Components</h2>
+    <p class="text-muted">Individual food items and CACFP portion sizes</p>
   </div>
   <div class="col-md-4 text-end">
     <button
@@ -15,7 +18,6 @@
       data-bs-target="#createComponentModal">
       + New Component
     </button>
-    <a href="/catering" class="btn btn-outline-secondary">← Back</a>
   </div>
 </div>
 
