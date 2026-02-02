@@ -17,6 +17,7 @@ class MenuDayComponentBase(BaseModel):
     meal_slot: MealSlot
     is_vegan: bool = False
     quantity: Optional[Decimal] = None
+    sort_order: int = 0
     notes: Optional[str] = None
 
 
@@ -43,6 +44,7 @@ class MenuDayComponentAssignment(BaseModel):
     meal_slot: MealSlot
     is_vegan: bool = False
     quantity: Optional[Decimal] = None
+    sort_order: int = 0
     notes: Optional[str] = None
 
 

@@ -19,6 +19,7 @@ class MenuDayComponent(Base):
     meal_slot = Column(String, nullable=False)  # breakfast, lunch, snack
     is_vegan = Column(Boolean, default=False, nullable=False)
     quantity = Column(Numeric(5, 2), nullable=True)  # Optional portion override
+    sort_order = Column(Integer, default=0, nullable=False)  # Order within the meal slot
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

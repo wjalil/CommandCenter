@@ -42,7 +42,9 @@
       <td>
         <div class="btn-group btn-group-sm">
           <a href="/catering/monthly-menus/{{ menu.id }}/calendar" class="btn btn-outline-primary">📅 Calendar</a>
+          <a href="/catering/monthly-menus/{{ menu.id }}/share" class="btn btn-outline-info">📤 Share</a>
           <a href="/catering/monthly-menus/{{ menu.id }}/duplicate" class="btn btn-outline-success">📋 Duplicate</a>
+          <button type="button" class="btn btn-outline-danger" onclick="confirmDelete('{{ menu.id }}', '{{ menu.program.name }} - {{ ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][menu.month] }} {{ menu.year }}')">🗑️ Delete</button>
         </div>
       </td>
     </tr>
@@ -56,4 +58,18 @@
   <a href="/catering/monthly-menus/create" class="btn btn-primary">📅 Create Menu</a>
 </div>
 {% endif %}
+
+<!-- Delete confirmation form -->
+<form id="deleteForm" method="POST" style="display: none;">
+</form>
+
+<script>
+function confirmDelete(menuId, menuName) {
+  if (confirm(`Are you sure you want to delete "${menuName}"?\n\nThis will permanently delete all menu days and cannot be undone.`)) {
+    const form = document.getElementById('deleteForm');
+    form.action = `/catering/monthly-menus/${menuId}/delete`;
+    form.submit();
+  }
+}
+</script>
 {% endblock %}

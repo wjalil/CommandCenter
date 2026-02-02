@@ -10,6 +10,7 @@
   <div class="col-md-4 text-end">
     <div class="d-flex flex-wrap justify-content-end gap-2">
       <a href="/catering/monthly-menus" class="btn btn-outline-secondary">← Back to Menus</a>
+      <a href="/catering/monthly-menus/{{ monthly_menu.id }}/share" class="btn btn-outline-primary">📤 Share Menu</a>
       <a href="/catering/food-components" class="btn btn-outline-success">➕ Add Component</a>
       <form method="POST" action="/catering/monthly-menus/{{ monthly_menu.id }}/generate-invoices" style="display: inline;">
         <button type="submit" class="btn btn-info">📋 Generate All Invoices</button>
@@ -416,8 +417,8 @@
 }
 .selected-tags {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
   margin-top: 8px;
   min-height: 32px;
 }
@@ -426,19 +427,41 @@
   align-items: center;
   background-color: #e7f1ff;
   border: 1px solid #b6d4fe;
-  border-radius: 16px;
-  padding: 4px 10px;
+  border-radius: 6px;
+  padding: 6px 10px;
   font-size: 0.85em;
 }
-.component-tag .tag-remove {
-  margin-left: 6px;
+.component-tag .tag-name {
+  flex: 1;
+}
+.component-tag .tag-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+.component-tag .tag-btn {
   cursor: pointer;
   color: #6c757d;
-  font-weight: bold;
-  line-height: 1;
+  font-size: 14px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.05);
 }
-.component-tag .tag-remove:hover {
+.component-tag .tag-btn:hover {
+  background: rgba(0,0,0,0.15);
+}
+.component-tag .tag-btn.tag-remove:hover {
   color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+}
+.component-tag .tag-btn.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 </style>
 
@@ -542,16 +565,44 @@ function renderAllTags() {
 
 function renderTags(slot, container) {
   const items = selectedComponents[slot] || [];
-  container.innerHTML = items.map(item => `
-    <span class="component-tag" data-id="${item.component_id}">
-      ${item.name}
-      <span class="tag-remove" onclick="removeComponent('${slot}', ${item.component_id})">&times;</span>
-    </span>
-  `).join('');
+  container.innerHTML = items.map((item, idx) => {
+    const isFirst = idx === 0;
+    const isLast = idx === items.length - 1;
+    return `
+    <div class="component-tag" data-id="${item.component_id}" data-index="${idx}">
+      <span class="tag-name">${item.name}</span>
+      <span class="tag-actions">
+        <span class="tag-btn ${isFirst ? 'disabled' : ''}" onclick="${isFirst ? '' : `moveComponent('${slot}', ${idx}, -1)`}" title="Move up">&#9650;</span>
+        <span class="tag-btn ${isLast ? 'disabled' : ''}" onclick="${isLast ? '' : `moveComponent('${slot}', ${idx}, 1)`}" title="Move down">&#9660;</span>
+        <span class="tag-btn tag-remove" onclick="removeComponent('${slot}', ${item.component_id})" title="Remove">&times;</span>
+      </span>
+    </div>
+  `;
+  }).join('');
+}
+
+function moveComponent(slot, currentIndex, direction) {
+  const items = selectedComponents[slot];
+  const newIndex = currentIndex + direction;
+
+  if (newIndex < 0 || newIndex >= items.length) return;
+
+  // Swap items
+  const temp = items[currentIndex];
+  items[currentIndex] = items[newIndex];
+  items[newIndex] = temp;
+
+  // Re-render tags
+  const container = document.getElementById(`tags-${slot}`);
+  if (container) {
+    renderTags(slot, container);
+  }
 }
 
 function removeComponent(slot, componentId) {
-  selectedComponents[slot] = selectedComponents[slot].filter(c => c.component_id !== componentId);
+  // Convert to number for consistent comparison (handles both string and number types)
+  const idToRemove = parseInt(componentId);
+  selectedComponents[slot] = selectedComponents[slot].filter(c => parseInt(c.component_id) !== idToRemove);
   const container = document.getElementById(`tags-${slot}`);
   if (container) {
     renderTags(slot, container);
@@ -559,15 +610,16 @@ function removeComponent(slot, componentId) {
 }
 
 function addComponent(slot, componentId) {
-  // Check if already added
-  if (selectedComponents[slot].some(c => c.component_id === componentId)) {
+  // Check if already added (convert to int for consistent comparison)
+  const idToAdd = parseInt(componentId);
+  if (selectedComponents[slot].some(c => parseInt(c.component_id) === idToAdd)) {
     return;
   }
 
   const compData = foodComponentsMap[componentId];
   if (compData) {
     selectedComponents[slot].push({
-      component_id: componentId,
+      component_id: idToAdd,
       name: compData.name,
       type: compData.type
     });
@@ -721,36 +773,36 @@ function saveDayComponents() {
   const dateStr = document.getElementById('componentEditingDate').value;
   const components = [];
 
-  // Collect from selectedComponents
+  // Collect from selectedComponents with sort_order based on position
   {% if 'Breakfast' in meal_types %}
-  selectedComponents.breakfast.forEach(c => {
-    components.push({ component_id: c.component_id, meal_slot: 'breakfast', is_vegan: false });
+  selectedComponents.breakfast.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'breakfast', is_vegan: false, sort_order: idx });
   });
   {% if program.vegan_count > 0 %}
-  selectedComponents.breakfast_vegan.forEach(c => {
-    components.push({ component_id: c.component_id, meal_slot: 'breakfast', is_vegan: true });
+  selectedComponents.breakfast_vegan.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'breakfast', is_vegan: true, sort_order: idx });
   });
   {% endif %}
   {% endif %}
 
   {% if 'Lunch' in meal_types %}
-  selectedComponents.lunch.forEach(c => {
-    components.push({ component_id: c.component_id, meal_slot: 'lunch', is_vegan: false });
+  selectedComponents.lunch.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'lunch', is_vegan: false, sort_order: idx });
   });
   {% if program.vegan_count > 0 %}
-  selectedComponents.lunch_vegan.forEach(c => {
-    components.push({ component_id: c.component_id, meal_slot: 'lunch', is_vegan: true });
+  selectedComponents.lunch_vegan.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'lunch', is_vegan: true, sort_order: idx });
   });
   {% endif %}
   {% endif %}
 
   {% if 'Snack' in meal_types %}
-  selectedComponents.snack.forEach(c => {
-    components.push({ component_id: c.component_id, meal_slot: 'snack', is_vegan: false });
+  selectedComponents.snack.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'snack', is_vegan: false, sort_order: idx });
   });
   {% if program.vegan_count > 0 %}
-  selectedComponents.snack_vegan.forEach(c => {
-    components.push({ component_id: c.component_id, meal_slot: 'snack', is_vegan: true });
+  selectedComponents.snack_vegan.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'snack', is_vegan: true, sort_order: idx });
   });
   {% endif %}
   {% endif %}

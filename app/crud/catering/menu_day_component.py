@@ -27,6 +27,7 @@ async def create_menu_day_component(
         meal_slot=component.meal_slot.value,
         is_vegan=component.is_vegan,
         quantity=component.quantity,
+        sort_order=component.sort_order,
         notes=component.notes
     )
     db.add(new_component)
@@ -116,7 +117,9 @@ async def bulk_assign_components(
         await delete_menu_day_components(db, menu_day_id)
 
     created_components = []
-    for comp in components:
+    for idx, comp in enumerate(components):
+        # Use provided sort_order or default to index position
+        sort_order = comp.sort_order if hasattr(comp, 'sort_order') and comp.sort_order else idx
         new_component = MenuDayComponent(
             id=str(uuid.uuid4()),
             menu_day_id=menu_day_id,
@@ -124,6 +127,7 @@ async def bulk_assign_components(
             meal_slot=comp.meal_slot.value,
             is_vegan=comp.is_vegan,
             quantity=comp.quantity,
+            sort_order=sort_order,
             notes=comp.notes
         )
         db.add(new_component)

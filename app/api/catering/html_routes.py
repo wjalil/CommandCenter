@@ -5,7 +5,7 @@ Serves Jinja2 templates for the catering UI
 """
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -543,12 +543,16 @@ async def menu_create(
     )
     monthly_menu = await menu_crud.create_monthly_menu(db, menu_data)
 
-    # If copying from existing menu, duplicate the menu days
+    # If copying from existing menu, duplicate the menu days and components
     if copy_from_menu_id:
         source_menu = await menu_crud.get_monthly_menu(db, copy_from_menu_id, tenant_id)
         if source_menu and source_menu.menu_days:
             from datetime import datetime
             from calendar import monthrange
+            from app.crud.catering import menu_day_component as mdc_crud
+            from app.schemas.catering import MenuDayAssignment
+            from app.models.catering import MenuDayComponent
+            import uuid
 
             # Get number of days in target month
             num_days = monthrange(year, month)[1]
@@ -561,7 +565,7 @@ async def menu_create(
                 if source_day_num <= num_days:
                     target_date = datetime(year, month, source_day_num).date()
 
-                    from app.schemas.catering import MenuDayAssignment
+                    # Create/update the menu day with pre-built meal items
                     day_data = MenuDayAssignment(
                         service_date=target_date,
                         breakfast_item_id=source_day.breakfast_item_id,
@@ -572,7 +576,25 @@ async def menu_create(
                         snack_vegan_item_id=source_day.snack_vegan_item_id,
                         notes=source_day.notes
                     )
-                    await menu_crud.upsert_menu_day(db, monthly_menu.id, day_data)
+                    new_day = await menu_crud.upsert_menu_day(db, monthly_menu.id, day_data)
+
+                    # Also copy the MenuDayComponent records (component-first mode)
+                    if hasattr(source_day, 'components') and source_day.components:
+                        for source_comp in source_day.components:
+                            new_comp = MenuDayComponent(
+                                id=str(uuid.uuid4()),
+                                menu_day_id=new_day.id,
+                                component_id=source_comp.component_id,
+                                meal_slot=source_comp.meal_slot,
+                                is_vegan=source_comp.is_vegan,
+                                quantity=source_comp.quantity,
+                                sort_order=source_comp.sort_order if hasattr(source_comp, 'sort_order') else 0,
+                                notes=source_comp.notes
+                            )
+                            db.add(new_comp)
+
+            # Commit all the component copies
+            await db.commit()
 
     return RedirectResponse(
         url=f"/catering/monthly-menus/{monthly_menu.id}/calendar",
@@ -607,6 +629,21 @@ async def menu_duplicate_redirect(
         url=f"/catering/monthly-menus/create?program_id={source_menu.program_id}&copy_from={menu_id}&month={next_month}&year={next_year}",
         status_code=303
     )
+
+
+@router.post("/monthly-menus/{menu_id}/delete")
+async def menu_delete(
+    request: Request,
+    menu_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Delete a monthly menu and all its menu days"""
+    tenant_id = request.state.tenant_id
+
+    await menu_crud.delete_monthly_menu(db, menu_id, tenant_id)
+
+    return RedirectResponse(url="/catering/monthly-menus", status_code=303)
 
 
 @router.get("/monthly-menus/{menu_id}/calendar")
@@ -663,11 +700,12 @@ async def menu_calendar_view(
             return preview
 
         for slot in ['breakfast', 'lunch', 'snack']:
-            names = [
-                comp.food_component.name
-                for comp in menu_day.components
-                if comp.meal_slot == slot and not comp.is_vegan and comp.food_component
-            ]
+            # Sort by sort_order and filter to non-vegan components for the preview
+            slot_components = sorted(
+                [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
+                key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
+            )
+            names = [comp.food_component.name for comp in slot_components]
             preview[slot] = ', '.join(names)
         return preview
 
@@ -755,7 +793,9 @@ async def menu_calendar_view(
             "snack_vegan": []
         }
         if hasattr(day, 'components') and day.components:
-            for comp in day.components:
+            # Sort components by sort_order before adding
+            sorted_components = sorted(day.components, key=lambda c: (c.meal_slot, c.is_vegan, c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0))
+            for comp in sorted_components:
                 slot_key = comp.meal_slot
                 if comp.is_vegan:
                     slot_key = f"{comp.meal_slot}_vegan"
@@ -763,7 +803,8 @@ async def menu_calendar_view(
                     "id": comp.id,
                     "component_id": comp.component_id,
                     "name": comp.food_component.name if comp.food_component else None,
-                    "type": comp.food_component.component_type.name if comp.food_component and comp.food_component.component_type else None
+                    "type": comp.food_component.component_type.name if comp.food_component and comp.food_component.component_type else None,
+                    "sort_order": comp.sort_order if hasattr(comp, 'sort_order') else 0
                 })
 
     return templates.TemplateResponse("catering/menu_calendar.html", {
@@ -788,6 +829,238 @@ async def menu_calendar_view(
         "food_components_map": json.dumps(food_components_map),
         "menu_day_components_json": json.dumps(menu_day_components),
     })
+
+
+# ==================== SHAREABLE MENU ====================
+
+@router.get("/monthly-menus/{menu_id}/share")
+async def menu_share_view(
+    request: Request,
+    menu_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Show shareable/printable menu view"""
+    tenant_id = request.state.tenant_id
+
+    # Get the monthly menu with all related data
+    monthly_menu = await menu_crud.get_monthly_menu(db, menu_id, tenant_id)
+    if not monthly_menu:
+        return RedirectResponse(url="/catering/monthly-menus", status_code=303)
+
+    # Get the program
+    program = await program_crud.get_program(db, monthly_menu.program_id, tenant_id)
+    if not program:
+        return RedirectResponse(url="/catering/monthly-menus", status_code=303)
+
+    # Parse program settings
+    service_days = json.loads(program.service_days) if isinstance(program.service_days, str) else (program.service_days or [])
+    meal_types = json.loads(program.meal_types_required) if isinstance(program.meal_types_required, str) else (program.meal_types_required or [])
+
+    # Build calendar (same logic as calendar view)
+    from calendar import monthcalendar, month_name, setfirstweekday, SUNDAY
+    from datetime import datetime, date as dt_date
+
+    setfirstweekday(SUNDAY)
+    month_weeks = monthcalendar(monthly_menu.year, monthly_menu.month)
+
+    menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
+
+    def get_component_preview(menu_day):
+        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
+            return preview
+        for slot in ['breakfast', 'lunch', 'snack']:
+            # Sort by sort_order for consistent display order
+            slot_components = sorted(
+                [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
+                key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
+            )
+            names = [comp.food_component.name for comp in slot_components]
+            preview[slot] = ', '.join(names)
+        return preview
+
+    calendar_weeks = []
+    for week in month_weeks:
+        week_data = []
+        for day_num in week:
+            if day_num == 0:
+                week_data.append({
+                    'day': '',
+                    'date': '',
+                    'in_month': False,
+                    'is_service_day': False,
+                    'menu_day': None,
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
+                })
+            else:
+                date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)
+                date_str = date_obj.isoformat()
+                day_name = date_obj.strftime('%A')
+                is_service_day = day_name in service_days
+                menu_day = menu_days_dict.get(date_str)
+
+                week_data.append({
+                    'day': day_num,
+                    'date': date_str,
+                    'in_month': True,
+                    'is_service_day': is_service_day,
+                    'menu_day': menu_day,
+                    'component_preview': get_component_preview(menu_day)
+                })
+        calendar_weeks.append(week_data)
+
+    from datetime import datetime as dt
+    generated_date = dt.now().strftime('%B %d, %Y')
+
+    # Check which weekend days are service days
+    show_sunday = 'Sunday' in service_days
+    show_saturday = 'Saturday' in service_days
+
+    return templates.TemplateResponse("catering/menu_share.html", {
+        "request": request,
+        "monthly_menu": monthly_menu,
+        "program": program,
+        "month_name": month_name[monthly_menu.month],
+        "year": monthly_menu.year,
+        "service_days": service_days,
+        "meal_types": meal_types,
+        "calendar_weeks": calendar_weeks,
+        "generated_date": generated_date,
+        "show_sunday": show_sunday,
+        "show_saturday": show_saturday,
+    })
+
+
+@router.get("/monthly-menus/{menu_id}/pdf")
+async def menu_pdf_download(
+    request: Request,
+    menu_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Generate and download menu as PDF"""
+    tenant_id = request.state.tenant_id
+
+    # Get the monthly menu with all related data
+    monthly_menu = await menu_crud.get_monthly_menu(db, menu_id, tenant_id)
+    if not monthly_menu:
+        return RedirectResponse(url="/catering/monthly-menus", status_code=303)
+
+    # Get the program
+    program = await program_crud.get_program(db, monthly_menu.program_id, tenant_id)
+    if not program:
+        return RedirectResponse(url="/catering/monthly-menus", status_code=303)
+
+    # Parse program settings
+    service_days = json.loads(program.service_days) if isinstance(program.service_days, str) else (program.service_days or [])
+    meal_types = json.loads(program.meal_types_required) if isinstance(program.meal_types_required, str) else (program.meal_types_required or [])
+
+    # Build calendar
+    from calendar import monthcalendar, month_name, setfirstweekday, SUNDAY
+    from datetime import datetime, date as dt_date
+
+    setfirstweekday(SUNDAY)
+    month_weeks = monthcalendar(monthly_menu.year, monthly_menu.month)
+
+    menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
+
+    def get_component_preview(menu_day):
+        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
+            return preview
+        for slot in ['breakfast', 'lunch', 'snack']:
+            # Sort by sort_order for consistent display order
+            slot_components = sorted(
+                [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
+                key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
+            )
+            names = [comp.food_component.name for comp in slot_components]
+            preview[slot] = ', '.join(names)
+        return preview
+
+    calendar_weeks = []
+    for week in month_weeks:
+        week_data = []
+        for day_num in week:
+            if day_num == 0:
+                week_data.append({
+                    'day': '',
+                    'date': '',
+                    'in_month': False,
+                    'is_service_day': False,
+                    'menu_day': None,
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
+                })
+            else:
+                date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)
+                date_str = date_obj.isoformat()
+                day_name = date_obj.strftime('%A')
+                is_service_day = day_name in service_days
+                menu_day = menu_days_dict.get(date_str)
+
+                week_data.append({
+                    'day': day_num,
+                    'date': date_str,
+                    'in_month': True,
+                    'is_service_day': is_service_day,
+                    'menu_day': menu_day,
+                    'component_preview': get_component_preview(menu_day)
+                })
+        calendar_weeks.append(week_data)
+
+    from datetime import datetime as dt
+    generated_date = dt.now().strftime('%B %d, %Y')
+
+    # Check which weekend days are service days
+    show_sunday = 'Sunday' in service_days
+    show_saturday = 'Saturday' in service_days
+
+    # Render the template to HTML string
+    html_content = templates.TemplateResponse("catering/menu_share.html", {
+        "request": request,
+        "monthly_menu": monthly_menu,
+        "program": program,
+        "month_name": month_name[monthly_menu.month],
+        "year": monthly_menu.year,
+        "service_days": service_days,
+        "meal_types": meal_types,
+        "calendar_weeks": calendar_weeks,
+        "generated_date": generated_date,
+        "show_sunday": show_sunday,
+        "show_saturday": show_saturday,
+    }).body.decode('utf-8')
+
+    # Generate PDF using WeasyPrint
+    try:
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html_content, base_url=str(request.base_url)).write_pdf()
+
+        filename = f"{program.name.replace(' ', '_')}_{month_name[monthly_menu.month]}_{monthly_menu.year}_Menu.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except ImportError as e:
+        # WeasyPrint not installed
+        import logging
+        logging.error(f"WeasyPrint not installed: {e}")
+        return RedirectResponse(
+            url=f"/catering/monthly-menus/{menu_id}/share?error=PDF+library+not+installed",
+            status_code=303
+        )
+    except Exception as e:
+        # Handle other errors - log the actual error
+        import logging
+        logging.error(f"PDF generation failed: {e}")
+        return RedirectResponse(
+            url=f"/catering/monthly-menus/{menu_id}/share?error=PDF+generation+failed:+{str(e)[:50]}",
+            status_code=303
+        )
 
 
 # ==================== INVOICES ====================
