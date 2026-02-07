@@ -1,0 +1,173 @@
+{% extends "worker_base.html" %}
+{% block title %}My Time Clock{% endblock %}
+{% block nav_title %}Time Clock{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h2 class="section-title">My Time Clock</h2>
+  <p style="color: var(--text-secondary);">View your clock in/out history</p>
+</div>
+
+<!-- Date Range Filter -->
+<div class="glass-card p-3 mb-4">
+  <form method="get" class="d-flex flex-wrap align-items-end gap-3">
+    <div>
+      <label class="form-label mb-1 small fw-bold">Start</label>
+      <input type="date" class="form-control" name="start" id="startInput" value="{{ start }}">
+    </div>
+    <div>
+      <label class="form-label mb-1 small fw-bold">End</label>
+      <input type="date" class="form-control" name="end" id="endInput" value="{{ end }}">
+    </div>
+    <div>
+      <button class="btn btn-primary btn-sm">Apply</button>
+    </div>
+    <div class="ms-auto d-flex gap-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="presetThisWeek">This Week</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="presetLastWeek">Last Week</button>
+    </div>
+  </form>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6">
+    <div class="glass-card p-3 text-center">
+      <div style="color: var(--text-secondary); font-size: 0.85rem;" class="fw-bold">Total Hours</div>
+      <div class="fw-bold" style="font-size: 1.8rem;">{{ total_hours }}</div>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="glass-card p-3 text-center">
+      <div style="color: var(--text-secondary); font-size: 0.85rem;" class="fw-bold">Gross Pay</div>
+      <div class="fw-bold" style="font-size: 1.8rem;">${{ "%.2f"|format(total_gross) }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Entries List -->
+{% if entries %}
+<div class="list-group">
+  {% for entry in entries %}
+  <div class="list-group-item">
+    <div class="d-flex justify-content-between align-items-start">
+      <div class="flex-grow-1">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="fw-bold">
+            <span class="ts-et" data-iso="{{ entry.clock_in.isoformat() }}Z">{{ entry.clock_in.strftime('%b %d, %Y') }}</span>
+          </span>
+          {% if entry.status.value == 'OPEN' %}
+          <span class="badge bg-warning">Clocked In</span>
+          {% elif entry.status.value == 'CLOSED' %}
+          <span class="badge bg-info">Closed</span>
+          {% elif entry.status.value == 'APPROVED' %}
+          <span class="badge bg-primary">Approved</span>
+          {% elif entry.status.value == 'PAID' %}
+          <span class="badge bg-success">Paid</span>
+          {% endif %}
+        </div>
+
+        <div class="d-flex flex-wrap gap-3" style="font-size: 0.9rem;">
+          <div>
+            <span style="color: var(--text-secondary);">In:</span>
+            <span class="fw-bold ts-time" data-iso="{{ entry.clock_in.isoformat() }}Z">{{ entry.clock_in.strftime('%I:%M %p') }}</span>
+          </div>
+          <div>
+            <span style="color: var(--text-secondary);">Out:</span>
+            {% if entry.clock_out %}
+            <span class="fw-bold ts-time" data-iso="{{ entry.clock_out.isoformat() }}Z">{{ entry.clock_out.strftime('%I:%M %p') }}</span>
+            {% else %}
+            <span style="color: var(--accent-amber);" class="fw-bold">Still clocked in</span>
+            {% endif %}
+          </div>
+          {% if entry.duration_minutes is not none %}
+          <div>
+            <span style="color: var(--text-secondary);">Duration:</span>
+            <span class="fw-bold">{{ "%.1f"|format(entry.duration_minutes / 60) }}h</span>
+          </div>
+          {% endif %}
+          {% if entry.gross_pay %}
+          <div>
+            <span style="color: var(--text-secondary);">Pay:</span>
+            <span class="fw-bold" style="color: var(--accent-emerald);">${{ "%.2f"|format(entry.gross_pay|float) }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if entry.notes %}
+        <div class="mt-1" style="font-size: 0.85rem; color: var(--text-secondary);">
+          <em>{{ entry.notes }}</em>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+  <p class="mb-0">No time entries found for this period.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Format times to Eastern Time
+  const ET = "America/New_York";
+  const fmtDate = new Intl.DateTimeFormat('en-US', {
+    timeZone: ET, weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+  });
+  const fmtTime = new Intl.DateTimeFormat('en-US', {
+    timeZone: ET, hour: 'numeric', minute: '2-digit'
+  });
+
+  document.querySelectorAll('.ts-et').forEach(el => {
+    const iso = el.getAttribute('data-iso');
+    if (!iso) return;
+    el.textContent = fmtDate.format(new Date(iso));
+  });
+
+  document.querySelectorAll('.ts-time').forEach(el => {
+    const iso = el.getAttribute('data-iso');
+    if (!iso) return;
+    el.textContent = fmtTime.format(new Date(iso));
+  });
+
+  // Preset buttons
+  const startInput = document.getElementById('startInput');
+  const endInput = document.getElementById('endInput');
+
+  function toYMD(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function mondayOfWeekET(d) {
+    const et = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: ET, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d));
+    const dow = new Intl.DateTimeFormat('en-US', { timeZone: ET, weekday: 'short' }).format(d);
+    const idx = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[dow];
+    return new Date(et.getTime() - idx * 24 * 3600 * 1000);
+  }
+
+  function addDays(d, n) { return new Date(d.getTime() + n * 24 * 3600 * 1000); }
+
+  function applyPreset(s, e) {
+    startInput.value = toYMD(s);
+    endInput.value = toYMD(e);
+    startInput.closest('form').submit();
+  }
+
+  document.getElementById('presetThisWeek')?.addEventListener('click', () => {
+    const mon = mondayOfWeekET(new Date());
+    applyPreset(mon, addDays(mon, 7));
+  });
+
+  document.getElementById('presetLastWeek')?.addEventListener('click', () => {
+    const thisMon = mondayOfWeekET(new Date());
+    applyPreset(addDays(thisMon, -7), thisMon);
+  });
+</script>
+{% endblock %}

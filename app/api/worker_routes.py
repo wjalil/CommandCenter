@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, Request, Form
+from fastapi import APIRouter, Depends, Request, Form, Query
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as dt_date
 from typing import Optional, Dict, List, Tuple
 import pytz
 
@@ -509,3 +509,61 @@ async def worker_menu_pdf(
             url=f"/worker/menus/{menu_id}/view",
             status_code=303
         )
+
+
+# -----------------------------
+# Worker: Timeclock History
+# -----------------------------
+@router.get("/worker/timeclock")
+async def worker_timeclock_history(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+):
+    """View personal clock in/out history"""
+    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+        return templates.TemplateResponse("unauthorized.html", {"request": request})
+
+    # Default to current week (Monday to next Monday)
+    today = dt_date.today()
+    if not start:
+        monday = today - timedelta(days=today.weekday())
+        start = monday.isoformat()
+    if not end:
+        monday = today - timedelta(days=today.weekday())
+        end_date = monday + timedelta(days=7)
+        end = end_date.isoformat()
+
+    s_date = datetime.fromisoformat(start).date() if isinstance(start, str) else start
+    e_date = datetime.fromisoformat(end).date() if isinstance(end, str) else end
+
+    # Fetch entries for this worker in the date range
+    result = await db.execute(
+        select(TimeEntry)
+        .where(
+            TimeEntry.tenant_id == user.tenant_id,
+            TimeEntry.user_id == user.id,
+            TimeEntry.clock_in >= s_date,
+            TimeEntry.clock_in < e_date,
+        )
+        .order_by(TimeEntry.clock_in.desc())
+    )
+    entries = result.scalars().all()
+
+    # Calculate totals
+    total_minutes = sum(e.duration_minutes or 0 for e in entries)
+    total_hours = round(total_minutes / 60, 2)
+    total_gross = sum(float(e.gross_pay or 0) for e in entries)
+
+    return templates.TemplateResponse("worker_timeclock.html", {
+        "request": request,
+        "entries": entries,
+        "start": start,
+        "end": end,
+        "total_hours": total_hours,
+        "total_gross": round(total_gross, 2),
+        "worker_name": getattr(user, "name", "Worker"),
+        "pytz": pytz,
+    })
