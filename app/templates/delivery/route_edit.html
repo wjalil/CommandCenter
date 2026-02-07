@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}{% if route %}Edit Route{% else %}Create Route{% endif %}{% endblock %}
+
+{% block content %}
+{% set active = 'routes' %}
+{% include "delivery/_nav.html" %}
+
+<div class="row mb-4">
+  <div class="col">
+    <h2>{% if route %}Edit Route{% else %}Create Route{% endif %}</h2>
+    <p class="text-muted">
+      {% if route %}
+      Modify route details and stops
+      {% else %}
+      Set up a new delivery route
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<form action="{% if route %}/delivery/admin/routes/{{ route.id }}/edit{% else %}/delivery/admin/routes/create{% endif %}" method="POST">
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-header">Route Details</div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Route Name *</label>
+            <input type="text" name="name" class="form-control"
+                   value="{{ route.name if route else '' }}"
+                   placeholder="e.g., Morning Route A" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Date *</label>
+            <input type="date" name="date" class="form-control"
+                   value="{{ route.date.isoformat() if route else '' }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Assign Driver</label>
+            <select name="assigned_driver_id" class="form-select">
+              <option value="">-- Unassigned --</option>
+              {% for driver in drivers %}
+              <option value="{{ driver.id }}"
+                      {% if route and route.assigned_driver_id == driver.id %}selected{% endif %}>
+                {{ driver.name }} ({{ driver.role }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea name="notes" class="form-control" rows="2">{{ route.notes if route else '' }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-header">Route Stops</div>
+        <div class="card-body">
+          <p class="text-muted small">Select stops and drag to reorder</p>
+
+          <!-- Selected Stops List -->
+          <div id="selectedStops" class="mb-3">
+            {% for rs in selected_stops %}
+            <div class="selected-stop d-flex align-items-center p-2 mb-2 bg-light rounded" data-stop-id="{{ rs.stop.id }}">
+              <span class="drag-handle me-2" style="cursor:grab;">&#9776;</span>
+              <span class="flex-grow-1">{{ rs.stop.name }}</span>
+              <input type="hidden" name="stop_ids[]" value="{{ rs.stop.id }}">
+              <button type="button" class="btn btn-sm btn-outline-danger remove-stop">X</button>
+            </div>
+            {% endfor %}
+          </div>
+
+          <!-- Available Stops Dropdown -->
+          <div class="mb-3">
+            <label class="form-label">Add Stop</label>
+            <select id="addStopSelect" class="form-select">
+              <option value="">-- Select a stop to add --</option>
+              {% for stop in stops %}
+              <option value="{{ stop.id }}" data-name="{{ stop.name }}">{{ stop.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <a href="/delivery/admin/routes" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">
+        {% if route %}Save Changes{% else %}Create Route{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+
+<style>
+  .selected-stop {
+    border: 1px solid #dee2e6;
+  }
+  .selected-stop:hover {
+    background-color: #e9ecef !important;
+  }
+  .drag-handle {
+    font-size: 1.2rem;
+    color: #6c757d;
+  }
+  .sortable-ghost {
+    opacity: 0.4;
+    background-color: #ffc107 !important;
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const selectedStopsContainer = document.getElementById('selectedStops');
+  const addStopSelect = document.getElementById('addStopSelect');
+
+  // Initialize Sortable for drag-and-drop reordering
+  new Sortable(selectedStopsContainer, {
+    animation: 150,
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost'
+  });
+
+  // Add stop from dropdown
+  addStopSelect.addEventListener('change', function() {
+    const stopId = this.value;
+    const stopName = this.options[this.selectedIndex].dataset.name;
+
+    if (!stopId) return;
+
+    // Check if already added
+    if (selectedStopsContainer.querySelector(`[data-stop-id="${stopId}"]`)) {
+      alert('This stop is already in the route');
+      this.value = '';
+      return;
+    }
+
+    // Create new stop element
+    const stopDiv = document.createElement('div');
+    stopDiv.className = 'selected-stop d-flex align-items-center p-2 mb-2 bg-light rounded';
+    stopDiv.dataset.stopId = stopId;
+    stopDiv.innerHTML = `
+      <span class="drag-handle me-2" style="cursor:grab;">&#9776;</span>
+      <span class="flex-grow-1">${stopName}</span>
+      <input type="hidden" name="stop_ids[]" value="${stopId}">
+      <button type="button" class="btn btn-sm btn-outline-danger remove-stop">X</button>
+    `;
+    selectedStopsContainer.appendChild(stopDiv);
+
+    // Reset dropdown
+    this.value = '';
+  });
+
+  // Remove stop (event delegation)
+  selectedStopsContainer.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-stop')) {
+      e.target.closest('.selected-stop').remove();
+    }
+  });
+});
+</script>
+{% endblock %}

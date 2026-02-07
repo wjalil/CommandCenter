@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Delivery Dashboard{% endblock %}
+
+{% block content %}
+{% set active = 'dashboard' %}
+{% include "delivery/_nav.html" %}
+
+<div class="row mb-4">
+  <div class="col">
+    <h2>Delivery Dashboard</h2>
+    <p class="text-muted">Manage delivery routes and stops</p>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h3 class="display-4">{{ stops_count }}</h3>
+        <p class="text-muted mb-3">Active Stops</p>
+        <a href="/delivery/admin/stops" class="btn btn-outline-primary btn-sm">Manage Stops</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h3 class="display-4">{{ routes_count }}</h3>
+        <p class="text-muted mb-3">Upcoming Routes</p>
+        <a href="/delivery/admin/routes" class="btn btn-outline-primary btn-sm">View Routes</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h3 class="display-4">+</h3>
+        <p class="text-muted mb-3">Create New</p>
+        <a href="/delivery/admin/routes/create" class="btn btn-primary btn-sm">New Route</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col">
+    <div class="card">
+      <div class="card-header">
+        <strong>Quick Actions</strong>
+      </div>
+      <div class="card-body">
+        <a href="/delivery/admin/stops" class="btn btn-outline-secondary me-2">+ Add Stop</a>
+        <a href="/delivery/admin/routes/create" class="btn btn-outline-secondary me-2">+ Create Route</a>
+        <a href="/delivery/driver/" class="btn btn-outline-secondary">Driver View</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

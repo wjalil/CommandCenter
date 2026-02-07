@@ -29,3 +29,8 @@ from .catering import (
     CateringMenuDay,
     CateringInvoice,
 )
+from .delivery import (
+    DeliveryStop,
+    DeliveryRoute,
+    DeliveryRouteStop,
+)

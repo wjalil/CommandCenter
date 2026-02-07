@@ -210,6 +210,13 @@
       <div class="label">Catering</div>
     </a>
     {% endif %}
+
+    {% if enabled_modules.get("delivery", True) %}
+    <a href="/delivery/admin/" class="quick-action-btn">
+      <div class="icon">🚛</div>
+      <div class="label">Delivery Routes</div>
+    </a>
+    {% endif %}
   </div>
 
   <!-- Row 1 -->
@@ -249,6 +256,16 @@
                 <span class="badge bg-success ms-2">New</span>
               </a>
               <div class="text-muted small ms-4">Programs, menus, invoices</div>
+            </li>
+            {% endif %}
+
+            {% if enabled_modules.get("delivery", True) %}
+            <li class="mb-2">
+              <a href="/delivery/admin/" class="card-link fw-bold text-primary d-flex align-items-center">
+                <span>🚛 Delivery Routes</span>
+                <span class="badge bg-success ms-2">New</span>
+              </a>
+              <div class="text-muted small ms-4">Manage routes, stops & drivers</div>
             </li>
             {% endif %}
 

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}My Delivery Routes{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h2>My Delivery Routes</h2>
+    <p class="text-muted">{{ today.strftime('%A, %B %d, %Y') }}</p>
+  </div>
+</div>
+
+<!-- Today's Routes -->
+<div class="mb-4">
+  <h4>Today</h4>
+  {% if todays_routes %}
+  <div class="list-group">
+    {% for route in todays_routes %}
+    <a href="/delivery/driver/route/{{ route.id }}" class="list-group-item list-group-item-action">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-1">{{ route.name }}</h5>
+          <small class="text-muted">{{ route.route_stops|length }} stops</small>
+        </div>
+        <div class="text-end">
+          {% if route.status == 'assigned' %}
+          <span class="badge bg-info">Ready</span>
+          {% elif route.status == 'in_progress' %}
+          <span class="badge bg-warning">In Progress</span>
+          {% elif route.status == 'completed' %}
+          <span class="badge bg-success">Completed</span>
+          {% endif %}
+        </div>
+      </div>
+      {% if route.notes %}
+      <small class="text-muted">{{ route.notes }}</small>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    <p class="mb-0">No routes assigned for today.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Upcoming Routes -->
+{% if upcoming_routes %}
+<div class="mb-4">
+  <h4>Upcoming</h4>
+  <div class="list-group">
+    {% for route in upcoming_routes %}
+    <a href="/delivery/driver/route/{{ route.id }}" class="list-group-item list-group-item-action">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-1">{{ route.name }}</h5>
+          <small class="text-muted">
+            {{ route.date.strftime('%a, %b %d') }} - {{ route.route_stops|length }} stops
+          </small>
+        </div>
+        <div class="text-end">
+          <span class="badge bg-secondary">{{ route.date.strftime('%m/%d') }}</span>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="mt-4">
+  <a href="/worker" class="btn btn-outline-secondary">Back to Home</a>
+</div>
+{% endblock %}

@@ -71,7 +71,14 @@
         {% endif %}
       </td>
       <td>
-        <button class="btn btn-sm btn-outline-danger" onclick="deleteComponent('{{ comp.id }}')">Delete</button>
+        <button class="btn btn-sm btn-outline-secondary me-1 edit-btn"
+          data-id="{{ comp.id }}"
+          data-name="{{ comp.name }}"
+          data-type-id="{{ comp.component_type_id }}"
+          data-portion="{{ comp.default_portion_oz }}"
+          data-vegan="{{ comp.is_vegan | lower }}"
+          data-vegetarian="{{ comp.is_vegetarian | lower }}">Edit</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteComponent({{ comp.id }})">Delete</button>
       </td>
     </tr>
     {% endfor %}
@@ -108,7 +115,7 @@
           </div>
           <div class="mb-3">
             <label for="portion" class="form-label">Default Portion (oz)</label>
-            <input type="number" class="form-control" id="portion" name="default_portion_oz" required>
+            <input type="number" class="form-control" id="portion" name="default_portion_oz" step="0.1" required>
           </div>
           <div class="form-check">
             <input class="form-check-input" type="checkbox" value="1" id="isVegan" name="is_vegan">
@@ -128,15 +135,60 @@
   </div>
 </div>
 
+<!-- Edit Component Modal -->
+<div class="modal fade" id="editComponentModal" tabindex="-1" aria-labelledby="editComponentModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="editComponentForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editComponentModalLabel">Edit Food Component</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="editCompId">
+          <div class="mb-3">
+            <label for="editCompName" class="form-label">Name</label>
+            <input type="text" class="form-control" id="editCompName" required>
+          </div>
+          <div class="mb-3">
+            <label for="editCompType" class="form-label">Type</label>
+            <select class="form-select" id="editCompType" required>
+              {% for ct in component_types %}
+                <option value="{{ ct.id }}">{{ ct.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="editPortion" class="form-label">Default Portion (oz)</label>
+            <input type="number" class="form-control" id="editPortion" step="0.1" required>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="editIsVegan">
+            <label class="form-check-label" for="editIsVegan">Vegan</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="editIsVegetarian">
+            <label class="form-check-label" for="editIsVegetarian">Vegetarian</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
 const searchInput = document.getElementById("searchInput");
 const typeFilter = document.getElementById("typeFilter");
 const dietFilter = document.getElementById("dietFilter");
 
 function applyFilters() {
-  const search = searchInput.value.toLowerCase();
-  const type = typeFilter.value;
-  const diet = dietFilter.value;
+  const search = searchInput ? searchInput.value.toLowerCase() : "";
+  const type = typeFilter ? typeFilter.value : "";
+  const diet = dietFilter ? dietFilter.value : "";
 
   document.querySelectorAll("#componentsTable tbody tr").forEach(row => {
     const matchesSearch = row.dataset.name.includes(search);
@@ -147,9 +199,9 @@ function applyFilters() {
   });
 }
 
-searchInput.addEventListener("input", applyFilters);
-typeFilter.addEventListener("change", applyFilters);
-dietFilter.addEventListener("change", applyFilters);
+if (searchInput) searchInput.addEventListener("input", applyFilters);
+if (typeFilter) typeFilter.addEventListener("change", applyFilters);
+if (dietFilter) dietFilter.addEventListener("change", applyFilters);
 
 let sortDir = true;
 function sortTable(colIndex) {
@@ -170,8 +222,71 @@ function sortTable(colIndex) {
 function deleteComponent(id) {
   if (confirm('Delete this food component?')) {
     fetch(`/catering/food-components/${id}`, { method: 'DELETE' })
-      .then(() => location.reload());
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.detail || 'Failed to delete component');
+          });
+        }
+        return response.json();
+      })
+      .then(() => location.reload())
+      .catch(error => {
+        alert('Error deleting component: ' + error.message);
+      });
   }
+}
+
+// Edit component functionality
+let editModal = null;
+
+document.querySelectorAll('.edit-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    if (!editModal) {
+      editModal = new bootstrap.Modal(document.getElementById('editComponentModal'));
+    }
+    document.getElementById('editCompId').value = this.dataset.id;
+    document.getElementById('editCompName').value = this.dataset.name;
+    document.getElementById('editCompType').value = this.dataset.typeId;
+    document.getElementById('editPortion').value = this.dataset.portion;
+    document.getElementById('editIsVegan').checked = this.dataset.vegan === 'true';
+    document.getElementById('editIsVegetarian').checked = this.dataset.vegetarian === 'true';
+    editModal.show();
+  });
+});
+
+const editForm = document.getElementById('editComponentForm');
+if (editForm) {
+  editForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('editCompId').value;
+    const data = {
+      name: document.getElementById('editCompName').value,
+      component_type_id: parseInt(document.getElementById('editCompType').value),
+      default_portion_oz: parseFloat(document.getElementById('editPortion').value),
+      is_vegan: document.getElementById('editIsVegan').checked,
+      is_vegetarian: document.getElementById('editIsVegetarian').checked
+    };
+
+    fetch(`/catering/food-components/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    .then(response => {
+      if (!response.ok) {
+        return response.json().then(data => {
+          throw new Error(data.detail || 'Failed to update component');
+        });
+      }
+      return response.json();
+    })
+    .then(() => location.reload())
+    .catch(error => {
+      alert('Error updating component: ' + error.message);
+    });
+  });
 }
 </script>
 {% endblock %}

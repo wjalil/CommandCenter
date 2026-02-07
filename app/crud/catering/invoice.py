@@ -118,14 +118,13 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
     program = monthly_menu.program
 
     # Check if invoice already exists for this day
-    existing = await db.execute(
+    existing_result = await db.execute(
         select(CateringInvoice).where(
             CateringInvoice.menu_day_id == menu_day_id,
             CateringInvoice.tenant_id == tenant_id
         )
     )
-    if existing.scalar_one_or_none():
-        return None  # Invoice already exists
+    existing_invoice = existing_result.scalar_one_or_none()
 
     # Get per-meal counts (fall back to legacy total_children if not set)
     breakfast_count = program.breakfast_count if program.breakfast_count is not None else program.total_children
@@ -157,22 +156,33 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
         has_snack = menu_day.snack_item_id is not None
         has_snack_vegan = menu_day.snack_vegan_item_id is not None
 
-    # Create invoice with per-meal counts
-    invoice_data = CateringInvoiceCreate(
-        program_id=program.id,
-        monthly_menu_id=monthly_menu.id,
-        menu_day_id=menu_day_id,
-        service_date=menu_day.service_date,
-        # Legacy fields (for backward compat)
+    # Build meal count fields
+    meal_counts = dict(
         regular_meal_count=program.total_children - program.vegan_count,
         vegan_meal_count=program.vegan_count,
-        # Per-meal counts based on what's actually assigned
         breakfast_count=breakfast_count if has_breakfast else None,
         breakfast_vegan_count=breakfast_vegan if has_breakfast_vegan else 0,
         lunch_count=lunch_count - lunch_vegan if has_lunch else None,
         lunch_vegan_count=lunch_vegan if has_lunch_vegan else 0,
         snack_count=snack_count if has_snack else None,
         snack_vegan_count=0 if has_snack_vegan else 0,
+    )
+
+    # Update existing invoice if one already exists for this menu day
+    if existing_invoice:
+        for key, value in meal_counts.items():
+            setattr(existing_invoice, key, value)
+        await db.commit()
+        await db.refresh(existing_invoice)
+        return existing_invoice
+
+    # Create new invoice
+    invoice_data = CateringInvoiceCreate(
+        program_id=program.id,
+        monthly_menu_id=monthly_menu.id,
+        menu_day_id=menu_day_id,
+        service_date=menu_day.service_date,
+        **meal_counts,
         tenant_id=tenant_id
     )
 
@@ -189,8 +199,10 @@ async def generate_bulk_invoices_for_month(db: AsyncSession, monthly_menu_id: st
 
     generated_invoices = []
     for menu_day in monthly_menu.menu_days:
-        # Only generate if has meals assigned
-        if menu_day.breakfast_item_id or menu_day.lunch_item_id or menu_day.snack_item_id:
+        # Check both pre-built meal items and component-first mode
+        has_meal_items = menu_day.breakfast_item_id or menu_day.lunch_item_id or menu_day.snack_item_id
+        has_components = hasattr(menu_day, 'components') and menu_day.components and len(menu_day.components) > 0
+        if has_meal_items or has_components:
             invoice = await generate_invoice_from_menu_day(db, menu_day.id, tenant_id)
             if invoice:
                 generated_invoices.append(invoice)

@@ -24,6 +24,7 @@ class User(Base):
     submissions = relationship("TaskSubmission", back_populates="worker")
     vending_logs = relationship("VendingLog", back_populates="submitter", cascade="all, delete-orphan")
     hourly_rate = Column(Numeric(10,2), nullable=True) # per-tenant rate
+    assigned_routes = relationship("DeliveryRoute", back_populates="assigned_driver")
 
     # Security: Prevent PIN collision between tenants
     __table_args__ = (

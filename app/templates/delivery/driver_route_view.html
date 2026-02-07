@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}{{ route.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+  <div class="col">
+    <a href="/delivery/driver/" class="btn btn-sm btn-outline-secondary mb-2">&larr; Back</a>
+    <h2>{{ route.name }}</h2>
+    <p class="text-muted">
+      {{ route.date.strftime('%A, %B %d, %Y') }}
+      <br>
+      <span class="badge {% if route.status == 'in_progress' %}bg-warning{% elif route.status == 'completed' %}bg-success{% else %}bg-info{% endif %}">
+        {{ route.status|replace('_', ' ')|title }}
+      </span>
+    </p>
+  </div>
+</div>
+
+<!-- Progress Bar -->
+<div class="mb-4">
+  <div class="d-flex justify-content-between mb-1">
+    <small>Progress</small>
+    <small>{{ completed_count }} / {{ total_count }}</small>
+  </div>
+  <div class="progress" style="height: 10px;">
+    <div class="progress-bar bg-success" role="progressbar"
+         style="width: {{ (completed_count / total_count * 100) if total_count > 0 else 0 }}%"></div>
+  </div>
+</div>
+
+<!-- Start Route Button -->
+{% if route.status in ['draft', 'assigned'] %}
+<form action="/delivery/driver/route/{{ route.id }}/start" method="POST" class="mb-4">
+  <button type="submit" class="btn btn-primary btn-lg w-100">Start Route</button>
+</form>
+{% endif %}
+
+<!-- Stops List -->
+<div class="list-group mb-4">
+  {% for rs in route_stops %}
+  <div class="list-group-item {% if rs.status == 'completed' %}list-group-item-success{% elif rs.status == 'skipped' %}list-group-item-secondary{% endif %}">
+    <div class="d-flex justify-content-between align-items-start">
+      <div class="flex-grow-1">
+        <div class="d-flex align-items-center mb-1">
+          <span class="badge bg-dark me-2">{{ rs.stop_order }}</span>
+          <h5 class="mb-0">{{ rs.stop.name }}</h5>
+        </div>
+
+        {% if rs.stop.address %}
+        <p class="mb-1 small text-muted">{{ rs.stop.address }}</p>
+        {% endif %}
+
+        {% if rs.stop.contact_name or rs.stop.contact_phone %}
+        <p class="mb-1 small">
+          {% if rs.stop.contact_name %}{{ rs.stop.contact_name }}{% endif %}
+          {% if rs.stop.contact_phone %} - {{ rs.stop.contact_phone }}{% endif %}
+        </p>
+        {% endif %}
+
+        {% if rs.stop.notes %}
+        <p class="mb-1 small fst-italic">{{ rs.stop.notes }}</p>
+        {% endif %}
+
+        <!-- Status info -->
+        {% if rs.status == 'completed' %}
+        <small class="text-success">
+          Completed {{ rs.completed_at.strftime('%I:%M %p') if rs.completed_at else '' }}
+          {% if rs.notes %} - {{ rs.notes }}{% endif %}
+        </small>
+        {% elif rs.status == 'skipped' %}
+        <small class="text-muted">
+          Skipped {% if rs.notes %} - {{ rs.notes }}{% endif %}
+        </small>
+        {% elif rs.arrival_time %}
+        <small class="text-info">
+          Arrived {{ rs.arrival_time.strftime('%I:%M %p') }}
+        </small>
+        {% endif %}
+
+        {% if rs.photo_filename %}
+        <div class="mt-2">
+          <a href="/static/uploads/delivery/{{ rs.photo_filename }}" target="_blank">
+            <img src="/static/uploads/delivery/{{ rs.photo_filename }}"
+                 alt="Delivery photo" style="max-width: 100px; max-height: 60px;" class="rounded">
+          </a>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="ms-3">
+        {% if rs.status == 'pending' and route.status == 'in_progress' %}
+          {% if not rs.arrival_time %}
+          <form action="/delivery/driver/stop/{{ rs.id }}/arrive" method="POST" class="mb-2">
+            <button type="submit" class="btn btn-outline-info btn-sm w-100">Arrive</button>
+          </form>
+          {% endif %}
+
+          <button type="button" class="btn btn-success btn-sm w-100 mb-1"
+                  data-bs-toggle="modal" data-bs-target="#completeModal{{ rs.id }}">
+            Complete
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm w-100"
+                  data-bs-toggle="modal" data-bs-target="#skipModal{{ rs.id }}">
+            Skip
+          </button>
+        {% elif rs.status == 'completed' %}
+          <span class="badge bg-success">Done</span>
+        {% elif rs.status == 'skipped' %}
+          <span class="badge bg-secondary">Skipped</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Complete Modal -->
+  <div class="modal fade" id="completeModal{{ rs.id }}" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form action="/delivery/driver/stop/{{ rs.id }}/complete" method="POST" enctype="multipart/form-data">
+          <div class="modal-header">
+            <h5 class="modal-title">Complete Stop: {{ rs.stop.name }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Notes (optional)</label>
+              <textarea name="notes" class="form-control" rows="2" placeholder="Any notes about this delivery..."></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Photo (optional)</label>
+              <input type="file" name="photo" class="form-control" accept="image/*" capture="environment">
+              <small class="text-muted">Take a photo as proof of delivery</small>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success">Mark Complete</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skip Modal -->
+  <div class="modal fade" id="skipModal{{ rs.id }}" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <form action="/delivery/driver/stop/{{ rs.id }}/skip" method="POST">
+          <div class="modal-header">
+            <h5 class="modal-title">Skip Stop</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Reason *</label>
+              <input type="text" name="reason" class="form-control" placeholder="e.g., Closed, No access" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-warning">Skip Stop</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Complete Route Button -->
+{% if route.status == 'in_progress' and completed_count == total_count and total_count > 0 %}
+<form action="/delivery/driver/route/{{ route.id }}/complete" method="POST" class="mb-4">
+  <button type="submit" class="btn btn-success btn-lg w-100">Complete Route</button>
+</form>
+{% endif %}
+
+{% if route.notes %}
+<div class="card mb-4">
+  <div class="card-header">Route Notes</div>
+  <div class="card-body">
+    <p class="mb-0">{{ route.notes }}</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

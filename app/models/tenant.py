@@ -40,3 +40,7 @@ class Tenant(Base):
     catering_programs = relationship("CateringProgram", back_populates="tenant")
     catering_monthly_menus = relationship("CateringMonthlyMenu", back_populates="tenant")
     catering_invoices = relationship("CateringInvoice", back_populates="tenant")
+
+    # Delivery module
+    delivery_stops = relationship("DeliveryStop", back_populates="tenant")
+    delivery_routes = relationship("DeliveryRoute", back_populates="tenant")

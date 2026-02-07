@@ -51,7 +51,7 @@ async def get_food_component(
     return comp
 
 
-@router.put("/{component_id}", response_model=FoodComponentRead)
+@router.put("/{component_id}")
 async def update_food_component(
     request: Request,
     component_id: int,
@@ -63,7 +63,7 @@ async def update_food_component(
     comp = await food_component.update_food_component(db, component_id, tenant_id, updates)
     if not comp:
         raise HTTPException(status_code=404, detail="Food component not found")
-    return comp
+    return {"message": "Food component updated", "id": comp.id}
 
 
 @router.delete("/{component_id}")
@@ -74,9 +74,19 @@ async def delete_food_component(
 ):
     """Delete a food component"""
     tenant_id = get_current_tenant_id(request)
-    comp = await food_component.delete_food_component(db, component_id, tenant_id)
+    comp, usage = await food_component.delete_food_component(db, component_id, tenant_id)
     if not comp:
         raise HTTPException(status_code=404, detail="Food component not found")
+    if usage:
+        details = []
+        if usage.get("meal_items", 0) > 0:
+            details.append(f"{usage['meal_items']} meal item(s)")
+        if usage.get("menu_days", 0) > 0:
+            details.append(f"{usage['menu_days']} menu day(s)")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete: component is used in {' and '.join(details)}"
+        )
     return {"message": "Food component deleted"}
 
 

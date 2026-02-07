@@ -11,7 +11,10 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import date
+from collections import defaultdict
 import json
+import io
+import zipfile
 
 from app.db import get_db
 from app.auth.dependencies import get_current_admin_user
@@ -1065,19 +1068,60 @@ async def menu_pdf_download(
 
 # ==================== INVOICES ====================
 
+async def _get_menu_day_for_invoice(db: AsyncSession, menu_day_id: str):
+    """Load a menu day with all meal item and component relationships for PDF rendering."""
+    from app.models.catering import CateringMenuDay, CateringMealItem, CateringMealComponent, MenuDayComponent
+    if not menu_day_id:
+        return None
+    result = await db.execute(
+        select(CateringMenuDay)
+        .where(CateringMenuDay.id == menu_day_id)
+        .options(
+            selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component),
+            selectinload(CateringMenuDay.breakfast_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.breakfast_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.lunch_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def _generate_invoice_pdf_bytes(request: Request, db: AsyncSession, invoice) -> bytes:
+    """Generate PDF bytes for a single invoice using WeasyPrint."""
+    from weasyprint import HTML
+    menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
+    html_content = templates.TemplateResponse("catering/invoice_view.html", {
+        "request": request,
+        "invoice": invoice,
+        "menu_day": menu_day,
+    }).body.decode('utf-8')
+    return HTML(string=html_content, base_url=str(request.base_url)).write_pdf()
+
+
 @router.get("/invoices")
 async def invoices_list(
     request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
 ):
-    """List invoices"""
+    """List invoices grouped by program"""
     tenant_id = request.state.tenant_id
     invoices = await invoice_crud.get_invoices(db, tenant_id)
 
+    # Group invoices by program
+    grouped = defaultdict(list)
+    for inv in invoices:
+        grouped[inv.program].append(inv)
+
+    # Sort programs alphabetically by name
+    programs_with_invoices = sorted(grouped.items(), key=lambda x: x[0].name)
+
     return templates.TemplateResponse("catering/invoices_list.html", {
         "request": request,
-        "invoices": invoices,
+        "programs_with_invoices": programs_with_invoices,
     })
 
 
@@ -1112,8 +1156,9 @@ async def generate_bulk_invoices(
 
     invoices = await invoice_crud.generate_bulk_invoices_for_month(db, menu_id, tenant_id)
 
+    msg = f"{len(invoices)} invoices generated/updated" if invoices else "No menu days with meals found"
     return RedirectResponse(
-        url=f"/catering/invoices?message={len(invoices)} invoices generated",
+        url=f"/catering/invoices?message={msg}",
         status_code=303
     )
 
@@ -1132,24 +1177,7 @@ async def view_invoice(
     if not invoice:
         return RedirectResponse(url="/catering/invoices", status_code=303)
 
-    # Get menu day with all meal item details AND component-first mode components
-    from app.models.catering import CateringMenuDay, CateringMealItem, CateringMealComponent, MenuDayComponent
-    result = await db.execute(
-        select(CateringMenuDay)
-        .where(CateringMenuDay.id == invoice.menu_day_id)
-        .options(
-            # Component-first mode
-            selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component),
-            # Pre-built meal item mode
-            selectinload(CateringMenuDay.breakfast_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.breakfast_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.lunch_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-        )
-    )
-    menu_day = result.scalar_one_or_none()
+    menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
 
     return templates.TemplateResponse("catering/invoice_view.html", {
         "request": request,
@@ -1172,40 +1200,9 @@ async def download_invoice_pdf(
     if not invoice:
         return RedirectResponse(url="/catering/invoices", status_code=303)
 
-    # Get menu day with all meal item details AND component-first mode components
-    from app.models.catering import CateringMenuDay, CateringMealItem, CateringMealComponent, MenuDayComponent
-    menu_day = None
-    if invoice.menu_day_id:
-        result = await db.execute(
-            select(CateringMenuDay)
-            .where(CateringMenuDay.id == invoice.menu_day_id)
-            .options(
-                # Component-first mode
-                selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component),
-                # Pre-built meal item mode
-                selectinload(CateringMenuDay.breakfast_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMenuDay.breakfast_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMenuDay.lunch_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMenuDay.snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMenuDay.snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            )
-        )
-        menu_day = result.scalar_one_or_none()
-
-    # Render the template to HTML string
-    html_content = templates.TemplateResponse("catering/invoice_view.html", {
-        "request": request,
-        "invoice": invoice,
-        "menu_day": menu_day,
-    }).body.decode('utf-8')
-
-    # Generate PDF using WeasyPrint
     try:
-        from weasyprint import HTML
-        pdf_bytes = HTML(string=html_content, base_url=str(request.base_url)).write_pdf()
+        pdf_bytes = await _generate_invoice_pdf_bytes(request, db, invoice)
 
-        # Clean filename
         date_str = invoice.service_date.strftime('%Y-%m-%d')
         filename = f"Invoice_{invoice.invoice_number}_{date_str}.pdf"
 
@@ -1228,6 +1225,58 @@ async def download_invoice_pdf(
         logging.error(f"Invoice PDF generation failed: {e}")
         return RedirectResponse(
             url=f"/catering/invoices/{invoice_id}/view?error=PDF+generation+failed",
+            status_code=303
+        )
+
+
+@router.get("/invoices/program/{program_id}/download-all")
+async def download_program_invoices_zip(
+    request: Request,
+    program_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Download all invoices for a program as a zip file"""
+    tenant_id = request.state.tenant_id
+
+    invoices = await invoice_crud.get_invoices(db, tenant_id, program_id=program_id)
+    if not invoices:
+        return RedirectResponse(url="/catering/invoices", status_code=303)
+
+    program_name = invoices[0].program.name
+
+    try:
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for invoice in invoices:
+                pdf_bytes = await _generate_invoice_pdf_bytes(request, db, invoice)
+                date_str = invoice.service_date.strftime('%Y-%m-%d')
+                pdf_filename = f"Invoice_{invoice.invoice_number}_{date_str}.pdf"
+                zf.writestr(pdf_filename, pdf_bytes)
+
+        zip_buffer.seek(0)
+        safe_name = program_name.replace(' ', '_').replace('/', '-')
+        zip_filename = f"{safe_name}_invoices.zip"
+
+        return Response(
+            content=zip_buffer.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{zip_filename}"'
+            }
+        )
+    except ImportError as e:
+        import logging
+        logging.error(f"WeasyPrint not installed: {e}")
+        return RedirectResponse(
+            url="/catering/invoices?error=PDF+library+not+installed",
+            status_code=303
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Bulk PDF generation failed: {e}")
+        return RedirectResponse(
+            url="/catering/invoices?error=Bulk+PDF+generation+failed",
             status_code=303
         )
 

@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from app.models.catering import FoodComponent
+from sqlalchemy import func
+from app.models.catering import FoodComponent, CateringMealComponent, MenuDayComponent
 from app.schemas.catering import FoodComponentCreate, FoodComponentUpdate
 
 
@@ -57,14 +58,38 @@ async def update_food_component(db: AsyncSession, component_id: int, tenant_id: 
         setattr(component, key, value)
 
     await db.commit()
-    await db.refresh(component)
-    return component
+    # Re-fetch with relationship loaded for proper serialization
+    return await get_food_component(db, component_id, tenant_id)
+
+
+async def check_food_component_usage(db: AsyncSession, component_id: int):
+    """Check if a food component is being used in meal items or menu days"""
+    # Check CateringMealComponent usage
+    meal_result = await db.execute(
+        select(func.count()).where(CateringMealComponent.food_component_id == component_id)
+    )
+    meal_count = meal_result.scalar()
+
+    # Check MenuDayComponent usage
+    menu_result = await db.execute(
+        select(func.count()).where(MenuDayComponent.component_id == component_id)
+    )
+    menu_count = menu_result.scalar()
+
+    return meal_count, menu_count
 
 
 async def delete_food_component(db: AsyncSession, component_id: int, tenant_id: int):
     """Delete a food component"""
     component = await get_food_component(db, component_id, tenant_id)
-    if component:
-        await db.delete(component)
-        await db.commit()
-    return component
+    if not component:
+        return None, None
+
+    # Check if component is in use
+    meal_count, menu_count = await check_food_component_usage(db, component_id)
+    if meal_count > 0 or menu_count > 0:
+        return component, {"meal_items": meal_count, "menu_days": menu_count}
+
+    await db.delete(component)
+    await db.commit()
+    return component, None

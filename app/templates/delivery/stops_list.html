@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Delivery Stops{% endblock %}
+
+{% block content %}
+{% set active = 'stops' %}
+{% include "delivery/_nav.html" %}
+
+<div class="row mb-4">
+  <div class="col-md-8">
+    <h2>Delivery Stops</h2>
+    <p class="text-muted">Reusable delivery locations</p>
+  </div>
+  <div class="col-md-4 text-end">
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStopModal">
+      + Add Stop
+    </button>
+  </div>
+</div>
+
+{% if stops %}
+<table class="nice-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Address</th>
+      <th>Contact</th>
+      <th>Notes</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for stop in stops %}
+    <tr>
+      <td><strong>{{ stop.name }}</strong></td>
+      <td>{{ stop.address or '-' }}</td>
+      <td>
+        {% if stop.contact_name %}{{ stop.contact_name }}{% endif %}
+        {% if stop.contact_phone %}<br><small class="text-muted">{{ stop.contact_phone }}</small>{% endif %}
+        {% if not stop.contact_name and not stop.contact_phone %}-{% endif %}
+      </td>
+      <td><small>{{ stop.notes or '-' }}</small></td>
+      <td>
+        {% if stop.is_active %}
+        <span class="badge bg-success">Active</span>
+        {% else %}
+        <span class="badge bg-secondary">Inactive</span>
+        {% endif %}
+      </td>
+      <td>
+        <button type="button" class="btn btn-sm btn-outline-primary"
+                data-bs-toggle="modal"
+                data-bs-target="#editStopModal{{ stop.id }}">
+          Edit
+        </button>
+        {% if stop.is_active %}
+        <form action="/delivery/admin/stops/{{ stop.id }}/delete" method="POST" style="display:inline;">
+          <button type="submit" class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Deactivate this stop?')">
+            Deactivate
+          </button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+
+    <!-- Edit Modal for each stop -->
+    <div class="modal fade" id="editStopModal{{ stop.id }}" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form action="/delivery/admin/stops/{{ stop.id }}/edit" method="POST">
+            <div class="modal-header">
+              <h5 class="modal-title">Edit Stop</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label">Name *</label>
+                <input type="text" name="name" class="form-control" value="{{ stop.name }}" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Address</label>
+                <input type="text" name="address" class="form-control" value="{{ stop.address or '' }}">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Contact Name</label>
+                <input type="text" name="contact_name" class="form-control" value="{{ stop.contact_name or '' }}">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Contact Phone</label>
+                <input type="text" name="contact_phone" class="form-control" value="{{ stop.contact_phone or '' }}">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Notes</label>
+                <textarea name="notes" class="form-control" rows="2">{{ stop.notes or '' }}</textarea>
+              </div>
+              <div class="form-check">
+                <input type="checkbox" name="is_active" class="form-check-input" id="active{{ stop.id }}"
+                       {% if stop.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="active{{ stop.id }}">Active</label>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">
+  <h5>No Stops Yet</h5>
+  <p>Add your first delivery stop to get started.</p>
+  <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStopModal">
+    + Add Stop
+  </button>
+</div>
+{% endif %}
+
+<!-- Add Stop Modal -->
+<div class="modal fade" id="addStopModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form action="/delivery/admin/stops" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title">Add Delivery Stop</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Name *</label>
+            <input type="text" name="name" class="form-control" placeholder="e.g., Disney Vending Machine" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Address</label>
+            <input type="text" name="address" class="form-control" placeholder="123 Main St">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Contact Name</label>
+            <input type="text" name="contact_name" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Contact Phone</label>
+            <input type="text" name="contact_phone" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Delivery instructions..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Stop</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
