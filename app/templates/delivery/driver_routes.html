@@ -1,25 +1,24 @@
-{% extends "base.html" %}
+{% extends "worker_base.html" %}
 {% block title %}My Delivery Routes{% endblock %}
+{% block nav_title %}My Routes{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-  <div class="col">
-    <h2>My Delivery Routes</h2>
-    <p class="text-muted">{{ today.strftime('%A, %B %d, %Y') }}</p>
-  </div>
+<div class="mb-4">
+  <h2 class="section-title">My Delivery Routes</h2>
+  <p style="color: var(--text-secondary);">{{ today.strftime('%A, %B %d, %Y') }}</p>
 </div>
 
 <!-- Today's Routes -->
 <div class="mb-4">
-  <h4>Today</h4>
+  <h5 class="fw-bold mb-3">Today</h5>
   {% if todays_routes %}
   <div class="list-group">
     {% for route in todays_routes %}
     <a href="/delivery/driver/route/{{ route.id }}" class="list-group-item list-group-item-action">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <h5 class="mb-1">{{ route.name }}</h5>
-          <small class="text-muted">{{ route.route_stops|length }} stops</small>
+          <h5 class="mb-1 fw-bold">{{ route.name }}</h5>
+          <small style="color: var(--text-secondary);">{{ route.route_stops|length }} stops</small>
         </div>
         <div class="text-end">
           {% if route.status == 'assigned' %}
@@ -32,7 +31,7 @@
         </div>
       </div>
       {% if route.notes %}
-      <small class="text-muted">{{ route.notes }}</small>
+      <small style="color: var(--text-secondary);">{{ route.notes }}</small>
       {% endif %}
     </a>
     {% endfor %}
@@ -47,14 +46,14 @@
 <!-- Upcoming Routes -->
 {% if upcoming_routes %}
 <div class="mb-4">
-  <h4>Upcoming</h4>
+  <h5 class="fw-bold mb-3">Upcoming</h5>
   <div class="list-group">
     {% for route in upcoming_routes %}
     <a href="/delivery/driver/route/{{ route.id }}" class="list-group-item list-group-item-action">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <h5 class="mb-1">{{ route.name }}</h5>
-          <small class="text-muted">
+          <h5 class="mb-1 fw-bold">{{ route.name }}</h5>
+          <small style="color: var(--text-secondary);">
             {{ route.date.strftime('%a, %b %d') }} - {{ route.route_stops|length }} stops
           </small>
         </div>
@@ -67,8 +66,4 @@
   </div>
 </div>
 {% endif %}
-
-<div class="mt-4">
-  <a href="/worker" class="btn btn-outline-secondary">Back to Home</a>
-</div>
 {% endblock %}

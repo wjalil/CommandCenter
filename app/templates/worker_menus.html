@@ -1,0 +1,39 @@
+{% extends "worker_base.html" %}
+{% block title %}Program Menus{% endblock %}
+{% block nav_title %}Menus{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h2 class="section-title">Program Menus</h2>
+  <p style="color: var(--text-secondary);">View and download menus for all programs</p>
+</div>
+
+{% if programs_with_menus %}
+  {% for program, menus in programs_with_menus %}
+  <div class="glass-card mb-4 p-0 overflow-hidden">
+    <div class="p-3 pb-2" style="border-bottom: 1px solid rgba(148, 163, 184, 0.15);">
+      <h5 class="fw-bold mb-0">{{ program.name }}</h5>
+    </div>
+    <div class="list-group list-group-flush">
+      {% for menu in menus %}
+      <div class="list-group-item d-flex justify-content-between align-items-center" style="border-radius: 0;">
+        <div>
+          <span class="fw-bold">{{ menu.month_name }} {{ menu.year }}</span>
+          <br>
+          <small style="color: var(--text-secondary);">{{ menu.menu_days|length }} service days</small>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="/worker/menus/{{ menu.id }}/view" class="btn btn-outline-secondary btn-sm">View</a>
+          <a href="/worker/menus/{{ menu.id }}/pdf" class="btn btn-primary btn-sm">PDF</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="alert alert-info">
+  <p class="mb-0">No menus available yet.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -17,6 +17,7 @@ from app.auth.dependencies import get_current_user
 from app.models.timeclock import TimeEntry, TimeStatus
 from app.utils.timeclock_service import clock_in as svc_clock_in, clock_out as svc_clock_out
 from app.models.customer.customer_order import CustomerOrder, OrderItem
+from app.models.catering import CateringProgram, CateringMonthlyMenu
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -271,3 +272,240 @@ async def worker_update_order_status(
         await db.commit()
 
     return RedirectResponse(url="/worker/orders?success=Order+updated", status_code=303)
+
+
+# -----------------------------
+# Worker: View Program Menus
+# -----------------------------
+@router.get("/worker/menus")
+async def worker_menus_list(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """List all program menus for workers to view"""
+    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+        return templates.TemplateResponse("unauthorized.html", {"request": request})
+
+    from calendar import month_name as cal_month_name
+
+    # Get all monthly menus for this tenant, grouped by program
+    result = await db.execute(
+        select(CateringMonthlyMenu)
+        .where(CateringMonthlyMenu.tenant_id == user.tenant_id)
+        .options(
+            selectinload(CateringMonthlyMenu.program),
+            selectinload(CateringMonthlyMenu.menu_days),
+        )
+        .order_by(CateringMonthlyMenu.year.desc(), CateringMonthlyMenu.month.desc())
+    )
+    menus = result.scalars().all()
+
+    # Add month_name attribute for display
+    for menu in menus:
+        menu.month_name = cal_month_name[menu.month]
+
+    # Group by program
+    programs_dict = defaultdict(list)
+    for menu in menus:
+        programs_dict[menu.program].append(menu)
+
+    programs_with_menus = sorted(programs_dict.items(), key=lambda x: x[0].name)
+
+    return templates.TemplateResponse("worker_menus.html", {
+        "request": request,
+        "programs_with_menus": programs_with_menus,
+    })
+
+
+@router.get("/worker/menus/{menu_id}/view")
+async def worker_menu_view(
+    request: Request,
+    menu_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """View a menu (read-only share view) as a worker"""
+    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+        return templates.TemplateResponse("unauthorized.html", {"request": request})
+
+    from app.crud.catering import monthly_menu as menu_crud, program as program_crud
+    from calendar import monthcalendar, month_name as cal_month_name, setfirstweekday, SUNDAY
+    from datetime import date as dt_date
+    import json
+
+    monthly_menu = await menu_crud.get_monthly_menu(db, menu_id, user.tenant_id)
+    if not monthly_menu:
+        return RedirectResponse(url="/worker/menus", status_code=303)
+
+    program = await program_crud.get_program(db, monthly_menu.program_id, user.tenant_id)
+    if not program:
+        return RedirectResponse(url="/worker/menus", status_code=303)
+
+    service_days = json.loads(program.service_days) if isinstance(program.service_days, str) else (program.service_days or [])
+    meal_types = json.loads(program.meal_types_required) if isinstance(program.meal_types_required, str) else (program.meal_types_required or [])
+
+    setfirstweekday(SUNDAY)
+    month_weeks = monthcalendar(monthly_menu.year, monthly_menu.month)
+    menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
+
+    def get_component_preview(menu_day):
+        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
+            return preview
+        for slot in ['breakfast', 'lunch', 'snack']:
+            slot_components = sorted(
+                [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
+                key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
+            )
+            names = [comp.food_component.name for comp in slot_components]
+            preview[slot] = ', '.join(names)
+        return preview
+
+    calendar_weeks = []
+    for week in month_weeks:
+        week_data = []
+        for day_num in week:
+            if day_num == 0:
+                week_data.append({
+                    'day': '', 'date': '', 'in_month': False,
+                    'is_service_day': False, 'menu_day': None,
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
+                })
+            else:
+                date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)
+                date_str = date_obj.isoformat()
+                day_name = date_obj.strftime('%A')
+                is_service_day = day_name in service_days
+                menu_day = menu_days_dict.get(date_str)
+                week_data.append({
+                    'day': day_num, 'date': date_str, 'in_month': True,
+                    'is_service_day': is_service_day, 'menu_day': menu_day,
+                    'component_preview': get_component_preview(menu_day)
+                })
+        calendar_weeks.append(week_data)
+
+    generated_date = datetime.now().strftime('%B %d, %Y')
+    show_sunday = 'Sunday' in service_days
+    show_saturday = 'Saturday' in service_days
+
+    return templates.TemplateResponse("catering/menu_share.html", {
+        "request": request,
+        "monthly_menu": monthly_menu,
+        "program": program,
+        "month_name": cal_month_name[monthly_menu.month],
+        "year": monthly_menu.year,
+        "service_days": service_days,
+        "meal_types": meal_types,
+        "calendar_weeks": calendar_weeks,
+        "generated_date": generated_date,
+        "show_sunday": show_sunday,
+        "show_saturday": show_saturday,
+        "worker_view": True,
+    })
+
+
+@router.get("/worker/menus/{menu_id}/pdf")
+async def worker_menu_pdf(
+    request: Request,
+    menu_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Download menu as PDF for workers"""
+    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+        return templates.TemplateResponse("unauthorized.html", {"request": request})
+
+    from app.crud.catering import monthly_menu as menu_crud, program as program_crud
+    from calendar import monthcalendar, month_name as cal_month_name, setfirstweekday, SUNDAY
+    from datetime import date as dt_date
+    from fastapi.responses import Response
+    import json
+
+    monthly_menu = await menu_crud.get_monthly_menu(db, menu_id, user.tenant_id)
+    if not monthly_menu:
+        return RedirectResponse(url="/worker/menus", status_code=303)
+
+    program = await program_crud.get_program(db, monthly_menu.program_id, user.tenant_id)
+    if not program:
+        return RedirectResponse(url="/worker/menus", status_code=303)
+
+    service_days = json.loads(program.service_days) if isinstance(program.service_days, str) else (program.service_days or [])
+    meal_types = json.loads(program.meal_types_required) if isinstance(program.meal_types_required, str) else (program.meal_types_required or [])
+
+    setfirstweekday(SUNDAY)
+    month_weeks = monthcalendar(monthly_menu.year, monthly_menu.month)
+    menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
+
+    def get_component_preview(menu_day):
+        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
+            return preview
+        for slot in ['breakfast', 'lunch', 'snack']:
+            slot_components = sorted(
+                [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
+                key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
+            )
+            names = [comp.food_component.name for comp in slot_components]
+            preview[slot] = ', '.join(names)
+        return preview
+
+    calendar_weeks = []
+    for week in month_weeks:
+        week_data = []
+        for day_num in week:
+            if day_num == 0:
+                week_data.append({
+                    'day': '', 'date': '', 'in_month': False,
+                    'is_service_day': False, 'menu_day': None,
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
+                })
+            else:
+                date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)
+                date_str = date_obj.isoformat()
+                day_name = date_obj.strftime('%A')
+                is_service_day = day_name in service_days
+                menu_day = menu_days_dict.get(date_str)
+                week_data.append({
+                    'day': day_num, 'date': date_str, 'in_month': True,
+                    'is_service_day': is_service_day, 'menu_day': menu_day,
+                    'component_preview': get_component_preview(menu_day)
+                })
+        calendar_weeks.append(week_data)
+
+    generated_date = datetime.now().strftime('%B %d, %Y')
+    show_sunday = 'Sunday' in service_days
+    show_saturday = 'Saturday' in service_days
+
+    html_content = templates.TemplateResponse("catering/menu_share.html", {
+        "request": request,
+        "monthly_menu": monthly_menu,
+        "program": program,
+        "month_name": cal_month_name[monthly_menu.month],
+        "year": monthly_menu.year,
+        "service_days": service_days,
+        "meal_types": meal_types,
+        "calendar_weeks": calendar_weeks,
+        "generated_date": generated_date,
+        "show_sunday": show_sunday,
+        "show_saturday": show_saturday,
+        "worker_view": True,
+    }).body.decode('utf-8')
+
+    try:
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html_content, base_url=str(request.base_url)).write_pdf()
+
+        safe_name = program.name.replace(' ', '_')
+        filename = f"{safe_name}_{cal_month_name[monthly_menu.month]}_{monthly_menu.year}_Menu.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    except ImportError:
+        return RedirectResponse(
+            url=f"/worker/menus/{menu_id}/view",
+            status_code=303
+        )
