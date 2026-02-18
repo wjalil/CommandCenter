@@ -91,6 +91,7 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
     """Generate an invoice from a specific menu day"""
     from .monthly_menu import get_monthly_menu
     from app.models.catering import CateringMenuDay, CateringMonthlyMenu, CateringMealItem, CateringMealComponent, MenuDayComponent
+    import json
 
     # Get the menu day with all relationships (both pre-built and component-first modes)
     result = await db.execute(
@@ -117,6 +118,18 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
     monthly_menu = menu_day.monthly_menu
     program = monthly_menu.program
 
+    # Parse program's required meal types (filter out meals not required by this program)
+    meal_types_required = program.meal_types_required
+    if isinstance(meal_types_required, str):
+        meal_types_required = json.loads(meal_types_required)
+    meal_types_required = meal_types_required or []
+
+    # Normalize meal type names (handle both "Breakfast" and "breakfast" formats)
+    meal_types_lower = [mt.lower() for mt in meal_types_required]
+    program_has_breakfast = 'breakfast' in meal_types_lower
+    program_has_lunch = 'lunch' in meal_types_lower
+    program_has_snack = 'snack' in meal_types_lower
+
     # Check if invoice already exists for this day
     existing_result = await db.execute(
         select(CateringInvoice).where(
@@ -141,20 +154,21 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
         slots_with_components = set(comp.meal_slot for comp in menu_day.components if not comp.is_vegan)
         slots_with_vegan = set(comp.meal_slot for comp in menu_day.components if comp.is_vegan)
 
-        has_breakfast = 'breakfast' in slots_with_components
-        has_breakfast_vegan = 'breakfast' in slots_with_vegan
-        has_lunch = 'lunch' in slots_with_components
-        has_lunch_vegan = 'lunch' in slots_with_vegan
-        has_snack = 'snack' in slots_with_components
-        has_snack_vegan = 'snack' in slots_with_vegan
+        # Only include meals that are BOTH required by program AND have data
+        has_breakfast = program_has_breakfast and 'breakfast' in slots_with_components
+        has_breakfast_vegan = program_has_breakfast and 'breakfast' in slots_with_vegan
+        has_lunch = program_has_lunch and 'lunch' in slots_with_components
+        has_lunch_vegan = program_has_lunch and 'lunch' in slots_with_vegan
+        has_snack = program_has_snack and 'snack' in slots_with_components
+        has_snack_vegan = program_has_snack and 'snack' in slots_with_vegan
     else:
-        # Pre-built meal item mode
-        has_breakfast = menu_day.breakfast_item_id is not None
-        has_breakfast_vegan = menu_day.breakfast_vegan_item_id is not None
-        has_lunch = menu_day.lunch_item_id is not None
-        has_lunch_vegan = menu_day.lunch_vegan_item_id is not None
-        has_snack = menu_day.snack_item_id is not None
-        has_snack_vegan = menu_day.snack_vegan_item_id is not None
+        # Pre-built meal item mode: only include meals required by program
+        has_breakfast = program_has_breakfast and menu_day.breakfast_item_id is not None
+        has_breakfast_vegan = program_has_breakfast and menu_day.breakfast_vegan_item_id is not None
+        has_lunch = program_has_lunch and menu_day.lunch_item_id is not None
+        has_lunch_vegan = program_has_lunch and menu_day.lunch_vegan_item_id is not None
+        has_snack = program_has_snack and menu_day.snack_item_id is not None
+        has_snack_vegan = program_has_snack and menu_day.snack_vegan_item_id is not None
 
     # Build meal count fields
     meal_counts = dict(
