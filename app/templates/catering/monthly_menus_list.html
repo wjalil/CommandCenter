@@ -8,51 +8,73 @@
 <div class="row mb-4">
   <div class="col-md-8">
     <h2>Monthly Menus</h2>
-    <p class="text-muted">Plan and manage monthly meal calendars</p>
+    <p class="text-muted">Plan and manage monthly meal calendars, organized by program</p>
   </div>
   <div class="col-md-4 text-end">
     <a href="/catering/monthly-menus/create" class="btn btn-primary">+ Create Menu</a>
   </div>
 </div>
 
-{% if monthly_menus %}
-<table class="nice-table">
-  <thead>
-    <tr>
-      <th>Program</th>
-      <th>Month</th>
-      <th>Status</th>
-      <th>Days</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for menu in monthly_menus %}
-    <tr>
-      <td><strong>{{ menu.program.name }}</strong></td>
-      <td>{{ ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][menu.month] }} {{ menu.year }}</td>
-      <td>
-        {% if menu.status == 'draft' %}
-        <span class="badge bg-secondary">Draft</span>
-        {% elif menu.status == 'finalized' %}
-        <span class="badge bg-success">Finalized</span>
-        {% elif menu.status == 'sent' %}
-        <span class="badge bg-primary">Sent</span>
-        {% endif %}
-      </td>
-      <td>{{ menu.menu_days|length }} days</td>
-      <td>
-        <div class="btn-group btn-group-sm">
-          <a href="/catering/monthly-menus/{{ menu.id }}/calendar" class="btn btn-outline-primary">📅 Calendar</a>
-          <a href="/catering/monthly-menus/{{ menu.id }}/share" class="btn btn-outline-info">📤 Share</a>
-          <a href="/catering/monthly-menus/{{ menu.id }}/duplicate" class="btn btn-outline-success">📋 Duplicate</a>
-          <button type="button" class="btn btn-outline-danger" onclick="confirmDelete('{{ menu.id }}', '{{ menu.program.name }} - {{ ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][menu.month] }} {{ menu.year }}')">🗑️ Delete</button>
-        </div>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+{% if programs_with_menus %}
+  {% for program, menus in programs_with_menus %}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div>
+        <strong>{{ program.name }}</strong>
+        <span class="text-muted ms-2">{{ program.client_name }}</span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-secondary">{{ menus | length }} menu{{ 's' if menus | length != 1 }}</span>
+        <a href="/catering/monthly-menus/create?program_id={{ program.id }}" class="btn btn-sm btn-outline-primary">+ Add Menu</a>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <table class="nice-table mb-0">
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Days</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for menu in menus %}
+          <tr>
+            <td>{{ ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][menu.month] }} {{ menu.year }}</td>
+            <td>
+              {% if menu.menu_type == 'alternative' %}
+              <span class="badge bg-warning text-dark">Alternative</span>
+              {% else %}
+              <span class="badge bg-light text-dark border">Regular</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if menu.status == 'draft' %}
+              <span class="badge bg-secondary">Draft</span>
+              {% elif menu.status == 'finalized' %}
+              <span class="badge bg-success">Finalized</span>
+              {% elif menu.status == 'sent' %}
+              <span class="badge bg-primary">Sent</span>
+              {% endif %}
+            </td>
+            <td>{{ menu.menu_days|length }} days</td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                <a href="/catering/monthly-menus/{{ menu.id }}/calendar" class="btn btn-outline-primary">📅 Calendar</a>
+                <a href="/catering/monthly-menus/{{ menu.id }}/share" class="btn btn-outline-info">📤 Share</a>
+                <a href="/catering/monthly-menus/{{ menu.id }}/duplicate" class="btn btn-outline-success">📋 Duplicate</a>
+                <button type="button" class="btn btn-outline-danger" onclick="confirmDelete('{{ menu.id }}', '{{ program.name }} - {{ ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][menu.month] }} {{ menu.year }} ({{ menu.menu_type | capitalize }})')">🗑️ Delete</button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
 {% else %}
 <div class="alert alert-info">
   <h5>No Monthly Menus Yet</h5>
@@ -62,8 +84,7 @@
 {% endif %}
 
 <!-- Delete confirmation form -->
-<form id="deleteForm" method="POST" style="display: none;">
-</form>
+<form id="deleteForm" method="POST" style="display: none;"></form>
 
 <script>
 function confirmDelete(menuId, menuName) {

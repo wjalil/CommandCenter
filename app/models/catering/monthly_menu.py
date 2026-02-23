@@ -12,6 +12,7 @@ class CateringMonthlyMenu(Base):
     program_id = Column(String, ForeignKey("catering_programs.id"), nullable=False)
     month = Column(Integer, nullable=False)  # 1-12
     year = Column(Integer, nullable=False)
+    menu_type = Column(String, default="regular", nullable=False)  # regular, alternative
     status = Column(String, default="draft", nullable=False)  # draft, finalized, sent
     finalized_at = Column(DateTime, nullable=True)
     sent_at = Column(DateTime, nullable=True)
@@ -25,7 +26,7 @@ class CateringMonthlyMenu(Base):
     invoices = relationship("CateringInvoice", back_populates="monthly_menu")
 
     __table_args__ = (
-        UniqueConstraint("program_id", "month", "year", name="uq_monthly_menu"),
+        UniqueConstraint("program_id", "month", "year", "menu_type", name="uq_monthly_menu"),
         Index("idx_monthly_menus_tenant", "tenant_id"),
         Index("idx_monthly_menus_program", "program_id", "year", "month"),
     )

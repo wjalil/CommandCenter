@@ -14,6 +14,7 @@ async def create_monthly_menu(db: AsyncSession, menu: MonthlyMenuCreate):
         program_id=menu.program_id,
         month=menu.month,
         year=menu.year,
+        menu_type=menu.menu_type,
         status="draft",
         tenant_id=menu.tenant_id
     )

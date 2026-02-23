@@ -13,6 +13,11 @@ class MenuStatus(str, Enum):
     sent = "sent"
 
 
+class MenuType(str, Enum):
+    regular = "regular"
+    alternative = "alternative"
+
+
 # ---------- Menu Day (single day's meals) ----------
 class MenuDayBase(BaseModel):
     service_date: date
@@ -60,6 +65,7 @@ class MonthlyMenuBase(BaseModel):
     program_id: str
     month: int  # 1-12
     year: int
+    menu_type: MenuType = MenuType.regular
 
 
 class MonthlyMenuCreate(MonthlyMenuBase):

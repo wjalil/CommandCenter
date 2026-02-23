@@ -29,6 +29,15 @@
         {% endif %}
       </div>
 
+      <div class="mb-3">
+        <label class="form-label">Menu Type *</label>
+        <select name="menu_type" class="form-select" required>
+          <option value="regular">Regular</option>
+          <option value="alternative">Alternative</option>
+        </select>
+        <small class="form-text text-muted">Use "Alternative" when a client requires a second menu variant for the same month</small>
+      </div>
+
       <div class="row">
         <div class="col-md-6 mb-3">
           <label class="form-label">Month *</label>
@@ -59,7 +68,7 @@
           <option value="">-- Start with blank menu --</option>
           {% for menu in existing_menus %}
           <option value="{{ menu.id }}" {% if selected_copy_from == menu.id %}selected{% endif %}>
-            {{ menu.program.name }} - {{ ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][menu.month] }} {{ menu.year }}
+            {{ menu.program.name }} - {{ ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][menu.month] }} {{ menu.year }} ({{ menu.menu_type | capitalize }})
           </option>
           {% endfor %}
         </select>

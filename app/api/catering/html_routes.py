@@ -476,13 +476,19 @@ async def monthly_menus_list(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
 ):
-    """List monthly menus"""
+    """List monthly menus grouped by program"""
     tenant_id = request.state.tenant_id
     monthly_menus = await menu_crud.get_monthly_menus(db, tenant_id)
 
+    # Group menus by program, sorted by program name
+    grouped = defaultdict(list)
+    for menu in monthly_menus:
+        grouped[menu.program].append(menu)
+    programs_with_menus = sorted(grouped.items(), key=lambda x: x[0].name)
+
     return templates.TemplateResponse("catering/monthly_menus_list.html", {
         "request": request,
-        "monthly_menus": monthly_menus,
+        "programs_with_menus": programs_with_menus,
     })
 
 
@@ -518,6 +524,7 @@ async def menu_create(
     program_id: str = Form(...),
     month: int = Form(...),
     year: int = Form(...),
+    menu_type: str = Form("regular"),
     copy_from_menu_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
@@ -525,14 +532,14 @@ async def menu_create(
     """Create a new monthly menu"""
     tenant_id = request.state.tenant_id
 
-    # Check if menu already exists for this program/month/year
+    # Check if a menu of this type already exists for this program/month/year
     existing = await menu_crud.get_monthly_menus(db, tenant_id, program_id)
     for menu in existing:
-        if menu.month == month and menu.year == year:
+        if menu.month == month and menu.year == year and menu.menu_type == menu_type:
             from fastapi import HTTPException
             raise HTTPException(
                 status_code=400,
-                detail=f"A menu already exists for {month}/{year}"
+                detail=f"A {menu_type} menu already exists for {month}/{year}"
             )
 
     # Create the monthly menu
@@ -541,6 +548,7 @@ async def menu_create(
         program_id=program_id,
         month=month,
         year=year,
+        menu_type=menu_type,
         status="draft",
         tenant_id=tenant_id
     )
@@ -1034,10 +1042,14 @@ async def menu_pdf_download(
         "show_saturday": show_saturday,
     }).body.decode('utf-8')
 
-    # Generate PDF using WeasyPrint
+    # Generate PDF using xhtml2pdf
     try:
-        from weasyprint import HTML
-        pdf_bytes = HTML(string=html_content, base_url=str(request.base_url)).write_pdf()
+        from xhtml2pdf import pisa
+        pdf_buffer = io.BytesIO()
+        pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
+        if pisa_status.err:
+            raise Exception(f"PDF generation failed with {pisa_status.err} errors")
+        pdf_bytes = pdf_buffer.getvalue()
 
         filename = f"{program.name.replace(' ', '_')}_{month_name[monthly_menu.month]}_{monthly_menu.year}_Menu.pdf"
 
@@ -1049,15 +1061,13 @@ async def menu_pdf_download(
             }
         )
     except ImportError as e:
-        # WeasyPrint not installed
         import logging
-        logging.error(f"WeasyPrint not installed: {e}")
+        logging.error(f"xhtml2pdf not installed: {e}")
         return RedirectResponse(
             url=f"/catering/monthly-menus/{menu_id}/share?error=PDF+library+not+installed",
             status_code=303
         )
     except Exception as e:
-        # Handle other errors - log the actual error
         import logging
         logging.error(f"PDF generation failed: {e}")
         return RedirectResponse(
@@ -1090,15 +1100,19 @@ async def _get_menu_day_for_invoice(db: AsyncSession, menu_day_id: str):
 
 
 async def _generate_invoice_pdf_bytes(request: Request, db: AsyncSession, invoice) -> bytes:
-    """Generate PDF bytes for a single invoice using WeasyPrint."""
-    from weasyprint import HTML
+    """Generate PDF bytes for a single invoice using xhtml2pdf."""
+    from xhtml2pdf import pisa
     menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
     html_content = templates.TemplateResponse("catering/invoice_view.html", {
         "request": request,
         "invoice": invoice,
         "menu_day": menu_day,
     }).body.decode('utf-8')
-    return HTML(string=html_content, base_url=str(request.base_url)).write_pdf()
+    pdf_buffer = io.BytesIO()
+    pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
+    if pisa_status.err:
+        raise Exception(f"PDF generation failed with {pisa_status.err} errors")
+    return pdf_buffer.getvalue()
 
 
 @router.get("/invoices")

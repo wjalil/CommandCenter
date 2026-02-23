@@ -61,4 +61,4 @@ uvicorn==0.35.0
 watchfiles==1.1.0
 websockets==15.0.1
 yarl==1.20.1
-weasyprint>=60.0
+xhtml2pdf>=0.2.11

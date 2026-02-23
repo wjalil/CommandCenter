@@ -37,6 +37,7 @@ from .program import (
 
 from .monthly_menu import (
     MenuStatus,
+    MenuType,
     MenuDayBase,
     MenuDayCreate,
     MenuDayUpdate,
@@ -100,6 +101,7 @@ __all__ = [
     "CateringProgramRead",
     # Monthly Menus
     "MenuStatus",
+    "MenuType",
     "MenuDayBase",
     "MenuDayCreate",
     "MenuDayUpdate",
