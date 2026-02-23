@@ -1103,7 +1103,7 @@ async def _generate_invoice_pdf_bytes(request: Request, db: AsyncSession, invoic
     """Generate PDF bytes for a single invoice using xhtml2pdf."""
     from xhtml2pdf import pisa
     menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
-    html_content = templates.TemplateResponse("catering/invoice_view.html", {
+    html_content = templates.TemplateResponse("catering/invoice_pdf.html", {
         "request": request,
         "invoice": invoice,
         "menu_day": menu_day,

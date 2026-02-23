@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Invoice {{ invoice.invoice_number }}</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 0.75in 0.75in 0.75in 0.75in;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 11pt;
+      color: #111;
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      font-size: 22pt;
+      text-align: center;
+      margin: 0 0 20px 0;
+      letter-spacing: 2px;
+    }
+
+    /* Two-column header layout via table */
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 18px;
+    }
+
+    .header-table td {
+      vertical-align: top;
+      padding: 0;
+      width: 50%;
+    }
+
+    .label {
+      font-size: 9pt;
+      font-weight: bold;
+      color: #555;
+      margin: 0 0 2px 0;
+      text-transform: uppercase;
+    }
+
+    .value {
+      font-size: 11pt;
+      margin: 0 0 12px 0;
+    }
+
+    /* Divider */
+    .divider {
+      border: none;
+      border-top: 2px solid #111;
+      margin: 14px 0;
+    }
+
+    .divider-light {
+      border: none;
+      border-top: 1px solid #ccc;
+      margin: 10px 0;
+    }
+
+    /* Vendor block */
+    .vendor-block {
+      margin-bottom: 18px;
+    }
+
+    /* Line items table */
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+    }
+
+    .items-table thead tr {
+      background-color: #222;
+      color: #fff;
+    }
+
+    .items-table th {
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 10pt;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+
+    .items-table th.qty-col {
+      width: 70px;
+      text-align: center;
+    }
+
+    .items-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #ddd;
+      font-size: 10.5pt;
+      vertical-align: top;
+    }
+
+    .items-table td.qty-cell {
+      text-align: center;
+      font-weight: bold;
+      font-size: 12pt;
+    }
+
+    .items-table .meal-label {
+      font-weight: bold;
+    }
+
+    .items-table .components {
+      font-size: 9.5pt;
+      color: #444;
+    }
+
+    /* Alternating row shading */
+    .items-table tbody tr:nth-child(even) {
+      background-color: #f7f7f7;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 30px;
+      text-align: center;
+      border-top: 2px solid #111;
+      padding-top: 14px;
+    }
+
+    .footer p {
+      margin: 3px 0;
+      font-size: 10pt;
+    }
+
+    .footer .company-name {
+      font-size: 13pt;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    /* Signature */
+    .signature-block {
+      margin-top: 36px;
+    }
+
+    .signature-label {
+      font-size: 9pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .signature-line {
+      border-bottom: 1px solid #111;
+      padding-bottom: 2px;
+      font-size: 11pt;
+    }
+
+    .no-items {
+      padding: 14px 10px;
+      color: #888;
+      font-style: italic;
+      font-size: 10pt;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>DELIVERY INVOICE</h1>
+  <hr class="divider">
+
+  <!-- Date / Invoice # | Customer info -->
+  <table class="header-table">
+    <tr>
+      <td>
+        <p class="label">Date</p>
+        <p class="value">{{ invoice.service_date.strftime('%B %d, %Y') }}</p>
+
+        <p class="label">Invoice Number</p>
+        <p class="value">{{ invoice.invoice_number }}</p>
+      </td>
+      <td>
+        <p class="label">Customer</p>
+        <p class="value" style="margin-bottom: 4px;">{{ invoice.program.client_name }}</p>
+
+        <p class="label">Delivery To</p>
+        <p class="value">{{ invoice.program.name }}{% if invoice.program.address %}<br>{{ invoice.program.address }}{% endif %}</p>
+      </td>
+    </tr>
+  </table>
+
+  <hr class="divider-light">
+
+  <!-- Vendor -->
+  <div class="vendor-block">
+    <p class="label">Vendor</p>
+    <p class="value" style="margin-bottom: 2px;">Chai and Biscuit LLC</p>
+    <p class="value">6014 Fresh Pond Rd, Maspeth, NY 11378</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Line items -->
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th class="qty-col">QTY</th>
+        <th>DESCRIPTION</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if menu_day %}
+        {% set has_components = menu_day.components and menu_day.components|length > 0 %}
+
+        {% if has_components %}
+          {# ---- Component-first mode ---- #}
+
+          {% set breakfast_comps = menu_day.components|selectattr('meal_slot','equalto','breakfast')|selectattr('is_vegan','equalto',false)|list %}
+          {% if breakfast_comps and invoice.breakfast_count %}
+          <tr>
+            <td class="qty-cell">{{ invoice.breakfast_count }}</td>
+            <td>
+              <span class="meal-label">Breakfast</span><br>
+              <span class="components">
+                {%- for comp in breakfast_comps|sort(attribute='sort_order') -%}
+                  {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% set breakfast_vegan_comps = menu_day.components|selectattr('meal_slot','equalto','breakfast')|selectattr('is_vegan','equalto',true)|list %}
+          {% if breakfast_vegan_comps and invoice.breakfast_vegan_count > 0 %}
+          <tr>
+            <td class="qty-cell">{{ invoice.breakfast_vegan_count }}</td>
+            <td>
+              <span class="meal-label">Breakfast – Vegan</span><br>
+              <span class="components">
+                {%- for comp in breakfast_vegan_comps|sort(attribute='sort_order') -%}
+                  {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% set lunch_comps = menu_day.components|selectattr('meal_slot','equalto','lunch')|selectattr('is_vegan','equalto',false)|list %}
+          {% if lunch_comps and invoice.lunch_count and invoice.lunch_count > 0 %}
+          <tr>
+            <td class="qty-cell">{{ invoice.lunch_count }}</td>
+            <td>
+              <span class="meal-label">Lunch</span><br>
+              <span class="components">
+                {%- for comp in lunch_comps|sort(attribute='sort_order') -%}
+                  {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% set lunch_vegan_comps = menu_day.components|selectattr('meal_slot','equalto','lunch')|selectattr('is_vegan','equalto',true)|list %}
+          {% if lunch_vegan_comps and invoice.lunch_vegan_count > 0 %}
+          <tr>
+            <td class="qty-cell">{{ invoice.lunch_vegan_count }}</td>
+            <td>
+              <span class="meal-label">Lunch – Vegan</span><br>
+              <span class="components">
+                {%- for comp in lunch_vegan_comps|sort(attribute='sort_order') -%}
+                  {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% set snack_comps = menu_day.components|selectattr('meal_slot','equalto','snack')|selectattr('is_vegan','equalto',false)|list %}
+          {% if snack_comps and invoice.snack_count %}
+          <tr>
+            <td class="qty-cell">{{ invoice.snack_count }}</td>
+            <td>
+              <span class="meal-label">Snack</span><br>
+              <span class="components">
+                {%- for comp in snack_comps|sort(attribute='sort_order') -%}
+                  {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% set snack_vegan_comps = menu_day.components|selectattr('meal_slot','equalto','snack')|selectattr('is_vegan','equalto',true)|list %}
+          {% if snack_vegan_comps and invoice.snack_vegan_count > 0 %}
+          <tr>
+            <td class="qty-cell">{{ invoice.snack_vegan_count }}</td>
+            <td>
+              <span class="meal-label">Snack – Vegan</span><br>
+              <span class="components">
+                {%- for comp in snack_vegan_comps|sort(attribute='sort_order') -%}
+                  {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+        {% else %}
+          {# ---- Pre-built meal item mode ---- #}
+
+          {% if menu_day.breakfast_item and invoice.breakfast_count %}
+          <tr>
+            <td class="qty-cell">{{ invoice.breakfast_count }}</td>
+            <td>
+              <span class="meal-label">Breakfast</span><br>
+              <span class="components">
+                {%- if menu_day.breakfast_item.components -%}
+                  {%- for comp in menu_day.breakfast_item.components -%}
+                    {{ comp.food_component.name }} {{ comp.portion_oz }}oz{%- if not loop.last %}, {% endif -%}
+                  {%- endfor -%}
+                {%- else -%}
+                  {{ menu_day.breakfast_item.name }}
+                {%- endif -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% if menu_day.lunch_item and invoice.lunch_count and invoice.lunch_count > 0 %}
+          <tr>
+            <td class="qty-cell">{{ invoice.lunch_count }}</td>
+            <td>
+              <span class="meal-label">Lunch</span><br>
+              <span class="components">
+                {%- if menu_day.lunch_item.components -%}
+                  {%- for comp in menu_day.lunch_item.components -%}
+                    {{ comp.food_component.name }} {{ comp.portion_oz }}oz{%- if not loop.last %}, {% endif -%}
+                  {%- endfor -%}
+                {%- else -%}
+                  {{ menu_day.lunch_item.name }}
+                {%- endif -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% if menu_day.lunch_vegan_item and invoice.lunch_vegan_count > 0 %}
+          <tr>
+            <td class="qty-cell">{{ invoice.lunch_vegan_count }}</td>
+            <td>
+              <span class="meal-label">Lunch – Vegan</span><br>
+              <span class="components">
+                {%- if menu_day.lunch_vegan_item.components -%}
+                  {%- for comp in menu_day.lunch_vegan_item.components -%}
+                    {{ comp.food_component.name }} {{ comp.portion_oz }}oz{%- if not loop.last %}, {% endif -%}
+                  {%- endfor -%}
+                {%- else -%}
+                  {{ menu_day.lunch_vegan_item.name }}
+                {%- endif -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% if menu_day.snack_item and invoice.snack_count %}
+          <tr>
+            <td class="qty-cell">{{ invoice.snack_count }}</td>
+            <td>
+              <span class="meal-label">Snack</span><br>
+              <span class="components">
+                {%- if menu_day.snack_item.components -%}
+                  {%- for comp in menu_day.snack_item.components -%}
+                    {{ comp.food_component.name }} {{ comp.portion_oz }}oz{%- if not loop.last %}, {% endif -%}
+                  {%- endfor -%}
+                {%- else -%}
+                  {{ menu_day.snack_item.name }}
+                {%- endif -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+        {% endif %}
+
+      {% else %}
+        <tr><td colspan="2" class="no-items">No meal data associated with this invoice.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p style="font-weight: bold; margin-bottom: 6px; font-size: 11pt;">THANK YOU FOR YOUR BUSINESS!</p>
+    <p class="company-name">CHAI AND BISCUIT LLC</p>
+    <p>6014 FRESH POND RD. | MASPETH, QUEENS, 11378 | PHONE: 347-738-5048</p>
+  </div>
+
+  <!-- Signature -->
+  <div class="signature-block">
+    <p class="signature-label">Recipient Name / Signature</p>
+    <p class="signature-line">X_____________________________________________</p>
+  </div>
+
+</body>
+</html>
