@@ -211,7 +211,7 @@
     <div class="d-flex flex-wrap gap-1">
       <a href="/auto_shop/admin/jobs" class="btn btn-sm btn-outline-secondary">All Jobs</a>
       <a href="/auto_shop/admin/jobs?status_filter=ready_for_pickup" class="btn btn-sm btn-outline-success">Ready for Pickup</a>
-      <a href="/auto_shop/admin/jobs?status_filter=waiting_on_parts" class="btn btn-sm btn-outline-warning">Waiting Parts</a>
+      <a href="/auto_shop/admin/jobs?status_filter=waiting_for_parts" class="btn btn-sm btn-outline-warning">Waiting Parts</a>
     </div>
   </div>
 </div>
@@ -236,7 +236,14 @@
           {% else %}{% set age_cls = 'hot' %}{% endif %}
 
           <a href="/auto_shop/admin/jobs/{{ job.id }}" class="job-card age-{{ age_cls }}" data-job-id="{{ job.id }}">
-            <div class="ticket-num">{{ job.ticket_number }}</div>
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div class="ticket-num">{{ job.ticket_number }}</div>
+              {% if job.payment_type == 'insurance' %}
+                <span style="font-size:.65rem;font-weight:700;background:#e0f2fe;color:#0369a1;border-radius:5px;padding:.1rem .35rem;">🏢 INS</span>
+              {% elif job.payment_type == 'cash' %}
+                <span style="font-size:.65rem;font-weight:700;background:#dcfce7;color:#15803d;border-radius:5px;padding:.1rem .35rem;">💵 CASH</span>
+              {% endif %}
+            </div>
             <div class="customer-name">{{ job.customer_name }}</div>
             <div class="vehicle-info">
               {% if job.vehicle_year or job.vehicle_make or job.vehicle_model %}
@@ -280,7 +287,14 @@
         {% else %}{% set age_cls = 'hot' %}{% endif %}
 
         <a href="/auto_shop/admin/jobs/{{ job.id }}" class="job-card age-{{ age_cls }}" data-job-id="{{ job.id }}">
-          <div class="ticket-num">{{ job.ticket_number }}</div>
+          <div class="d-flex justify-content-between align-items-start mb-1">
+            <div class="ticket-num">{{ job.ticket_number }}</div>
+            {% if job.payment_type == 'insurance' %}
+              <span style="font-size:.65rem;font-weight:700;background:#e0f2fe;color:#0369a1;border-radius:5px;padding:.1rem .35rem;">🏢 INS</span>
+            {% elif job.payment_type == 'cash' %}
+              <span style="font-size:.65rem;font-weight:700;background:#dcfce7;color:#15803d;border-radius:5px;padding:.1rem .35rem;">💵 CASH</span>
+            {% endif %}
+          </div>
           <div class="customer-name">{{ job.customer_name }}</div>
           <div class="vehicle-info">
             {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}

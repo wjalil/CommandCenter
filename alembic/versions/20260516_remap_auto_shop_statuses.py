@@ -16,6 +16,8 @@ Renames old status slugs to the client's workflow:
 """
 from typing import Sequence, Union
 from alembic import op
+import sqlalchemy as sa
+from sqlalchemy import inspect, text
 
 revision: str = "20260516_remap_statuses"
 down_revision: Union[str, None] = "20260506_auto_shop"
@@ -34,19 +36,24 @@ OLD_TO_NEW = {
 }
 
 
-def _remap(table: str, column: str) -> None:
-    conn = op.get_bind()
+def _table_exists(conn, table_name: str) -> bool:
+    return inspect(conn).has_table(table_name)
+
+
+def _remap(conn, table: str, column: str) -> None:
+    if not _table_exists(conn, table):
+        return
     for old, new in OLD_TO_NEW.items():
-        conn.execute(
-            f"UPDATE {table} SET {column} = '{new}' WHERE {column} = '{old}'"  # noqa: S608
-        )
+        # Values are hardcoded constants — safe to interpolate directly
+        conn.execute(text(f"UPDATE {table} SET {column} = '{new}' WHERE {column} = '{old}'"))
 
 
 def upgrade() -> None:
-    _remap("repair_orders", "status")
-    _remap("repair_order_status_logs", "old_status")
-    _remap("repair_order_status_logs", "new_status")
+    conn = op.get_bind()
+    _remap(conn, "repair_orders", "status")
+    _remap(conn, "repair_order_status_logs", "old_status")
+    _remap(conn, "repair_order_status_logs", "new_status")
 
 
 def downgrade() -> None:
-    pass  # one-way migration; old slugs are gone
+    pass  # one-way migration

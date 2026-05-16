@@ -1,32 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>{{ job.ticket_number }}</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <style>
-    body { background: #f8fafc; font-family: 'Inter', sans-serif; }
-    .navbar { background: #fff; border-bottom: 1px solid #e2e8f0; }
-    .card { border: 1px solid #e2e8f0; border-radius: 14px; }
-    .section-title { font-weight: 700; font-size: 1rem; color: #1e293b; margin-bottom: .75rem; }
-    .log-entry { border-left: 3px solid #e2e8f0; padding-left: .75rem; margin-bottom: .75rem; }
-    .log-entry.status-change { border-color: #6366f1; }
-    .log-entry.note-only { border-color: #f59e0b; }
-    .photo-thumb { width: 100%; height: 130px; object-fit: cover; border-radius: 10px; }
-    .label-sm { font-size: .78rem; color: #64748b; }
-  </style>
-</head>
-<body>
+{% extends "worker_base.html" %}
+{% block title %}{{ job.ticket_number }}{% endblock %}
+{% block nav_title %}🔧 {{ job.ticket_number }}{% endblock %}
 
-<nav class="navbar px-3 py-2 mb-4">
-  <div class="container-fluid d-flex justify-content-between align-items-center">
-    <span class="fw-bold fs-5">🔧 {{ job.ticket_number }}</span>
-    <a href="/auto_shop/worker/jobs" class="btn btn-outline-secondary btn-sm">← Jobs</a>
+{% block extra_css %}
+.log-entry { border-left: 3px solid rgba(148,163,184,.35); padding-left: .75rem; margin-bottom: .75rem; }
+.log-entry.status-change { border-color: #6366f1; }
+.log-entry.note-only { border-color: #f59e0b; }
+.photo-thumb { width: 100%; height: 130px; object-fit: cover; border-radius: 10px; }
+.label-sm { font-size: .78rem; color: #64748b; }
+{% endblock %}
+
+{% block content %}
+<div style="max-width:720px; margin:0 auto;">
+
+  <!-- Back link -->
+  <div class="mb-3">
+    <a href="/auto_shop/worker/jobs" class="btn btn-outline-secondary btn-sm">← Back to Board</a>
   </div>
-</nav>
-
-<div class="container pb-5" style="max-width:720px;">
 
   <!-- Status badge + vehicle summary -->
   <div class="card p-3 mb-3">
@@ -54,7 +44,7 @@
 
   <!-- Update Status -->
   <div class="card p-3 mb-3">
-    <div class="section-title">Update Status</div>
+    <div class="section-title" style="font-size:1rem; margin-bottom:.75rem;">Update Status</div>
     <form method="post" action="/auto_shop/worker/jobs/{{ job.id }}/status">
       <div class="row g-2">
         <div class="col-12 col-sm-6">
@@ -78,7 +68,7 @@
 
   <!-- Add Note -->
   <div class="card p-3 mb-3">
-    <div class="section-title">Add Note</div>
+    <div class="section-title" style="font-size:1rem; margin-bottom:.75rem;">Add Note</div>
     <form method="post" action="/auto_shop/worker/jobs/{{ job.id }}/note">
       <div class="d-flex gap-2">
         <input type="text" name="note" class="form-control form-control-sm" placeholder="Write a note…" required/>
@@ -89,7 +79,7 @@
 
   <!-- Upload Photo -->
   <div class="card p-3 mb-3">
-    <div class="section-title">Upload Photo</div>
+    <div class="section-title" style="font-size:1rem; margin-bottom:.75rem;">Upload Photo</div>
     <form method="post" action="/auto_shop/worker/jobs/{{ job.id }}/photos" enctype="multipart/form-data">
       <div class="row g-2">
         <div class="col-12 col-sm-5">
@@ -115,7 +105,7 @@
   <!-- Photos -->
   {% if job.photos %}
   <div class="card p-3 mb-3">
-    <div class="section-title">Photos ({{ job.photos|length }})</div>
+    <div class="section-title" style="font-size:1rem; margin-bottom:.75rem;">Photos ({{ job.photos|length }})</div>
     <div class="row g-2">
       {% for photo in job.photos %}
       <div class="col-6 col-sm-4">
@@ -132,7 +122,7 @@
   <!-- Activity Log -->
   {% if job.status_logs %}
   <div class="card p-3 mb-3">
-    <div class="section-title">Activity Log</div>
+    <div class="section-title" style="font-size:1rem; margin-bottom:.75rem;">Activity Log</div>
     {% for log in job.status_logs | reverse %}
       {% set is_note = log.old_status == log.new_status %}
       <div class="log-entry {% if is_note %}note-only{% else %}status-change{% endif %}">
@@ -159,6 +149,4 @@
   {% endif %}
 
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% endblock %}

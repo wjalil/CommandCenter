@@ -1,8 +1,11 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, Text, Index, Date, DateTime
+from sqlalchemy import Column, String, Integer, ForeignKey, Text, Index, Date, DateTime, Numeric
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 from datetime import date, datetime
 import uuid
+
+PAYMENT_TYPES = ["insurance", "cash"]
+PAYMENT_TYPE_LABELS = {"insurance": "Insurance", "cash": "Cash"}
 
 VALID_STATUSES = [
     "new_arrival",
@@ -79,8 +82,18 @@ class RepairOrder(Base):
     description = Column(Text, nullable=True)
     internal_notes = Column(Text, nullable=True)
 
+    # Payment / financial (admin-only)
+    payment_type = Column(String, nullable=True)          # "insurance" | "cash"
+    claim_number = Column(String, nullable=True)
+    deductible = Column(Numeric(10, 2), nullable=True)
+    total_estimate = Column(Numeric(10, 2), nullable=True)
+    supplement_1 = Column(Numeric(10, 2), nullable=True)
+    supplement_2 = Column(Numeric(10, 2), nullable=True)
+    supplement_3 = Column(Numeric(10, 2), nullable=True)
+    supplement_4 = Column(Numeric(10, 2), nullable=True)
+
     # Status
-    status = Column(String, nullable=False, default="intake")
+    status = Column(String, nullable=False, default="new_arrival")
 
     # Assignment
     assigned_tech_id = Column(String, ForeignKey("users.id"), nullable=True)
@@ -99,6 +112,12 @@ class RepairOrder(Base):
         "User",
         back_populates="assigned_repairs",
         foreign_keys=[assigned_tech_id],
+    )
+    payments = relationship(
+        "RepairOrderPayment",
+        back_populates="repair_order",
+        cascade="all, delete-orphan",
+        order_by="RepairOrderPayment.date_received",
     )
     photos = relationship(
         "RepairOrderPhoto",

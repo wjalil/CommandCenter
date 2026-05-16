@@ -80,6 +80,29 @@
       </div>
     </div>
 
+    {# Payment Type #}
+    <div class="col-12 mb-4">
+      <div class="card">
+        <div class="card-header"><strong>Payment Type</strong></div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Insurance or Cash?</label>
+              <select name="payment_type" class="form-select" id="paymentTypeSelect">
+                <option value="">— Select —</option>
+                <option value="insurance">Insurance</option>
+                <option value="cash">Cash</option>
+              </select>
+            </div>
+            <div class="col-md-4" id="claimNumberField" style="display:none;">
+              <label class="form-label">Claim Number</label>
+              <input name="claim_number" type="text" class="form-control" placeholder="Claim #">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     {# Job Details #}
     <div class="col-12 mb-4">
       <div class="card">
@@ -121,4 +144,12 @@
     <a href="/auto_shop/admin/jobs" class="btn btn-outline-secondary">Cancel</a>
   </div>
 </form>
+
+<script>
+  const sel = document.getElementById('paymentTypeSelect');
+  const claimField = document.getElementById('claimNumberField');
+  sel.addEventListener('change', () => {
+    claimField.style.display = sel.value === 'insurance' ? '' : 'none';
+  });
+</script>
 {% endblock %}

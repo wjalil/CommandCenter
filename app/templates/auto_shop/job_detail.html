@@ -220,8 +220,191 @@
 
   </div>
 
-  {# Right column: photos #}
+  {# Right column: financials + photos #}
   <div class="col-lg-5">
+
+    {# Financials — admin only (worker has separate template, so this is always admin) #}
+    <div class="card mb-3 border-warning">
+      <div class="card-header d-flex justify-content-between align-items-center bg-warning bg-opacity-10">
+        <strong>💰 Financials</strong>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#financialEdit">Edit</button>
+      </div>
+      <div class="card-body">
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <small class="text-muted text-uppercase fw-semibold d-block">Payment Type</small>
+            {% if job.payment_type == 'insurance' %}
+              <span class="badge bg-info">🏢 Insurance</span>
+              {% if job.claim_number %}<span class="ms-1 text-muted small">Claim: {{ job.claim_number }}</span>{% endif %}
+            {% elif job.payment_type == 'cash' %}
+              <span class="badge bg-success">💵 Cash</span>
+            {% else %}
+              <span class="text-muted small">Not set</span>
+            {% endif %}
+          </div>
+          <div class="col-6">
+            <small class="text-muted text-uppercase fw-semibold d-block">Deductible</small>
+            <span class="fw-semibold">{{ '$%.2f'|format(job.deductible|float) if job.deductible else '—' }}</span>
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <small class="text-muted text-uppercase fw-semibold d-block">Total Estimate</small>
+            <span class="fw-semibold fs-5">{{ '$%.2f'|format(job.total_estimate|float) if job.total_estimate else '—' }}</span>
+          </div>
+          <div class="col-6">
+            {% set total_sups = (job.supplement_1|float if job.supplement_1 else 0) + (job.supplement_2|float if job.supplement_2 else 0) + (job.supplement_3|float if job.supplement_3 else 0) + (job.supplement_4|float if job.supplement_4 else 0) %}
+            <small class="text-muted text-uppercase fw-semibold d-block">Supplements Total</small>
+            <span class="fw-semibold">{{ '$%.2f'|format(total_sups) if total_sups > 0 else '—' }}</span>
+          </div>
+        </div>
+        {% if job.supplement_1 or job.supplement_2 or job.supplement_3 or job.supplement_4 %}
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          {% for i in [1,2,3,4] %}
+            {% set sup = job['supplement_' ~ i] %}
+            {% if sup %}
+              <span class="badge bg-light text-dark border">Supp {{ i }}: ${{ '%.2f'|format(sup|float) }}</span>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% set total_paid = job.payments | sum(attribute='amount') if job.payments else 0 %}
+        {% set grand_total = (job.total_estimate|float if job.total_estimate else 0) + total_sups %}
+        {% set balance = grand_total - total_paid|float %}
+        <hr class="my-2">
+        <div class="d-flex justify-content-between">
+          <span class="text-muted small">Total Collected</span>
+          <span class="fw-semibold text-success">${{ '%.2f'|format(total_paid|float) }}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted small">Balance Due</span>
+          <span class="fw-semibold {% if balance > 0 %}text-danger{% else %}text-success{% endif %}">${{ '%.2f'|format(balance) }}</span>
+        </div>
+      </div>
+
+      {# Collapsible financial edit form #}
+      <div class="collapse" id="financialEdit">
+        <div class="card-body border-top bg-light">
+          <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/edit">
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label small">Payment Type</label>
+                <select name="payment_type" class="form-select form-select-sm" id="editPaymentType">
+                  <option value="">— Select —</option>
+                  <option value="insurance" {% if job.payment_type == 'insurance' %}selected{% endif %}>Insurance</option>
+                  <option value="cash" {% if job.payment_type == 'cash' %}selected{% endif %}>Cash</option>
+                </select>
+              </div>
+              <div class="col-6" id="editClaimField">
+                <label class="form-label small">Claim Number</label>
+                <input name="claim_number" class="form-control form-control-sm" value="{{ job.claim_number or '' }}" placeholder="Claim #">
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label small">Total Estimate ($)</label>
+                <input name="total_estimate" type="number" step="0.01" class="form-control form-control-sm"
+                       value="{{ '%.2f'|format(job.total_estimate|float) if job.total_estimate else '' }}">
+              </div>
+              <div class="col-6">
+                <label class="form-label small">Deductible ($)</label>
+                <input name="deductible" type="number" step="0.01" class="form-control form-control-sm"
+                       value="{{ '%.2f'|format(job.deductible|float) if job.deductible else '' }}">
+              </div>
+            </div>
+            <div class="row g-2 mb-3">
+              {% for i in [1,2,3,4] %}
+              <div class="col-6">
+                <label class="form-label small">Supplement {{ i }} ($)</label>
+                <input name="supplement_{{ i }}" type="number" step="0.01" class="form-control form-control-sm"
+                       value="{{ '%.2f'|format(job['supplement_' ~ i]|float) if job['supplement_' ~ i] else '' }}">
+              </div>
+              {% endfor %}
+            </div>
+            {# Pass through non-financial fields unchanged #}
+            <input type="hidden" name="customer_name" value="{{ job.customer_name }}">
+            <input type="hidden" name="customer_phone" value="{{ job.customer_phone or '' }}">
+            <input type="hidden" name="customer_email" value="{{ job.customer_email or '' }}">
+            <input type="hidden" name="vehicle_year" value="{{ job.vehicle_year or '' }}">
+            <input type="hidden" name="vehicle_make" value="{{ job.vehicle_make or '' }}">
+            <input type="hidden" name="vehicle_model" value="{{ job.vehicle_model or '' }}">
+            <input type="hidden" name="vehicle_color" value="{{ job.vehicle_color or '' }}">
+            <input type="hidden" name="vehicle_vin" value="{{ job.vehicle_vin or '' }}">
+            <input type="hidden" name="vehicle_license_plate" value="{{ job.vehicle_license_plate or '' }}">
+            <input type="hidden" name="vehicle_mileage" value="{{ job.vehicle_mileage or '' }}">
+            <input type="hidden" name="assigned_tech_id" value="{{ job.assigned_tech_id or '' }}">
+            <input type="hidden" name="estimated_completion" value="{{ job.estimated_completion.strftime('%Y-%m-%d') if job.estimated_completion else '' }}">
+            <input type="hidden" name="description" value="{{ job.description or '' }}">
+            <input type="hidden" name="internal_notes" value="{{ job.internal_notes or '' }}">
+            <button type="submit" class="btn btn-sm btn-warning">Save Financials</button>
+          </form>
+        </div>
+      </div>
+
+      {# Payment log #}
+      <div class="card-body border-top p-0">
+        <div class="px-3 pt-2 pb-1 d-flex justify-content-between align-items-center">
+          <strong class="small">Payment Log</strong>
+          <button class="btn btn-sm btn-outline-success btn-sm" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#addPaymentForm">+ Add Payment</button>
+        </div>
+
+        <div class="collapse px-3 pb-2" id="addPaymentForm">
+          <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/payments">
+            <div class="row g-2">
+              <div class="col-6">
+                <select name="payment_method" class="form-select form-select-sm">
+                  {% for m in payment_methods %}
+                  <option value="{{ m }}">{{ payment_method_labels[m] }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-6">
+                <input name="amount" type="number" step="0.01" min="0.01"
+                       class="form-control form-control-sm" placeholder="Amount $" required>
+              </div>
+              <div class="col-6">
+                <input name="date_received" type="date" class="form-control form-control-sm"
+                       value="{{ today.strftime('%Y-%m-%d') if today else '' }}">
+              </div>
+              <div class="col-6">
+                <input name="notes" type="text" class="form-control form-control-sm" placeholder="Notes (optional)">
+              </div>
+              <div class="col-auto">
+                <button type="submit" class="btn btn-success btn-sm">Record Payment</button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        {% if job.payments %}
+        <ul class="list-group list-group-flush">
+          {% for p in job.payments | sort(attribute='date_received', reverse=True) %}
+          <li class="list-group-item py-2 px-3">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <span class="fw-semibold">${{ '%.2f'|format(p.amount|float) }}</span>
+                <span class="badge bg-secondary ms-1 small">{{ payment_method_labels.get(p.payment_method, p.payment_method) }}</span>
+                {% if p.notes %}<span class="text-muted small ms-1">{{ p.notes }}</span>{% endif %}
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <small class="text-muted">{{ p.date_received.strftime('%b %d') if p.date_received else '' }}</small>
+                <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/payments/{{ p.id }}/delete"
+                      onsubmit="return confirm('Delete this payment?')">
+                  <button class="btn btn-link btn-sm text-danger p-0">✕</button>
+                </form>
+              </div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="px-3 pb-3 text-muted small">No payments recorded yet.</div>
+        {% endif %}
+      </div>
+    </div>
 
     <div class="card mb-3">
       <div class="card-header"><strong>Photos</strong></div>
@@ -283,4 +466,17 @@
 
   </div>
 </div>
+
+<script>
+  // Toggle claim number field based on payment type in edit form
+  const editPT = document.getElementById('editPaymentType');
+  const editClaim = document.getElementById('editClaimField');
+  function toggleClaim(sel, field) {
+    field.style.display = sel && sel.value === 'insurance' ? '' : 'none';
+  }
+  if (editPT) {
+    toggleClaim(editPT, editClaim);
+    editPT.addEventListener('change', () => toggleClaim(editPT, editClaim));
+  }
+</script>
 {% endblock %}

@@ -60,6 +60,13 @@
   </style>
 </head>
 <body>
+  <nav style="background:#fff;border-bottom:1px solid #e2e8f0;padding:.5rem 1rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;border-radius:0 0 10px 10px;box-shadow:0 1px 4px rgba(0,0,0,.06);">
+    <a href="/home" style="font-weight:700;font-size:1rem;color:#1e293b;text-decoration:none;">🏠 Dashboard</a>
+    <div style="display:flex;gap:.5rem;">
+      <a href="/home" class="btn btn-sm btn-outline-secondary">Home</a>
+      <a href="/logout" class="btn btn-sm btn-outline-danger">Logout</a>
+    </div>
+  </nav>
   <div class="container">
     {% block content %}{% endblock %}
   </div>

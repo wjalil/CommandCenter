@@ -1,61 +1,141 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Repair Orders</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <style>
-    body { background: #f8fafc; font-family: 'Inter', sans-serif; }
-    .navbar { background: #fff; border-bottom: 1px solid #e2e8f0; }
-    .job-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; transition: box-shadow .2s; }
-    .job-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); }
-    .vehicle-label { font-size: .85rem; color: #64748b; }
-  </style>
-</head>
-<body>
+{% extends "worker_base.html" %}
+{% block title %}My Jobs{% endblock %}
+{% block nav_title %}🔧 Repair Orders{% endblock %}
 
-<nav class="navbar px-3 py-2 mb-4">
-  <div class="container-fluid d-flex justify-content-between align-items-center">
-    <span class="fw-bold fs-5">🔧 Repair Orders</span>
-    <a href="/worker/home" class="btn btn-outline-secondary btn-sm">← Home</a>
+{% block extra_css %}
+.kanban-wrapper {
+  display: flex;
+  gap: .85rem;
+  overflow-x: auto;
+  padding-bottom: 1.5rem;
+  align-items: flex-start;
+}
+
+.kanban-col {
+  flex: 0 0 230px;
+  background: rgba(255,255,255,0.5);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148,163,184,0.2);
+  border-radius: 16px;
+  padding: .7rem;
+  min-height: 160px;
+}
+
+.kanban-col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .6rem;
+}
+
+.kanban-col-title {
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #6366f1;
+}
+
+.kanban-count {
+  background: rgba(99,102,241,.12);
+  color: #6366f1;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: .1rem .45rem;
+}
+
+.job-card {
+  background: rgba(255,255,255,.92);
+  border-radius: 12px;
+  padding: .7rem;
+  margin-bottom: .5rem;
+  border-left: 4px solid #94a3b8;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  text-decoration: none;
+  display: block;
+  color: inherit;
+  transition: transform .15s, box-shadow .15s;
+}
+
+.job-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.1); color: inherit; }
+.job-card.mine  { border-left-color: #8b5cf6; }
+.job-card.age-warn { border-left-color: #f59e0b; }
+.job-card.age-hot  { border-left-color: #ef4444; }
+
+.ticket-num   { font-size: .68rem; font-weight: 700; color: #6366f1; letter-spacing: .04em; text-transform: uppercase; }
+.customer-name{ font-size: .88rem; font-weight: 700; color: #1e293b; margin: .1rem 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vehicle-info { font-size: .74rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.card-foot    { display: flex; justify-content: space-between; align-items: center; margin-top: .45rem; }
+.age-badge    { font-size: .67rem; font-weight: 700; border-radius: 6px; padding: .12rem .4rem; }
+.age-badge.ok   { background: #dcfce7; color: #15803d; }
+.age-badge.warn { background: #fef9c3; color: #92400e; }
+.age-badge.hot  { background: #fee2e2; color: #b91c1c; }
+
+.mine-chip { font-size: .67rem; background: rgba(139,92,246,.12); color: #7c3aed; border-radius: 6px; padding: .12rem .4rem; font-weight: 700; }
+{% endblock %}
+
+{% block content %}
+
+<!-- view toggle -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h5 class="section-title m-0">🔧 Repair Board</h5>
+  <div class="d-flex gap-2 align-items-center">
+    <a href="/auto_shop/worker/jobs?view=mine"
+       class="btn btn-sm {% if view == 'mine' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+      My Jobs {% if my_count %}<span class="badge bg-white text-primary ms-1">{{ my_count }}</span>{% endif %}
+    </a>
+    <a href="/auto_shop/worker/jobs?view=all"
+       class="btn btn-sm {% if view == 'all' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+      All Jobs
+    </a>
   </div>
-</nav>
+</div>
 
-<div class="container" style="max-width:760px;">
+<div class="kanban-wrapper">
+  {% for status_key in active_statuses %}
+    {% set col_jobs = jobs_by_status.get(status_key, []) %}
+    <div class="kanban-col">
+      <div class="kanban-col-header">
+        <span class="kanban-col-title">{{ status_labels.get(status_key, status_key) }}</span>
+        <span class="kanban-count">{{ col_jobs | length }}</span>
+      </div>
 
-  {% if jobs %}
-    <div class="d-flex flex-column gap-3">
-    {% for job in jobs %}
-      <a href="/auto_shop/worker/jobs/{{ job.id }}" class="text-decoration-none text-dark">
-        <div class="job-card p-3">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div>
-              <div class="fw-bold">{{ job.ticket_number }} — {{ job.customer_name }}</div>
-              <div class="vehicle-label">
-                {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
-                {% if job.vehicle_color %} · {{ job.vehicle_color }}{% endif %}
-              </div>
-              {% if job.assigned_tech %}
-                <div class="vehicle-label mt-1">Tech: {{ job.assigned_tech.name }}</div>
+      {% if col_jobs %}
+        {% for job in col_jobs %}
+          {% set days = (today - job.intake_date).days if job.intake_date else 0 %}
+          {% if days <= 7 %}{% set age_cls = 'ok' %}
+          {% elif days <= 14 %}{% set age_cls = 'warn' %}
+          {% else %}{% set age_cls = 'hot' %}{% endif %}
+          {% set is_mine = job.assigned_tech and job.assigned_tech.id == request.session.get('user_id') %}
+
+          <a href="/auto_shop/worker/jobs/{{ job.id }}"
+             class="job-card {% if is_mine %}mine{% elif age_cls != 'ok' %}age-{{ age_cls }}{% endif %}">
+            <div class="ticket-num">{{ job.ticket_number }}</div>
+            <div class="customer-name">{{ job.customer_name }}</div>
+            <div class="vehicle-info">
+              {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
+            </div>
+            <div class="card-foot">
+              <span class="age-badge {{ age_cls }}">
+                {% if days == 0 %}Today{% elif days == 1 %}1 day{% else %}{{ days }}d{% endif %}
+              </span>
+              {% if is_mine %}
+                <span class="mine-chip">Assigned to me</span>
+              {% elif job.assigned_tech %}
+                <span style="font-size:.67rem;color:#64748b;">{{ job.assigned_tech.name }}</span>
+              {% else %}
+                <span style="font-size:.67rem;color:#94a3b8;">Unassigned</span>
               {% endif %}
             </div>
-            <span class="badge bg-{{ status_badge_colors.get(job.status, 'secondary') }} text-nowrap">
-              {{ status_labels.get(job.status, job.status) }}
-            </span>
-          </div>
-          {% if job.description %}
-            <div class="mt-2 text-muted" style="font-size:.9rem;">{{ job.description[:120] }}{% if job.description|length > 120 %}…{% endif %}</div>
-          {% endif %}
-        </div>
-      </a>
-    {% endfor %}
+          </a>
+        {% endfor %}
+      {% else %}
+        <div style="font-size:.75rem;color:#94a3b8;text-align:center;padding:.75rem 0;">Empty</div>
+      {% endif %}
     </div>
-  {% else %}
-    <div class="text-center text-muted py-5">No active repair orders.</div>
-  {% endif %}
-
+  {% endfor %}
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+
+{% endblock %}

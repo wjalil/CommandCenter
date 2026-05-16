@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, Request, UploadFile, File, Form, Query
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from datetime import datetime
+from datetime import datetime, date
+from collections import defaultdict
 import uuid
 import os
 import shutil
@@ -51,26 +52,61 @@ async def _get_job(db: AsyncSession, job_id: str, tenant_id: int):
     return result.scalar_one_or_none()
 
 
+ACTIVE_STATUSES = [s for s in VALID_STATUSES if s not in ("complete", "ready_for_pickup")]
+
+
 @router.get("/jobs")
 async def worker_jobs_list(
     request: Request,
+    view: str = Query(default="mine"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
+    today = date.today()
+
+    # My assigned jobs (always load for the "mine" count)
+    my_result = await db.execute(
         select(RepairOrder)
         .where(
             RepairOrder.tenant_id == user.tenant_id,
+            RepairOrder.assigned_tech_id == user.id,
             RepairOrder.status.notin_(["complete"]),
         )
         .options(selectinload(RepairOrder.assigned_tech))
-        .order_by(RepairOrder.created_at.desc())
+        .order_by(RepairOrder.intake_date.asc())
     )
-    jobs = result.scalars().all()
+    my_jobs = my_result.scalars().all()
+
+    # All jobs (only fetched when view=all)
+    if view == "all":
+        all_result = await db.execute(
+            select(RepairOrder)
+            .where(
+                RepairOrder.tenant_id == user.tenant_id,
+                RepairOrder.status.notin_(["complete"]),
+            )
+            .options(selectinload(RepairOrder.assigned_tech))
+            .order_by(RepairOrder.intake_date.asc())
+        )
+        display_jobs = all_result.scalars().all()
+    else:
+        display_jobs = my_jobs
+
+    jobs_by_status: dict[str, list] = defaultdict(list)
+    for job in display_jobs:
+        jobs_by_status[job.status].append(job)
 
     return templates.TemplateResponse(
         "auto_shop/worker_jobs_list.html",
-        _ctx(request, jobs=jobs, worker_name=user.name),
+        _ctx(
+            request,
+            jobs_by_status=jobs_by_status,
+            active_statuses=ACTIVE_STATUSES,
+            my_count=len(my_jobs),
+            view=view,
+            today=today,
+            worker_name=user.name,
+        ),
     )
 
 

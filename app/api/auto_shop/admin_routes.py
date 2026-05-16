@@ -24,10 +24,15 @@ from app.models.auto_shop import (
     RepairOrder,
     RepairOrderPhoto,
     RepairOrderStatusLog,
+    RepairOrderPayment,
     VALID_STATUSES,
     STATUS_LABELS,
     STATUS_BADGE_COLORS,
     STATUS_SMS_MESSAGES,
+    PAYMENT_TYPES,
+    PAYMENT_TYPE_LABELS,
+    PAYMENT_METHODS,
+    PAYMENT_METHOD_LABELS,
 )
 from app.core.constants import UPLOAD_PATHS
 from app.utils.twilio_client import send_sms
@@ -67,6 +72,10 @@ def _template_ctx(request: Request, **kwargs) -> dict:
         "status_labels": STATUS_LABELS,
         "status_badge_colors": STATUS_BADGE_COLORS,
         "valid_statuses": VALID_STATUSES,
+        "payment_types": PAYMENT_TYPES,
+        "payment_type_labels": PAYMENT_TYPE_LABELS,
+        "payment_methods": PAYMENT_METHODS,
+        "payment_method_labels": PAYMENT_METHOD_LABELS,
         **kwargs,
     }
 
@@ -221,6 +230,8 @@ async def job_create(
         status="new_arrival",
         assigned_tech_id=form.get("assigned_tech_id") or None,
         estimated_completion=estimated_completion,
+        payment_type=form.get("payment_type") or None,
+        claim_number=form.get("claim_number") or None,
         tenant_id=tenant_id,
     )
     db.add(job)
@@ -260,6 +271,7 @@ async def job_detail(
             selectinload(RepairOrder.assigned_tech),
             selectinload(RepairOrder.photos).selectinload(RepairOrderPhoto.uploaded_by),
             selectinload(RepairOrder.status_logs).selectinload(RepairOrderStatusLog.changed_by),
+            selectinload(RepairOrder.payments),
         )
     )
     job = result.scalar_one_or_none()
@@ -275,7 +287,7 @@ async def job_detail(
 
     return templates.TemplateResponse(
         "auto_shop/job_detail.html",
-        _template_ctx(request, job=job, techs=techs),
+        _template_ctx(request, job=job, techs=techs, today=date.today()),
     )
 
 
@@ -316,6 +328,22 @@ async def job_edit(
     job.description = form.get("description") or None
     job.internal_notes = form.get("internal_notes") or None
     job.assigned_tech_id = form.get("assigned_tech_id") or None
+    job.payment_type = form.get("payment_type") or None
+    job.claim_number = form.get("claim_number") or None
+
+    def _parse_decimal(key: str):
+        raw = form.get(key, "").strip()
+        try:
+            return float(raw) if raw else None
+        except ValueError:
+            return None
+
+    job.total_estimate = _parse_decimal("total_estimate")
+    job.supplement_1 = _parse_decimal("supplement_1")
+    job.supplement_2 = _parse_decimal("supplement_2")
+    job.supplement_3 = _parse_decimal("supplement_3")
+    job.supplement_4 = _parse_decimal("supplement_4")
+    job.deductible = _parse_decimal("deductible")
     job.updated_at = datetime.utcnow()
 
     if est_raw:
@@ -475,6 +503,73 @@ async def job_upload_photo(
     )
     db.add(photo)
     await db.commit()
+
+    return RedirectResponse(url=f"/auto_shop/admin/jobs/{job_id}", status_code=303)
+
+
+# ── payments ─────────────────────────────────────────────────────────────────
+
+@router.post("/jobs/{job_id}/payments")
+async def job_add_payment(
+    request: Request,
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    tenant_id = user.tenant_id
+    form = await request.form()
+
+    result = await db.execute(
+        select(RepairOrder).where(RepairOrder.id == job_id, RepairOrder.tenant_id == tenant_id)
+    )
+    if not result.scalar_one_or_none():
+        return RedirectResponse(url="/auto_shop/admin/jobs", status_code=303)
+
+    amount_raw = form.get("amount", "").strip()
+    try:
+        amount = float(amount_raw)
+    except ValueError:
+        return RedirectResponse(url=f"/auto_shop/admin/jobs/{job_id}", status_code=303)
+
+    date_raw = form.get("date_received", "").strip()
+    try:
+        date_received = datetime.strptime(date_raw, "%Y-%m-%d").date() if date_raw else date.today()
+    except ValueError:
+        date_received = date.today()
+
+    payment = RepairOrderPayment(
+        id=str(uuid.uuid4()),
+        repair_order_id=job_id,
+        payment_method=form.get("payment_method", "cash"),
+        amount=amount,
+        date_received=date_received,
+        notes=form.get("notes", "").strip() or None,
+        tenant_id=tenant_id,
+    )
+    db.add(payment)
+    await db.commit()
+
+    return RedirectResponse(url=f"/auto_shop/admin/jobs/{job_id}", status_code=303)
+
+
+@router.post("/jobs/{job_id}/payments/{payment_id}/delete")
+async def job_delete_payment(
+    job_id: str,
+    payment_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    result = await db.execute(
+        select(RepairOrderPayment).where(
+            RepairOrderPayment.id == payment_id,
+            RepairOrderPayment.repair_order_id == job_id,
+            RepairOrderPayment.tenant_id == user.tenant_id,
+        )
+    )
+    payment = result.scalar_one_or_none()
+    if payment:
+        await db.delete(payment)
+        await db.commit()
 
     return RedirectResponse(url=f"/auto_shop/admin/jobs/{job_id}", status_code=303)
 
