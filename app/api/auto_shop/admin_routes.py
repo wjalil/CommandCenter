@@ -11,7 +11,8 @@ from sqlalchemy.future import select
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
+from collections import defaultdict
 import uuid
 import os
 import shutil
@@ -72,6 +73,8 @@ def _template_ctx(request: Request, **kwargs) -> dict:
 
 # ── dashboard ─────────────────────────────────────────────────────────────────
 
+ACTIVE_STATUSES = [s for s in VALID_STATUSES if s not in ("completed", "ready_for_pickup")]
+
 @router.get("/")
 async def dashboard(
     request: Request,
@@ -79,38 +82,49 @@ async def dashboard(
     user: User = Depends(get_current_admin_user),
 ):
     tenant_id = user.tenant_id
+    today = date.today()
 
-    # Status counts
-    counts_result = await db.execute(
-        select(RepairOrder.status, func.count(RepairOrder.id))
-        .where(RepairOrder.tenant_id == tenant_id)
-        .group_by(RepairOrder.status)
-    )
-    status_counts = dict(counts_result.all())
-
-    open_statuses = [s for s in VALID_STATUSES if s not in ("completed", "ready_for_pickup")]
-    open_count = sum(status_counts.get(s, 0) for s in open_statuses)
-
-    # 10 most recent open jobs
-    recent_result = await db.execute(
+    # All open jobs
+    result = await db.execute(
         select(RepairOrder)
         .where(
             RepairOrder.tenant_id == tenant_id,
             RepairOrder.status.notin_(["completed"]),
         )
         .options(selectinload(RepairOrder.assigned_tech))
-        .order_by(RepairOrder.created_at.desc())
-        .limit(10)
+        .order_by(RepairOrder.intake_date.asc())
     )
-    recent_jobs = recent_result.scalars().all()
+    open_jobs = result.scalars().all()
+
+    # Group by status
+    jobs_by_status: dict[str, list] = defaultdict(list)
+    for job in open_jobs:
+        jobs_by_status[job.status].append(job)
+
+    # Ready for pickup count (separate bucket)
+    ready_count = len(jobs_by_status.get("ready_for_pickup", []))
+    open_count = sum(len(jobs_by_status.get(s, [])) for s in ACTIVE_STATUSES)
+
+    # Completed today
+    completed_result = await db.execute(
+        select(func.count(RepairOrder.id)).where(
+            RepairOrder.tenant_id == tenant_id,
+            RepairOrder.status == "completed",
+            func.date(RepairOrder.completed_at) == today,
+        )
+    )
+    completed_today = completed_result.scalar() or 0
 
     return templates.TemplateResponse(
         "auto_shop/dashboard.html",
         _template_ctx(
             request,
-            status_counts=status_counts,
+            jobs_by_status=jobs_by_status,
+            active_statuses=ACTIVE_STATUSES,
             open_count=open_count,
-            recent_jobs=recent_jobs,
+            ready_count=ready_count,
+            completed_today=completed_today,
+            today=today,
         ),
     )
 

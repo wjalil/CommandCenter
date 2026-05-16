@@ -1,98 +1,294 @@
 {% extends "base.html" %}
-{% block title %}Auto Shop Dashboard{% endblock %}
+{% block title %}Auto Shop — Dashboard{% endblock %}
 
 {% block content %}
 {% set active = 'dashboard' %}
 {% include "auto_shop/_nav.html" %}
 
-<div class="row mb-3">
-  <div class="col">
-    <h2>Auto Shop Dashboard</h2>
-    <p class="text-muted">Track repair orders and vehicle status</p>
+<style>
+  /* ── kanban layout ── */
+  .kanban-wrapper {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 1.5rem;
+    align-items: flex-start;
+  }
+
+  .kanban-col {
+    flex: 0 0 260px;
+    background: #f1f5f9;
+    border-radius: 14px;
+    padding: .75rem;
+    min-height: 200px;
+  }
+
+  .kanban-col-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: .65rem;
+    padding: 0 .15rem;
+  }
+
+  .kanban-col-title {
+    font-size: .8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #475569;
+  }
+
+  .kanban-count {
+    background: #cbd5e1;
+    color: #334155;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 700;
+    padding: .1rem .5rem;
+  }
+
+  /* ── job card ── */
+  .job-card {
+    background: #fff;
+    border-radius: 11px;
+    padding: .75rem;
+    margin-bottom: .6rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    border-left: 4px solid #94a3b8;
+    transition: box-shadow .15s, transform .15s;
+    cursor: pointer;
+    text-decoration: none;
+    display: block;
+    color: inherit;
+  }
+
+  .job-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    transform: translateY(-2px);
+    color: inherit;
+  }
+
+  .job-card.age-ok   { border-left-color: #22c55e; }
+  .job-card.age-warn { border-left-color: #f59e0b; }
+  .job-card.age-hot  { border-left-color: #ef4444; }
+
+  .ticket-num {
+    font-size: .72rem;
+    font-weight: 700;
+    color: #6366f1;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .customer-name {
+    font-size: .92rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: .1rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .vehicle-info {
+    font-size: .78rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: .5rem;
+  }
+
+  .age-badge {
+    font-size: .7rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: .15rem .45rem;
+  }
+
+  .age-badge.ok   { background: #dcfce7; color: #15803d; }
+  .age-badge.warn { background: #fef9c3; color: #92400e; }
+  .age-badge.hot  { background: #fee2e2; color: #b91c1c; }
+
+  .tech-chip {
+    font-size: .7rem;
+    color: #64748b;
+    background: #f1f5f9;
+    border-radius: 6px;
+    padding: .15rem .4rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+  }
+
+  /* ── stat strip ── */
+  .stat-strip {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+  }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: .85rem 1.25rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    flex: 1 1 140px;
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+  }
+
+  .stat-num {
+    font-size: 1.9rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #1e293b;
+  }
+
+  .stat-label {
+    font-size: .78rem;
+    color: #64748b;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+
+  /* color accents per column */
+  .col-intake           { --accent: #6366f1; }
+  .col-diagnosing       { --accent: #06b6d4; }
+  .col-waiting_on_adjuster { --accent: #f59e0b; }
+  .col-waiting_on_parts { --accent: #f97316; }
+  .col-parts_received   { --accent: #3b82f6; }
+  .col-in_progress      { --accent: #8b5cf6; }
+  .col-adjuster_approved{ --accent: #10b981; }
+  .col-ready_for_pickup { --accent: #22c55e; }
+
+  .kanban-col .kanban-col-title { color: var(--accent, #475569); }
+  .kanban-col .kanban-count    { background: color-mix(in srgb, var(--accent, #94a3b8) 15%, white); color: var(--accent, #334155); }
+</style>
+
+<!-- ── page header ── -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="fw-bold mb-0">🔧 Shop Floor</h4>
+    <div class="text-muted" style="font-size:.85rem;">{{ today.strftime('%A, %B %d, %Y') }}</div>
   </div>
-  <div class="col-auto align-self-center">
-    <a href="/auto_shop/admin/jobs/new" class="btn btn-primary">+ New Job</a>
+  <a href="/auto_shop/admin/jobs/new" class="btn btn-primary">+ New Job</a>
+</div>
+
+<!-- ── stat strip ── -->
+<div class="stat-strip">
+  <div class="stat-card">
+    <div class="stat-num text-primary">{{ open_count }}</div>
+    <div class="stat-label">Active Jobs</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num text-success">{{ ready_count }}</div>
+    <div class="stat-label">Ready for Pickup</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num text-secondary">{{ completed_today }}</div>
+    <div class="stat-label">Completed Today</div>
+  </div>
+  <div class="stat-card" style="flex:2 1 200px;">
+    <div class="stat-label mb-1">Quick Filter</div>
+    <div class="d-flex flex-wrap gap-1">
+      <a href="/auto_shop/admin/jobs" class="btn btn-sm btn-outline-secondary">All Jobs</a>
+      <a href="/auto_shop/admin/jobs?status_filter=ready_for_pickup" class="btn btn-sm btn-outline-success">Ready for Pickup</a>
+      <a href="/auto_shop/admin/jobs?status_filter=waiting_on_parts" class="btn btn-sm btn-outline-warning">Waiting Parts</a>
+    </div>
   </div>
 </div>
 
-{# Status summary cards #}
-<div class="row mb-4">
-  <div class="col-md-3 mb-3">
-    <div class="card text-center h-100">
-      <div class="card-body">
-        <h2 class="display-5 fw-bold">{{ open_count }}</h2>
-        <p class="text-muted mb-2">Open Jobs</p>
-        <a href="/auto_shop/admin/jobs" class="btn btn-outline-primary btn-sm">View All</a>
-      </div>
-    </div>
-  </div>
+<!-- ── kanban board ── -->
+<div class="kanban-wrapper">
+  {% for status_key in active_statuses %}
+  {% set col_jobs = jobs_by_status.get(status_key, []) %}
+  <div class="kanban-col col-{{ status_key }}">
 
-  {% for status_key in valid_statuses %}
-  {% set count = status_counts.get(status_key, 0) %}
-  {% if count > 0 %}
-  <div class="col-md-3 mb-3">
-    <div class="card text-center h-100">
-      <div class="card-body">
-        <h2 class="display-5 fw-bold">{{ count }}</h2>
-        <p class="text-muted mb-2">{{ status_labels[status_key] }}</p>
-        <a href="/auto_shop/admin/jobs?status_filter={{ status_key }}"
-           class="btn btn-outline-secondary btn-sm">Filter</a>
-      </div>
+    <div class="kanban-col-header">
+      <span class="kanban-col-title">{{ status_labels.get(status_key, status_key) }}</span>
+      <span class="kanban-count">{{ col_jobs | length }}</span>
     </div>
-  </div>
-  {% endif %}
-  {% endfor %}
-</div>
 
-{# Recent open jobs #}
-<div class="card">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <strong>Recent Open Jobs</strong>
-    <a href="/auto_shop/admin/jobs" class="btn btn-sm btn-outline-secondary">View All</a>
-  </div>
-  {% if recent_jobs %}
-  <div class="card-body p-0">
-    <table class="nice-table mb-0">
-      <thead>
-        <tr>
-          <th>Ticket</th>
-          <th>Customer</th>
-          <th>Vehicle</th>
-          <th>Status</th>
-          <th>Tech</th>
-          <th>Intake</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for job in recent_jobs %}
-        <tr>
-          <td><strong>{{ job.ticket_number }}</strong></td>
-          <td>{{ job.customer_name }}</td>
-          <td>
+    {% if col_jobs %}
+      {% for job in col_jobs %}
+        {% set days = (today - job.intake_date).days if job.intake_date else 0 %}
+        {% if days <= 7 %}{% set age_cls = 'ok' %}
+        {% elif days <= 14 %}{% set age_cls = 'warn' %}
+        {% else %}{% set age_cls = 'hot' %}{% endif %}
+
+        <a href="/auto_shop/admin/jobs/{{ job.id }}" class="job-card age-{{ age_cls }}">
+          <div class="ticket-num">{{ job.ticket_number }}</div>
+          <div class="customer-name">{{ job.customer_name }}</div>
+          <div class="vehicle-info">
             {% if job.vehicle_year or job.vehicle_make or job.vehicle_model %}
               {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
             {% else %}
-              <span class="text-muted">—</span>
+              No vehicle info
             {% endif %}
-          </td>
-          <td>
-            <span class="badge bg-{{ status_badge_colors.get(job.status, 'secondary') }}">
-              {{ status_labels.get(job.status, job.status) }}
+          </div>
+          <div class="card-footer-row">
+            <span class="age-badge {{ age_cls }}">
+              {% if days == 0 %}Today{% elif days == 1 %}1 day{% else %}{{ days }} days{% endif %}
             </span>
-          </td>
-          <td>{{ job.assigned_tech.name if job.assigned_tech else '—' }}</td>
-          <td>{{ job.intake_date.strftime('%b %d, %Y') if job.intake_date else '—' }}</td>
-          <td>
-            <a href="/auto_shop/admin/jobs/{{ job.id }}" class="btn btn-sm btn-outline-primary">View</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+            {% if job.assigned_tech %}
+              <span class="tech-chip">👤 {{ job.assigned_tech.name }}</span>
+            {% else %}
+              <span class="tech-chip text-muted">Unassigned</span>
+            {% endif %}
+          </div>
+        </a>
+      {% endfor %}
+    {% else %}
+      <div style="font-size:.78rem; color:#94a3b8; text-align:center; padding: 1rem 0;">Empty</div>
+    {% endif %}
+
   </div>
-  {% else %}
-  <div class="card-body text-muted">No open jobs.</div>
+  {% endfor %}
+
+  <!-- Ready for Pickup column (always last) -->
+  {% set pickup_jobs = jobs_by_status.get("ready_for_pickup", []) %}
+  {% if pickup_jobs %}
+  <div class="kanban-col col-ready_for_pickup">
+    <div class="kanban-col-header">
+      <span class="kanban-col-title">Ready for Pickup</span>
+      <span class="kanban-count">{{ pickup_jobs | length }}</span>
+    </div>
+    {% for job in pickup_jobs %}
+      {% set days = (today - job.intake_date).days if job.intake_date else 0 %}
+      {% if days <= 7 %}{% set age_cls = 'ok' %}
+      {% elif days <= 14 %}{% set age_cls = 'warn' %}
+      {% else %}{% set age_cls = 'hot' %}{% endif %}
+
+      <a href="/auto_shop/admin/jobs/{{ job.id }}" class="job-card age-{{ age_cls }}">
+        <div class="ticket-num">{{ job.ticket_number }}</div>
+        <div class="customer-name">{{ job.customer_name }}</div>
+        <div class="vehicle-info">
+          {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
+        </div>
+        <div class="card-footer-row">
+          <span class="age-badge {{ age_cls }}">
+            {% if days == 0 %}Today{% elif days == 1 %}1 day{% else %}{{ days }} days{% endif %}
+          </span>
+          {% if job.assigned_tech %}
+            <span class="tech-chip">👤 {{ job.assigned_tech.name }}</span>
+          {% endif %}
+        </div>
+      </a>
+    {% endfor %}
+  </div>
   {% endif %}
+
 </div>
 {% endblock %}
