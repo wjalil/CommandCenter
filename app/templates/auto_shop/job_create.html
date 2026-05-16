@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}New Repair Job{% endblock %}
+
+{% block content %}
+{% set active = 'new' %}
+{% include "auto_shop/_nav.html" %}
+
+<div class="row mb-3">
+  <div class="col">
+    <h2>New Repair Job</h2>
+    <p class="text-muted">Fill in the details below to open a new job ticket.</p>
+  </div>
+</div>
+
+<form method="POST" action="/auto_shop/admin/jobs/new">
+  <div class="row">
+
+    {# Customer Info #}
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header"><strong>Customer</strong></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Name <span class="text-danger">*</span></label>
+            <input name="customer_name" type="text" class="form-control" required placeholder="Full name">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Phone</label>
+            <input name="customer_phone" type="tel" class="form-control" placeholder="+1 (555) 000-0000">
+            <div class="form-text">Used for SMS status updates.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input name="customer_email" type="email" class="form-control" placeholder="customer@email.com">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Vehicle Info #}
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header"><strong>Vehicle</strong></div>
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col">
+              <label class="form-label">Year</label>
+              <input name="vehicle_year" type="text" class="form-control" placeholder="2022" maxlength="4">
+            </div>
+            <div class="col">
+              <label class="form-label">Make</label>
+              <input name="vehicle_make" type="text" class="form-control" placeholder="Toyota">
+            </div>
+            <div class="col">
+              <label class="form-label">Model</label>
+              <input name="vehicle_model" type="text" class="form-control" placeholder="Camry">
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col">
+              <label class="form-label">Color</label>
+              <input name="vehicle_color" type="text" class="form-control" placeholder="Silver">
+            </div>
+            <div class="col">
+              <label class="form-label">Mileage</label>
+              <input name="vehicle_mileage" type="number" class="form-control" placeholder="45000">
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col">
+              <label class="form-label">License Plate</label>
+              <input name="vehicle_license_plate" type="text" class="form-control" placeholder="ABC-1234">
+            </div>
+            <div class="col">
+              <label class="form-label">VIN</label>
+              <input name="vehicle_vin" type="text" class="form-control" placeholder="1HGCM82633A123456" maxlength="17">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Job Details #}
+    <div class="col-12 mb-4">
+      <div class="card">
+        <div class="card-header"><strong>Job Details</strong></div>
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Assign Technician</label>
+              <select name="assigned_tech_id" class="form-select">
+                <option value="">— Unassigned —</option>
+                {% for tech in techs %}
+                <option value="{{ tech.id }}">{{ tech.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Est. Completion Date</label>
+              <input name="estimated_completion" type="date" class="form-control">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description / Work Required</label>
+            <textarea name="description" class="form-control" rows="3"
+                      placeholder="Describe the work to be done..."></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Internal Notes</label>
+            <textarea name="internal_notes" class="form-control" rows="2"
+                      placeholder="Notes visible to staff only..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="d-flex gap-2 mb-4">
+    <button type="submit" class="btn btn-primary">Create Job</button>
+    <a href="/auto_shop/admin/jobs" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}

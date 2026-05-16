@@ -44,3 +44,6 @@ class Tenant(Base):
     # Delivery module
     delivery_stops = relationship("DeliveryStop", back_populates="tenant")
     delivery_routes = relationship("DeliveryRoute", back_populates="tenant")
+
+    # Auto shop module
+    repair_orders = relationship("RepairOrder", back_populates="tenant")

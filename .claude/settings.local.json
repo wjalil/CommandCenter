@@ -4,7 +4,11 @@
       "Bash(.venv/Scripts/python.exe -m alembic current:*)",
       "Bash(python3:*)",
       "Bash(pip show:*)",
-      "Bash(.venv/Scripts/python.exe:*)"
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(mkdir -p /mnt/c/Users/wjali/OneDrive/Desktop/cookieops-backend/app/models/auto_shop)",
+      "Bash(mkdir -p /mnt/c/Users/wjali/OneDrive/Desktop/cookieops-backend/app/api/auto_shop)",
+      "Bash(mkdir -p /mnt/c/Users/wjali/OneDrive/Desktop/cookieops-backend/app/templates/auto_shop)",
+      "Bash(git add *)"
     ]
   }
 }

@@ -30,6 +30,24 @@ COMPARE_TYPE = True
 config = context.config
 fileConfig(config.config_file_name) if config.config_file_name else None
 
+
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    Prevent autogenerate from ever emitting DROP TABLE.
+
+    When a table exists in the database but has no corresponding model in
+    Base.metadata (reflected=True, compare_to=None), Alembic autogenerate
+    would normally generate op.drop_table(...).  Returning False here skips
+    those tables entirely — they are left untouched.
+
+    This protects against the scenario where a model is accidentally missing
+    from models/__init__.py, which previously caused tables to be dropped.
+    """
+    if type_ == "table" and reflected and compare_to is None:
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
     url = DATABASE_URL
@@ -39,6 +57,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         compare_type=COMPARE_TYPE,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -49,6 +68,7 @@ def do_run_migrations(connection):
         connection=connection,
         target_metadata=target_metadata,
         compare_type=COMPARE_TYPE,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()

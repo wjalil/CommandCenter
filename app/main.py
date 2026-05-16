@@ -18,6 +18,7 @@ from app.db import create_db_and_tables,async_session
 from app.schemas.user import UserRead, UserCreate
 from app.models import shift, task, submission, user
 from app.models.tenant import Tenant
+from app.models.tenant_module import TenantModule
 from app.models.user import User
 from app.auth.routes import get_current_user
 from app.api.custom_modules import inventory_routes, driver_order_routes,vending_log_routes
@@ -36,6 +37,7 @@ from app.api.admin import admin_customer_routes
 from app.api import taskboard_routes
 from app.api.catering import router as catering_router
 from app.api.delivery import router as delivery_router
+from app.api.auto_shop import router as auto_shop_router
 
 load_dotenv()
 
@@ -159,7 +161,7 @@ async def on_startup():
             print(f"🏢 Tenant '{tenant.name}' already exists.")
 
     
-        result = await db.execute(select(User).where(User.role == "admin"))
+        result = await db.execute(select(User).where(User.role == "admin", User.tenant_id == tenant.id))
         existing_admin = result.scalars().first()
 
         if not existing_admin:
@@ -169,13 +171,81 @@ async def on_startup():
                 pin_code="1234",
                 role="admin",
                 is_active=True,
-                tenant_id=tenant.id 
+                tenant_id=tenant.id
             )
             db.add(admin)
             await db.commit()
             print("✅ Default admin created.")
         else:
             print("🔐 Admin already exists. No seed needed.")
+
+    # ── Auto Shop Tenant ───────────────────────────────────────────────────────
+    async with async_session() as db:
+        result = await db.execute(select(Tenant).where(Tenant.name == "Collision Kings"))
+        auto_shop_tenant = result.scalar_one_or_none()
+
+        if not auto_shop_tenant:
+            auto_shop_tenant = Tenant(name="Collision Kings")
+            db.add(auto_shop_tenant)
+            await db.commit()
+            await db.refresh(auto_shop_tenant)
+            print(f"🏢 Created tenant: {auto_shop_tenant.name}")
+        else:
+            print(f"🏢 Tenant '{auto_shop_tenant.name}' already exists.")
+
+        # Seed admin user for auto shop tenant
+        result = await db.execute(
+            select(User).where(User.role == "admin", User.tenant_id == auto_shop_tenant.id)
+        )
+        auto_shop_admin = result.scalars().first()
+
+        if not auto_shop_admin:
+            auto_shop_admin = User(
+                name="Shop Admin",
+                pin_code="5678",
+                role="admin",
+                is_active=True,
+                tenant_id=auto_shop_tenant.id,
+            )
+            db.add(auto_shop_admin)
+            await db.commit()
+            print("✅ Auto shop admin created (PIN: 5678).")
+        else:
+            print("🔐 Auto shop admin already exists.")
+
+        # Seed module permissions for Collision Kings
+        # Only auto_shop and core_ops (scheduling, timeclock, weekly hours) are enabled.
+        collision_kings_modules = {
+            "auto_shop": True,
+            "core_ops": True,
+            "weekly_hours": True,
+            "catering": False,
+            "catering_modules": False,
+            "delivery": False,
+            "driver_order": False,
+            "customer_ordering": False,
+            "taskboard": False,
+            "shopping": False,
+            "vending": False,
+            "internal_tasks": False,
+            "financial_summary": False,
+            "invoices": False,
+        }
+        for module_key, enabled in collision_kings_modules.items():
+            result = await db.execute(
+                select(TenantModule).where(
+                    TenantModule.tenant_id == auto_shop_tenant.id,
+                    TenantModule.module_key == module_key,
+                )
+            )
+            if not result.scalar_one_or_none():
+                db.add(TenantModule(
+                    tenant_id=auto_shop_tenant.id,
+                    module_key=module_key,
+                    enabled=enabled,
+                ))
+        await db.commit()
+        print("✅ Module permissions seeded for Collision Kings.")
 
 
 # ✅ Core app routers
@@ -201,3 +271,4 @@ app.include_router(admin_customer_routes.router)
 app.include_router(taskboard_routes.router)
 app.include_router(catering_router, prefix="/catering")
 app.include_router(delivery_router, prefix="/delivery")
+app.include_router(auto_shop_router, prefix="/auto_shop")

@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}{{ job.ticket_number }} — {{ job.customer_name }}{% endblock %}
+
+{% block content %}
+{% set active = 'jobs' %}
+{% include "auto_shop/_nav.html" %}
+
+{# Header #}
+<div class="row mb-3 align-items-center">
+  <div class="col">
+    <h2>
+      {{ job.ticket_number }}
+      <span class="badge bg-{{ status_badge_colors.get(job.status, 'secondary') }} fs-6 align-middle ms-2">
+        {{ status_labels.get(job.status, job.status) }}
+      </span>
+    </h2>
+    <p class="text-muted mb-0">
+      {{ job.customer_name }}
+      {% if job.customer_phone %} · {{ job.customer_phone }}{% endif %}
+      {% if job.customer_email %} · {{ job.customer_email }}{% endif %}
+    </p>
+  </div>
+  <div class="col-auto">
+    <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/delete"
+          onsubmit="return confirm('Delete this job? This cannot be undone.')">
+      <button class="btn btn-sm btn-outline-danger">Delete Job</button>
+    </form>
+  </div>
+</div>
+
+<div class="row">
+
+  {# Left column: details + edit + status change #}
+  <div class="col-lg-7">
+
+    {# Vehicle + Customer card #}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Job Info</strong>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#editForm">Edit</button>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <small class="text-muted text-uppercase fw-semibold">Vehicle</small>
+            <p class="mb-1">
+              {% if job.vehicle_year or job.vehicle_make or job.vehicle_model %}
+                {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
+              {% else %}
+                <span class="text-muted">Not specified</span>
+              {% endif %}
+            </p>
+            {% if job.vehicle_color %}<p class="mb-1 text-muted">Color: {{ job.vehicle_color }}</p>{% endif %}
+            {% if job.vehicle_license_plate %}<p class="mb-1 text-muted">Plate: {{ job.vehicle_license_plate }}</p>{% endif %}
+            {% if job.vehicle_vin %}<p class="mb-1 text-muted small">VIN: {{ job.vehicle_vin }}</p>{% endif %}
+            {% if job.vehicle_mileage %}<p class="mb-0 text-muted">Mileage: {{ "{:,}".format(job.vehicle_mileage) }}</p>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <small class="text-muted text-uppercase fw-semibold">Dates</small>
+            <p class="mb-1">Intake: {{ job.intake_date.strftime('%B %d, %Y') if job.intake_date else '—' }}</p>
+            <p class="mb-1">Est. Completion: {{ job.estimated_completion.strftime('%B %d, %Y') if job.estimated_completion else '—' }}</p>
+            {% if job.completed_at %}<p class="mb-1">Completed: {{ job.completed_at.strftime('%B %d, %Y') }}</p>{% endif %}
+            <small class="text-muted text-uppercase fw-semibold mt-2 d-block">Technician</small>
+            <p class="mb-0">{{ job.assigned_tech.name if job.assigned_tech else '—' }}</p>
+          </div>
+        </div>
+        {% if job.description %}
+        <hr>
+        <small class="text-muted text-uppercase fw-semibold">Description</small>
+        <p class="mb-0">{{ job.description }}</p>
+        {% endif %}
+        {% if job.internal_notes %}
+        <hr>
+        <small class="text-muted text-uppercase fw-semibold">Internal Notes</small>
+        <p class="mb-0 text-muted">{{ job.internal_notes }}</p>
+        {% endif %}
+      </div>
+
+      {# Collapsible edit form #}
+      <div class="collapse" id="editForm">
+        <div class="card-body border-top bg-light">
+          <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/edit">
+            <div class="row mb-2">
+              <div class="col"><label class="form-label small">Customer Name</label>
+                <input name="customer_name" class="form-control form-control-sm" value="{{ job.customer_name }}"></div>
+              <div class="col"><label class="form-label small">Phone</label>
+                <input name="customer_phone" class="form-control form-control-sm" value="{{ job.customer_phone or '' }}"></div>
+              <div class="col"><label class="form-label small">Email</label>
+                <input name="customer_email" class="form-control form-control-sm" value="{{ job.customer_email or '' }}"></div>
+            </div>
+            <div class="row mb-2">
+              <div class="col"><label class="form-label small">Year</label>
+                <input name="vehicle_year" class="form-control form-control-sm" value="{{ job.vehicle_year or '' }}" maxlength="4"></div>
+              <div class="col"><label class="form-label small">Make</label>
+                <input name="vehicle_make" class="form-control form-control-sm" value="{{ job.vehicle_make or '' }}"></div>
+              <div class="col"><label class="form-label small">Model</label>
+                <input name="vehicle_model" class="form-control form-control-sm" value="{{ job.vehicle_model or '' }}"></div>
+              <div class="col"><label class="form-label small">Color</label>
+                <input name="vehicle_color" class="form-control form-control-sm" value="{{ job.vehicle_color or '' }}"></div>
+            </div>
+            <div class="row mb-2">
+              <div class="col"><label class="form-label small">License Plate</label>
+                <input name="vehicle_license_plate" class="form-control form-control-sm" value="{{ job.vehicle_license_plate or '' }}"></div>
+              <div class="col"><label class="form-label small">VIN</label>
+                <input name="vehicle_vin" class="form-control form-control-sm" value="{{ job.vehicle_vin or '' }}" maxlength="17"></div>
+              <div class="col"><label class="form-label small">Mileage</label>
+                <input name="vehicle_mileage" type="number" class="form-control form-control-sm" value="{{ job.vehicle_mileage or '' }}"></div>
+            </div>
+            <div class="row mb-2">
+              <div class="col-md-4">
+                <label class="form-label small">Technician</label>
+                <select name="assigned_tech_id" class="form-select form-select-sm">
+                  <option value="">— Unassigned —</option>
+                  {% for tech in techs %}
+                  <option value="{{ tech.id }}" {% if job.assigned_tech_id == tech.id %}selected{% endif %}>
+                    {{ tech.name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small">Est. Completion</label>
+                <input name="estimated_completion" type="date" class="form-control form-control-sm"
+                       value="{{ job.estimated_completion.strftime('%Y-%m-%d') if job.estimated_completion else '' }}">
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small">Description</label>
+              <textarea name="description" class="form-control form-control-sm" rows="2">{{ job.description or '' }}</textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small">Internal Notes</label>
+              <textarea name="internal_notes" class="form-control form-control-sm" rows="2">{{ job.internal_notes or '' }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Save Changes</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {# Status change card #}
+    <div class="card mb-3">
+      <div class="card-header"><strong>Update Status</strong></div>
+      <div class="card-body">
+        <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/status">
+          <div class="row align-items-end g-2">
+            <div class="col-md-5">
+              <label class="form-label small">New Status</label>
+              <select name="new_status" class="form-select form-select-sm">
+                {% for s in valid_statuses %}
+                <option value="{{ s }}" {% if s == job.status %}selected{% endif %}>
+                  {{ status_labels[s] }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small">Notes (optional)</label>
+              <input name="notes" type="text" class="form-control form-control-sm"
+                     placeholder="e.g. Parts expected Thursday">
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-sm btn-success w-100">Update</button>
+            </div>
+          </div>
+          {% if job.customer_phone %}
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" name="notify_customer" id="notifyCheck">
+            <label class="form-check-label small" for="notifyCheck">
+              Send SMS to {{ job.customer_phone }}
+            </label>
+          </div>
+          {% else %}
+          <p class="text-muted small mt-2 mb-0">No customer phone — SMS notifications unavailable.</p>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+    {# Status history #}
+    <div class="card mb-3">
+      <div class="card-header"><strong>Status History</strong></div>
+      <div class="card-body p-0">
+        {% if job.status_logs %}
+        <ul class="list-group list-group-flush">
+          {% for log in job.status_logs | reverse %}
+          <li class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                {% if log.old_status %}
+                  <span class="badge bg-{{ status_badge_colors.get(log.old_status, 'secondary') }} me-1">
+                    {{ status_labels.get(log.old_status, log.old_status) }}
+                  </span>
+                  <span class="text-muted">→</span>
+                {% endif %}
+                <span class="badge bg-{{ status_badge_colors.get(log.new_status, 'secondary') }} ms-1">
+                  {{ status_labels.get(log.new_status, log.new_status) }}
+                </span>
+                {% if log.notes %}
+                  <span class="text-muted ms-2 small">{{ log.notes }}</span>
+                {% endif %}
+                {% if log.sms_sent %}
+                  <span class="badge bg-light text-dark border ms-1 small">SMS sent</span>
+                {% endif %}
+              </div>
+              <small class="text-muted text-nowrap ms-2">
+                {{ log.changed_at.strftime('%b %d, %H:%M') if log.changed_at else '' }}
+                {% if log.changed_by %} · {{ log.changed_by.name }}{% endif %}
+              </small>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="card-body text-muted small">No history yet.</div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  {# Right column: photos #}
+  <div class="col-lg-5">
+
+    <div class="card mb-3">
+      <div class="card-header"><strong>Photos</strong></div>
+      <div class="card-body">
+        <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/photos"
+              enctype="multipart/form-data">
+          <div class="mb-2">
+            <input type="file" name="file" class="form-control form-control-sm"
+                   accept="image/*" required>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col">
+              <select name="category" class="form-select form-select-sm">
+                <option value="intake">Intake</option>
+                <option value="damage">Damage</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+            <div class="col">
+              <input name="caption" type="text" class="form-control form-control-sm"
+                     placeholder="Caption (optional)">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">Upload Photo</button>
+        </form>
+      </div>
+
+      {% if job.photos %}
+      <div class="card-body border-top p-2">
+        <div class="row g-2">
+          {% for photo in job.photos %}
+          <div class="col-6 position-relative">
+            <img src="/static/auto_shop_photos/{{ photo.filename }}"
+                 class="img-fluid rounded" style="object-fit:cover; height:140px; width:100%;"
+                 alt="{{ photo.original_filename }}">
+            <div class="mt-1">
+              {% if photo.caption %}
+              <small class="d-block text-truncate text-muted">{{ photo.caption }}</small>
+              {% endif %}
+              <span class="badge bg-secondary small">{{ photo.category or 'photo' }}</span>
+              <form method="POST"
+                    action="/auto_shop/admin/jobs/{{ job.id }}/photos/{{ photo.id }}/delete"
+                    class="d-inline"
+                    onsubmit="return confirm('Delete photo?')">
+                <button class="btn btn-link btn-sm text-danger p-0 ms-1">✕</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div class="card-body border-top text-muted small text-center py-3">
+        No photos yet.
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

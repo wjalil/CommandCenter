@@ -34,3 +34,8 @@ from .delivery import (
     DeliveryRoute,
     DeliveryRouteStop,
 )
+from .auto_shop import (
+    RepairOrder,
+    RepairOrderPhoto,
+    RepairOrderStatusLog,
+)

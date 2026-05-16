@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Auto Shop Dashboard{% endblock %}
+
+{% block content %}
+{% set active = 'dashboard' %}
+{% include "auto_shop/_nav.html" %}
+
+<div class="row mb-3">
+  <div class="col">
+    <h2>Auto Shop Dashboard</h2>
+    <p class="text-muted">Track repair orders and vehicle status</p>
+  </div>
+  <div class="col-auto align-self-center">
+    <a href="/auto_shop/admin/jobs/new" class="btn btn-primary">+ New Job</a>
+  </div>
+</div>
+
+{# Status summary cards #}
+<div class="row mb-4">
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <h2 class="display-5 fw-bold">{{ open_count }}</h2>
+        <p class="text-muted mb-2">Open Jobs</p>
+        <a href="/auto_shop/admin/jobs" class="btn btn-outline-primary btn-sm">View All</a>
+      </div>
+    </div>
+  </div>
+
+  {% for status_key in valid_statuses %}
+  {% set count = status_counts.get(status_key, 0) %}
+  {% if count > 0 %}
+  <div class="col-md-3 mb-3">
+    <div class="card text-center h-100">
+      <div class="card-body">
+        <h2 class="display-5 fw-bold">{{ count }}</h2>
+        <p class="text-muted mb-2">{{ status_labels[status_key] }}</p>
+        <a href="/auto_shop/admin/jobs?status_filter={{ status_key }}"
+           class="btn btn-outline-secondary btn-sm">Filter</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+{# Recent open jobs #}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Recent Open Jobs</strong>
+    <a href="/auto_shop/admin/jobs" class="btn btn-sm btn-outline-secondary">View All</a>
+  </div>
+  {% if recent_jobs %}
+  <div class="card-body p-0">
+    <table class="nice-table mb-0">
+      <thead>
+        <tr>
+          <th>Ticket</th>
+          <th>Customer</th>
+          <th>Vehicle</th>
+          <th>Status</th>
+          <th>Tech</th>
+          <th>Intake</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in recent_jobs %}
+        <tr>
+          <td><strong>{{ job.ticket_number }}</strong></td>
+          <td>{{ job.customer_name }}</td>
+          <td>
+            {% if job.vehicle_year or job.vehicle_make or job.vehicle_model %}
+              {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge bg-{{ status_badge_colors.get(job.status, 'secondary') }}">
+              {{ status_labels.get(job.status, job.status) }}
+            </span>
+          </td>
+          <td>{{ job.assigned_tech.name if job.assigned_tech else '—' }}</td>
+          <td>{{ job.intake_date.strftime('%b %d, %Y') if job.intake_date else '—' }}</td>
+          <td>
+            <a href="/auto_shop/admin/jobs/{{ job.id }}" class="btn btn-sm btn-outline-primary">View</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-muted">No open jobs.</div>
+  {% endif %}
+</div>
+{% endblock %}

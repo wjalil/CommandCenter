@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Repair Jobs{% endblock %}
+
+{% block content %}
+{% set active = 'jobs' %}
+{% include "auto_shop/_nav.html" %}
+
+<div class="row mb-3">
+  <div class="col">
+    <h2>Repair Jobs</h2>
+  </div>
+  <div class="col-auto align-self-center">
+    <a href="/auto_shop/admin/jobs/new" class="btn btn-primary btn-sm">+ New Job</a>
+  </div>
+</div>
+
+{# Status filter pills #}
+<div class="mb-3">
+  <a href="/auto_shop/admin/jobs"
+     class="btn btn-sm {% if not status_filter %}btn-dark{% else %}btn-outline-secondary{% endif %} me-1 mb-1">
+    All
+  </a>
+  {% for s in valid_statuses %}
+  <a href="/auto_shop/admin/jobs?status_filter={{ s }}"
+     class="btn btn-sm {% if status_filter == s %}btn-{{ status_badge_colors.get(s, 'secondary') }}{% else %}btn-outline-secondary{% endif %} me-1 mb-1">
+    {{ status_labels[s] }}
+  </a>
+  {% endfor %}
+</div>
+
+{% if jobs %}
+<table class="nice-table">
+  <thead>
+    <tr>
+      <th>Ticket</th>
+      <th>Customer</th>
+      <th>Phone</th>
+      <th>Vehicle</th>
+      <th>Status</th>
+      <th>Tech</th>
+      <th>Intake</th>
+      <th>Est. Completion</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for job in jobs %}
+    <tr>
+      <td><strong>{{ job.ticket_number }}</strong></td>
+      <td>{{ job.customer_name }}</td>
+      <td>{{ job.customer_phone or '—' }}</td>
+      <td>
+        {% if job.vehicle_year or job.vehicle_make or job.vehicle_model %}
+          {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
+          {% if job.vehicle_color %}<span class="text-muted">({{ job.vehicle_color }})</span>{% endif %}
+        {% else %}
+          <span class="text-muted">—</span>
+        {% endif %}
+      </td>
+      <td>
+        <span class="badge bg-{{ status_badge_colors.get(job.status, 'secondary') }}">
+          {{ status_labels.get(job.status, job.status) }}
+        </span>
+      </td>
+      <td>{{ job.assigned_tech.name if job.assigned_tech else '—' }}</td>
+      <td>{{ job.intake_date.strftime('%b %d') if job.intake_date else '—' }}</td>
+      <td>{{ job.estimated_completion.strftime('%b %d') if job.estimated_completion else '—' }}</td>
+      <td>
+        <a href="/auto_shop/admin/jobs/{{ job.id }}" class="btn btn-sm btn-outline-primary">View</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card">
+  <div class="card-body text-center text-muted py-5">
+    No jobs found.
+    <br>
+    <a href="/auto_shop/admin/jobs/new" class="btn btn-primary mt-3">Create First Job</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

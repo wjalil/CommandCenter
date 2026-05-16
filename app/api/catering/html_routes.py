@@ -558,51 +558,57 @@ async def menu_create(
     if copy_from_menu_id:
         source_menu = await menu_crud.get_monthly_menu(db, copy_from_menu_id, tenant_id)
         if source_menu and source_menu.menu_days:
-            from datetime import datetime
-            from calendar import monthrange
-            from app.crud.catering import menu_day_component as mdc_crud
+            from datetime import datetime, date, timedelta
             from app.schemas.catering import MenuDayAssignment
             from app.models.catering import MenuDayComponent
             import uuid
 
-            # Get number of days in target month
-            num_days = monthrange(year, month)[1]
+            def nth_weekday_of_month(yr, mo, weekday, n):
+                """Return the date of the nth occurrence (1-based) of weekday (0=Mon) in yr/mo, or None if it doesn't exist."""
+                first_day = date(yr, mo, 1)
+                days_ahead = (weekday - first_day.weekday()) % 7
+                first_occurrence = first_day + timedelta(days=days_ahead)
+                target = first_occurrence + timedelta(weeks=n - 1)
+                return target if target.month == mo else None
 
-            # Map source days to target days (by day of month)
+            # Map source days to target days by weekday occurrence
+            # e.g. "2nd Tuesday of April" -> "2nd Tuesday of May"
             for source_day in source_menu.menu_days:
-                source_day_num = source_day.service_date.day
+                source_date = source_day.service_date
+                weekday = source_date.weekday()
+                occurrence = (source_date.day - 1) // 7 + 1
 
-                # Only copy if target month has this day number
-                if source_day_num <= num_days:
-                    target_date = datetime(year, month, source_day_num).date()
+                target_date = nth_weekday_of_month(year, month, weekday, occurrence)
+                if target_date is None:
+                    continue
 
-                    # Create/update the menu day with pre-built meal items
-                    day_data = MenuDayAssignment(
-                        service_date=target_date,
-                        breakfast_item_id=source_day.breakfast_item_id,
-                        breakfast_vegan_item_id=source_day.breakfast_vegan_item_id,
-                        lunch_item_id=source_day.lunch_item_id,
-                        lunch_vegan_item_id=source_day.lunch_vegan_item_id,
-                        snack_item_id=source_day.snack_item_id,
-                        snack_vegan_item_id=source_day.snack_vegan_item_id,
-                        notes=source_day.notes
-                    )
-                    new_day = await menu_crud.upsert_menu_day(db, monthly_menu.id, day_data)
+                # Create/update the menu day with pre-built meal items
+                day_data = MenuDayAssignment(
+                    service_date=target_date,
+                    breakfast_item_id=source_day.breakfast_item_id,
+                    breakfast_vegan_item_id=source_day.breakfast_vegan_item_id,
+                    lunch_item_id=source_day.lunch_item_id,
+                    lunch_vegan_item_id=source_day.lunch_vegan_item_id,
+                    snack_item_id=source_day.snack_item_id,
+                    snack_vegan_item_id=source_day.snack_vegan_item_id,
+                    notes=source_day.notes
+                )
+                new_day = await menu_crud.upsert_menu_day(db, monthly_menu.id, day_data)
 
-                    # Also copy the MenuDayComponent records (component-first mode)
-                    if hasattr(source_day, 'components') and source_day.components:
-                        for source_comp in source_day.components:
-                            new_comp = MenuDayComponent(
-                                id=str(uuid.uuid4()),
-                                menu_day_id=new_day.id,
-                                component_id=source_comp.component_id,
-                                meal_slot=source_comp.meal_slot,
-                                is_vegan=source_comp.is_vegan,
-                                quantity=source_comp.quantity,
-                                sort_order=source_comp.sort_order if hasattr(source_comp, 'sort_order') else 0,
-                                notes=source_comp.notes
-                            )
-                            db.add(new_comp)
+                # Also copy the MenuDayComponent records (component-first mode)
+                if hasattr(source_day, 'components') and source_day.components:
+                    for source_comp in source_day.components:
+                        new_comp = MenuDayComponent(
+                            id=str(uuid.uuid4()),
+                            menu_day_id=new_day.id,
+                            component_id=source_comp.component_id,
+                            meal_slot=source_comp.meal_slot,
+                            is_vegan=source_comp.is_vegan,
+                            quantity=source_comp.quantity,
+                            sort_order=source_comp.sort_order if hasattr(source_comp, 'sort_order') else 0,
+                            notes=source_comp.notes
+                        )
+                        db.add(new_comp)
 
             # Commit all the component copies
             await db.commit()

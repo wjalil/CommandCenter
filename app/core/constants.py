@@ -11,6 +11,7 @@ UPLOAD_PATHS = {
     "shortage_logs": os.path.join(BASE_STATIC_PATH, "shortages"),
     "task_attachments": os.path.join(BASE_STATIC_PATH, "task_attachments"),
     "menu_items_photos": os.path.join(BASE_STATIC_PATH, "menu_items_photos"),
+    "auto_shop_photos": os.path.join(BASE_STATIC_PATH, "auto_shop_photos"),
 }
 
 # Ensure all folders exist

@@ -217,6 +217,13 @@
       <div class="label">Delivery Routes</div>
     </a>
     {% endif %}
+
+    {% if enabled_modules.get("auto_shop") %}
+    <a href="/auto_shop/admin/" class="quick-action-btn">
+      <div class="icon">🔧</div>
+      <div class="label">Auto Shop</div>
+    </a>
+    {% endif %}
   </div>
 
   <!-- Row 1 -->
@@ -297,6 +304,34 @@
           </ul>
         </div>
         <div class="text-muted small mt-2">Modules auto-assigned to relevant shifts.</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if enabled_modules.get("auto_shop") %}
+    <div class="col-lg-4 col-md-6">
+      <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #e63946;">
+        <div>
+          <div class="section-label">Auto Shop</div>
+          <h5 class="card-title">🔧 Repair Orders</h5>
+          <p class="text-muted small">Track vehicles, jobs, and technician assignments.</p>
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <a href="/auto_shop/admin/" class="card-link fw-bold text-danger d-flex align-items-center">
+                <span>📋 Dashboard</span>
+              </a>
+              <div class="text-muted small ms-4">Open jobs overview</div>
+            </li>
+            <li class="mb-2">
+              <a href="/auto_shop/admin/jobs" class="card-link fw-bold text-primary">🔩 All Jobs</a>
+              <div class="text-muted small ms-4">Filter by status</div>
+            </li>
+            <li class="mb-2">
+              <a href="/auto_shop/admin/jobs/new" class="card-link fw-bold text-success">➕ New Job</a>
+              <div class="text-muted small ms-4">Create a repair order</div>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
     {% endif %}
