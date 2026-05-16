@@ -351,8 +351,10 @@
     <h5 class="section-title m-0">Quick Actions</h5>
   </div>
 
+  {% set em = enabled_modules or {} %}
   <div class="quick-actions row g-4">
-    <!-- Today's Task Board -->
+
+    {% if em.get("taskboard", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/worker/taskboard" class="text-decoration-none">
         <div class="card card-taskboard h-100">
@@ -366,8 +368,9 @@
         </div>
       </a>
     </div>
+    {% endif %}
 
-    <!-- View Schedule -->
+    <!-- View Schedule — always shown (core) -->
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/worker/shifts" class="text-decoration-none">
         <div class="card card-schedule h-100">
@@ -382,7 +385,7 @@
       </a>
     </div>
 
-    <!-- Orders -->
+    {% if em.get("customer_ordering", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/worker/orders" class="text-decoration-none">
         <div class="card card-orders h-100">
@@ -396,8 +399,9 @@
         </div>
       </a>
     </div>
+    {% endif %}
 
-    <!-- Report Missing Items -->
+    {% if em.get("shopping", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/shopping/items" class="text-decoration-none">
         <div class="card card-shopping h-100">
@@ -411,8 +415,9 @@
         </div>
       </a>
     </div>
+    {% endif %}
 
-    <!-- Recipes / SOPs -->
+    <!-- Recipes / SOPs — always shown (core) -->
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/documents/worker/documents" class="text-decoration-none">
         <div class="card card-recipes h-100">
@@ -427,7 +432,7 @@
       </a>
     </div>
 
-    <!-- Driver Log -->
+    {% if em.get("driver_order", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/modules/driver_order" class="text-decoration-none">
         <div class="card card-driver h-100">
@@ -441,8 +446,9 @@
         </div>
       </a>
     </div>
+    {% endif %}
 
-    <!-- Time Clock History -->
+    <!-- Time Clock History — always shown (core) -->
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/worker/timeclock" class="text-decoration-none">
         <div class="card card-timeclock h-100">
@@ -457,7 +463,7 @@
       </a>
     </div>
 
-    <!-- View Menus -->
+    {% if em.get("catering", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/worker/menus" class="text-decoration-none">
         <div class="card card-menus h-100">
@@ -471,8 +477,9 @@
         </div>
       </a>
     </div>
+    {% endif %}
 
-    <!-- Delivery Routes -->
+    {% if em.get("delivery", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/delivery/driver/" class="text-decoration-none">
         <div class="card card-driver h-100">
@@ -486,6 +493,23 @@
         </div>
       </a>
     </div>
+    {% endif %}
+
+    {% if em.get("auto_shop") %}
+    <div class="col-12 col-sm-6 col-lg-4">
+      <a href="/auto_shop/worker/jobs" class="text-decoration-none">
+        <div class="card h-100" style="--card-accent: #f59e0b;">
+          <div class="card-body qa-body">
+            <div class="qa-ico" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3);">🔧</div>
+            <div class="qa-text">
+              <h5>Repair Orders</h5>
+              <p>View & update active jobs</p>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+    {% endif %}
 
   </div><!-- /quick-actions -->
 

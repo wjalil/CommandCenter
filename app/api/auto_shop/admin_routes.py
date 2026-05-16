@@ -78,7 +78,7 @@ async def dashboard(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
 
     # Status counts
     counts_result = await db.execute(
@@ -124,7 +124,7 @@ async def jobs_list(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
 
     query = (
         select(RepairOrder)
@@ -152,7 +152,7 @@ async def job_create_form(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
 
     techs_result = await db.execute(
         select(User)
@@ -173,7 +173,7 @@ async def job_create(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
     form = await request.form()
 
     ticket_number = await _generate_ticket_number(db, tenant_id)
@@ -237,7 +237,7 @@ async def job_detail(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
 
     result = await db.execute(
         select(RepairOrder)
@@ -274,7 +274,7 @@ async def job_edit(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
     form = await request.form()
 
     result = await db.execute(
@@ -325,7 +325,7 @@ async def job_update_status(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
     form = await request.form()
     new_status = form.get("new_status", "").strip()
     notes = form.get("notes", "").strip() or None
@@ -382,7 +382,7 @@ async def job_upload_photo(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
 
     result = await db.execute(
         select(RepairOrder).where(
@@ -426,7 +426,7 @@ async def job_delete_photo(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
 
     result = await db.execute(
         select(RepairOrderPhoto).where(
@@ -455,7 +455,7 @@ async def job_delete(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    tenant_id = request.state.tenant_id
+    tenant_id = user.tenant_id
 
     result = await db.execute(
         select(RepairOrder).where(

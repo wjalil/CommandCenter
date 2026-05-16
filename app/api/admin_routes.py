@@ -174,6 +174,23 @@ async def delete_worker(user_id: str, db: AsyncSession = Depends(get_db), user: 
         await db.commit()
     return RedirectResponse(url="/admin/workers", status_code=302)
 
+@router.post("/admin/workers/{user_id}/pay")
+async def update_worker_pay(
+    user_id: str,
+    hourly_rate: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    result = await db.execute(select(User).where(User.id == user_id, User.tenant_id == user.tenant_id))
+    worker = result.scalar_one_or_none()
+    if worker:
+        try:
+            worker.hourly_rate = float(hourly_rate) if hourly_rate.strip() else None
+        except ValueError:
+            pass
+        await db.commit()
+    return RedirectResponse(url="/admin/workers", status_code=303)
+
 # ------------------------- ADMIN DASHBOARD -------------------------
 
 @router.get("/admin/dashboard")

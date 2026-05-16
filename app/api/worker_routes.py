@@ -14,6 +14,7 @@ from app.models.shift import Shift
 from app.models.task import Task, TaskTemplate
 from app.models.user import User
 from app.auth.dependencies import get_current_user
+from app.auth.module_gates import get_enabled_modules
 from app.models.timeclock import TimeEntry, TimeStatus
 from app.utils.timeclock_service import clock_in as svc_clock_in, clock_out as svc_clock_out
 from app.models.customer.customer_order import CustomerOrder, OrderItem
@@ -166,13 +167,15 @@ async def worker_home(
     res = await db.execute(q)
     open_entry = res.scalars().first()
 
+    enabled_modules = await get_enabled_modules(db, user.tenant_id)
+
     ctx = {
         "request": request,
         "worker_name": getattr(user, "name", "Worker"),
         "open_entry": open_entry,
         "pytz": pytz,
+        "enabled_modules": enabled_modules,
     }
-    # keep your existing template pathing
     return templates.TemplateResponse("/worker_home.html", ctx)
 
 

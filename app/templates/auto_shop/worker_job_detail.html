@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{{ job.ticket_number }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body { background: #f8fafc; font-family: 'Inter', sans-serif; }
+    .navbar { background: #fff; border-bottom: 1px solid #e2e8f0; }
+    .card { border: 1px solid #e2e8f0; border-radius: 14px; }
+    .section-title { font-weight: 700; font-size: 1rem; color: #1e293b; margin-bottom: .75rem; }
+    .log-entry { border-left: 3px solid #e2e8f0; padding-left: .75rem; margin-bottom: .75rem; }
+    .log-entry.status-change { border-color: #6366f1; }
+    .log-entry.note-only { border-color: #f59e0b; }
+    .photo-thumb { width: 100%; height: 130px; object-fit: cover; border-radius: 10px; }
+    .label-sm { font-size: .78rem; color: #64748b; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar px-3 py-2 mb-4">
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <span class="fw-bold fs-5">🔧 {{ job.ticket_number }}</span>
+    <a href="/auto_shop/worker/jobs" class="btn btn-outline-secondary btn-sm">← Jobs</a>
+  </div>
+</nav>
+
+<div class="container pb-5" style="max-width:720px;">
+
+  <!-- Status badge + vehicle summary -->
+  <div class="card p-3 mb-3">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div class="fw-bold fs-5">{{ job.customer_name }}</div>
+        <div class="text-muted" style="font-size:.9rem;">
+          {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
+          {% if job.vehicle_color %} · {{ job.vehicle_color }}{% endif %}
+          {% if job.vehicle_license_plate %} · {{ job.vehicle_license_plate }}{% endif %}
+        </div>
+        {% if job.assigned_tech %}
+          <div class="label-sm mt-1">Assigned: {{ job.assigned_tech.name }}</div>
+        {% endif %}
+      </div>
+      <span class="badge bg-{{ status_badge_colors.get(job.status, 'secondary') }} fs-6">
+        {{ status_labels.get(job.status, job.status) }}
+      </span>
+    </div>
+    {% if job.description %}
+      <hr class="my-2"/>
+      <div style="font-size:.9rem;">{{ job.description }}</div>
+    {% endif %}
+  </div>
+
+  <!-- Update Status -->
+  <div class="card p-3 mb-3">
+    <div class="section-title">Update Status</div>
+    <form method="post" action="/auto_shop/worker/jobs/{{ job.id }}/status">
+      <div class="row g-2">
+        <div class="col-12 col-sm-6">
+          <select name="new_status" class="form-select form-select-sm" required>
+            {% for s in valid_statuses %}
+              <option value="{{ s }}" {% if s == job.status %}selected{% endif %}>
+                {{ status_labels.get(s, s) }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <input type="text" name="notes" class="form-control form-control-sm" placeholder="Optional note (visible in history)"/>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary btn-sm">Save Status</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Add Note -->
+  <div class="card p-3 mb-3">
+    <div class="section-title">Add Note</div>
+    <form method="post" action="/auto_shop/worker/jobs/{{ job.id }}/note">
+      <div class="d-flex gap-2">
+        <input type="text" name="note" class="form-control form-control-sm" placeholder="Write a note…" required/>
+        <button type="submit" class="btn btn-warning btn-sm text-nowrap">Add Note</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Upload Photo -->
+  <div class="card p-3 mb-3">
+    <div class="section-title">Upload Photo</div>
+    <form method="post" action="/auto_shop/worker/jobs/{{ job.id }}/photos" enctype="multipart/form-data">
+      <div class="row g-2">
+        <div class="col-12 col-sm-5">
+          <select name="category" class="form-select form-select-sm">
+            <option value="intake">Intake</option>
+            <option value="progress" selected>Progress</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-7">
+          <input type="text" name="caption" class="form-control form-control-sm" placeholder="Caption (optional)"/>
+        </div>
+        <div class="col-12">
+          <input type="file" name="file" class="form-control form-control-sm" accept="image/*" required/>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-success btn-sm">Upload</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Photos -->
+  {% if job.photos %}
+  <div class="card p-3 mb-3">
+    <div class="section-title">Photos ({{ job.photos|length }})</div>
+    <div class="row g-2">
+      {% for photo in job.photos %}
+      <div class="col-6 col-sm-4">
+        <a href="/static/auto_shop_photos/{{ photo.filename }}" target="_blank">
+          <img src="/static/auto_shop_photos/{{ photo.filename }}" class="photo-thumb" alt="{{ photo.caption or photo.category }}"/>
+        </a>
+        <div class="label-sm text-center mt-1">{{ photo.caption or photo.category }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Activity Log -->
+  {% if job.status_logs %}
+  <div class="card p-3 mb-3">
+    <div class="section-title">Activity Log</div>
+    {% for log in job.status_logs | reverse %}
+      {% set is_note = log.old_status == log.new_status %}
+      <div class="log-entry {% if is_note %}note-only{% else %}status-change{% endif %}">
+        <div style="font-size:.85rem;">
+          {% if is_note %}
+            <span class="fw-semibold">📝 Note</span>
+          {% else %}
+            <span class="fw-semibold">
+              {{ status_labels.get(log.old_status, log.old_status or '—') }}
+              → {{ status_labels.get(log.new_status, log.new_status) }}
+            </span>
+          {% endif %}
+          <span class="text-muted ms-2" style="font-size:.8rem;">
+            {{ log.changed_at.strftime('%b %d, %I:%M %p') if log.changed_at else '' }}
+            {% if log.changed_by %} · {{ log.changed_by.name }}{% endif %}
+          </span>
+        </div>
+        {% if log.notes %}
+          <div class="text-muted mt-1" style="font-size:.85rem;">{{ log.notes }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
