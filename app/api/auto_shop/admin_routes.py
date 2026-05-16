@@ -5,7 +5,7 @@ Manage repair orders: create, update, status changes, photo uploads.
 """
 from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
@@ -73,7 +73,7 @@ def _template_ctx(request: Request, **kwargs) -> dict:
 
 # ── dashboard ─────────────────────────────────────────────────────────────────
 
-ACTIVE_STATUSES = [s for s in VALID_STATUSES if s not in ("completed", "ready_for_pickup")]
+ACTIVE_STATUSES = [s for s in VALID_STATUSES if s not in ("complete", "ready_for_pickup")]
 
 @router.get("/")
 async def dashboard(
@@ -89,7 +89,7 @@ async def dashboard(
         select(RepairOrder)
         .where(
             RepairOrder.tenant_id == tenant_id,
-            RepairOrder.status.notin_(["completed"]),
+            RepairOrder.status.notin_(["complete"]),
         )
         .options(selectinload(RepairOrder.assigned_tech))
         .order_by(RepairOrder.intake_date.asc())
@@ -109,7 +109,7 @@ async def dashboard(
     completed_result = await db.execute(
         select(func.count(RepairOrder.id)).where(
             RepairOrder.tenant_id == tenant_id,
-            RepairOrder.status == "completed",
+            RepairOrder.status == "complete",
             func.date(RepairOrder.completed_at) == today,
         )
     )
@@ -218,7 +218,7 @@ async def job_create(
         customer_email=form.get("customer_email") or None,
         description=form.get("description") or None,
         internal_notes=form.get("internal_notes") or None,
-        status="intake",
+        status="new_arrival",
         assigned_tech_id=form.get("assigned_tech_id") or None,
         estimated_completion=estimated_completion,
         tenant_id=tenant_id,
@@ -231,7 +231,7 @@ async def job_create(
         id=str(uuid.uuid4()),
         repair_order_id=job.id,
         old_status=None,
-        new_status="intake",
+        new_status="new_arrival",
         notes="Job created",
         changed_by_id=user.id,
         tenant_id=tenant_id,
@@ -361,7 +361,7 @@ async def job_update_status(
     job.status = new_status
     job.updated_at = datetime.utcnow()
 
-    if new_status == "completed":
+    if new_status == "complete":
         job.completed_at = datetime.utcnow()
 
     sms_sent = False
@@ -382,6 +382,55 @@ async def job_update_status(
     await db.commit()
 
     return RedirectResponse(url=f"/auto_shop/admin/jobs/{job_id}", status_code=303)
+
+
+# ── drag-and-drop move (JSON) ─────────────────────────────────────────────────
+
+@router.post("/jobs/{job_id}/move")
+async def job_move(
+    job_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    body = await request.json()
+    new_status = (body.get("status") or "").strip()
+
+    if new_status not in VALID_STATUSES:
+        return JSONResponse({"ok": False, "error": "invalid status"}, status_code=400)
+
+    result = await db.execute(
+        select(RepairOrder).where(
+            RepairOrder.id == job_id, RepairOrder.tenant_id == user.tenant_id
+        )
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+
+    old_status = job.status
+    if old_status == new_status:
+        return JSONResponse({"ok": True})
+
+    job.status = new_status
+    job.updated_at = datetime.utcnow()
+    if new_status == "complete":
+        job.completed_at = datetime.utcnow()
+
+    log = RepairOrderStatusLog(
+        id=str(uuid.uuid4()),
+        repair_order_id=job.id,
+        old_status=old_status,
+        new_status=new_status,
+        notes="Moved via board",
+        changed_by_id=user.id,
+        sms_sent=False,
+        tenant_id=user.tenant_id,
+    )
+    db.add(log)
+    await db.commit()
+
+    return JSONResponse({"ok": True})
 
 
 # ── photo upload ──────────────────────────────────────────────────────────────

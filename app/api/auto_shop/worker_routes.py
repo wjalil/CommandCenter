@@ -61,7 +61,7 @@ async def worker_jobs_list(
         select(RepairOrder)
         .where(
             RepairOrder.tenant_id == user.tenant_id,
-            RepairOrder.status.notin_(["completed"]),
+            RepairOrder.status.notin_(["complete"]),
         )
         .options(selectinload(RepairOrder.assigned_tech))
         .order_by(RepairOrder.created_at.desc())
@@ -117,7 +117,7 @@ async def worker_update_status(
     old_status = job.status
     job.status = new_status
     job.updated_at = datetime.utcnow()
-    if new_status == "completed":
+    if new_status == "complete":
         job.completed_at = datetime.utcnow()
 
     log = RepairOrderStatusLog(

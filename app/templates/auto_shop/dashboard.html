@@ -164,17 +164,23 @@
   }
 
   /* color accents per column */
-  .col-intake           { --accent: #6366f1; }
-  .col-diagnosing       { --accent: #06b6d4; }
-  .col-waiting_on_adjuster { --accent: #f59e0b; }
-  .col-waiting_on_parts { --accent: #f97316; }
-  .col-parts_received   { --accent: #3b82f6; }
-  .col-in_progress      { --accent: #8b5cf6; }
-  .col-adjuster_approved{ --accent: #10b981; }
-  .col-ready_for_pickup { --accent: #22c55e; }
+  .col-new_arrival          { --accent: #6366f1; }
+  .col-waiting_for_adjuster { --accent: #f59e0b; }
+  .col-waiting_for_parts    { --accent: #f97316; }
+  .col-disassemble          { --accent: #06b6d4; }
+  .col-body_work            { --accent: #3b82f6; }
+  .col-paint                { --accent: #8b5cf6; }
+  .col-assemble             { --accent: #ec4899; }
+  .col-quality_control      { --accent: #10b981; }
+  .col-ready_for_pickup     { --accent: #22c55e; }
 
   .kanban-col .kanban-col-title { color: var(--accent, #475569); }
   .kanban-col .kanban-count    { background: color-mix(in srgb, var(--accent, #94a3b8) 15%, white); color: var(--accent, #334155); }
+
+  /* drag-and-drop feedback */
+  .job-card.sortable-ghost  { opacity: .4; }
+  .job-card.sortable-chosen { box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+  .kanban-col.drag-over     { background: #e0f2fe; }
 </style>
 
 <!-- ── page header ── -->
@@ -214,29 +220,70 @@
 <div class="kanban-wrapper">
   {% for status_key in active_statuses %}
   {% set col_jobs = jobs_by_status.get(status_key, []) %}
-  <div class="kanban-col col-{{ status_key }}">
+  <div class="kanban-col col-{{ status_key }}" data-status="{{ status_key }}">
 
     <div class="kanban-col-header">
       <span class="kanban-col-title">{{ status_labels.get(status_key, status_key) }}</span>
-      <span class="kanban-count">{{ col_jobs | length }}</span>
+      <span class="kanban-count" id="count-{{ status_key }}">{{ col_jobs | length }}</span>
     </div>
 
-    {% if col_jobs %}
-      {% for job in col_jobs %}
+    <div class="kanban-cards" data-status="{{ status_key }}">
+      {% if col_jobs %}
+        {% for job in col_jobs %}
+          {% set days = (today - job.intake_date).days if job.intake_date else 0 %}
+          {% if days <= 7 %}{% set age_cls = 'ok' %}
+          {% elif days <= 14 %}{% set age_cls = 'warn' %}
+          {% else %}{% set age_cls = 'hot' %}{% endif %}
+
+          <a href="/auto_shop/admin/jobs/{{ job.id }}" class="job-card age-{{ age_cls }}" data-job-id="{{ job.id }}">
+            <div class="ticket-num">{{ job.ticket_number }}</div>
+            <div class="customer-name">{{ job.customer_name }}</div>
+            <div class="vehicle-info">
+              {% if job.vehicle_year or job.vehicle_make or job.vehicle_model %}
+                {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
+              {% else %}
+                No vehicle info
+              {% endif %}
+            </div>
+            <div class="card-footer-row">
+              <span class="age-badge {{ age_cls }}">
+                {% if days == 0 %}Today{% elif days == 1 %}1 day{% else %}{{ days }} days{% endif %}
+              </span>
+              {% if job.assigned_tech %}
+                <span class="tech-chip">👤 {{ job.assigned_tech.name }}</span>
+              {% else %}
+                <span class="tech-chip text-muted">Unassigned</span>
+              {% endif %}
+            </div>
+          </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-col-msg" style="font-size:.78rem; color:#94a3b8; text-align:center; padding: 1rem 0;">Empty</div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endfor %}
+
+  <!-- Ready for Pickup column (always last) -->
+  {% set pickup_jobs = jobs_by_status.get("ready_for_pickup", []) %}
+  <div class="kanban-col col-ready_for_pickup" data-status="ready_for_pickup">
+    <div class="kanban-col-header">
+      <span class="kanban-col-title">Ready for Pickup</span>
+      <span class="kanban-count" id="count-ready_for_pickup">{{ pickup_jobs | length }}</span>
+    </div>
+    <div class="kanban-cards" data-status="ready_for_pickup">
+      {% for job in pickup_jobs %}
         {% set days = (today - job.intake_date).days if job.intake_date else 0 %}
         {% if days <= 7 %}{% set age_cls = 'ok' %}
         {% elif days <= 14 %}{% set age_cls = 'warn' %}
         {% else %}{% set age_cls = 'hot' %}{% endif %}
 
-        <a href="/auto_shop/admin/jobs/{{ job.id }}" class="job-card age-{{ age_cls }}">
+        <a href="/auto_shop/admin/jobs/{{ job.id }}" class="job-card age-{{ age_cls }}" data-job-id="{{ job.id }}">
           <div class="ticket-num">{{ job.ticket_number }}</div>
           <div class="customer-name">{{ job.customer_name }}</div>
           <div class="vehicle-info">
-            {% if job.vehicle_year or job.vehicle_make or job.vehicle_model %}
-              {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
-            {% else %}
-              No vehicle info
-            {% endif %}
+            {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
           </div>
           <div class="card-footer-row">
             <span class="age-badge {{ age_cls }}">
@@ -244,51 +291,73 @@
             </span>
             {% if job.assigned_tech %}
               <span class="tech-chip">👤 {{ job.assigned_tech.name }}</span>
-            {% else %}
-              <span class="tech-chip text-muted">Unassigned</span>
             {% endif %}
           </div>
         </a>
       {% endfor %}
-    {% else %}
-      <div style="font-size:.78rem; color:#94a3b8; text-align:center; padding: 1rem 0;">Empty</div>
-    {% endif %}
-
-  </div>
-  {% endfor %}
-
-  <!-- Ready for Pickup column (always last) -->
-  {% set pickup_jobs = jobs_by_status.get("ready_for_pickup", []) %}
-  {% if pickup_jobs %}
-  <div class="kanban-col col-ready_for_pickup">
-    <div class="kanban-col-header">
-      <span class="kanban-col-title">Ready for Pickup</span>
-      <span class="kanban-count">{{ pickup_jobs | length }}</span>
+      {% if not pickup_jobs %}
+        <div class="empty-col-msg" style="font-size:.78rem; color:#94a3b8; text-align:center; padding: 1rem 0;">Empty</div>
+      {% endif %}
     </div>
-    {% for job in pickup_jobs %}
-      {% set days = (today - job.intake_date).days if job.intake_date else 0 %}
-      {% if days <= 7 %}{% set age_cls = 'ok' %}
-      {% elif days <= 14 %}{% set age_cls = 'warn' %}
-      {% else %}{% set age_cls = 'hot' %}{% endif %}
-
-      <a href="/auto_shop/admin/jobs/{{ job.id }}" class="job-card age-{{ age_cls }}">
-        <div class="ticket-num">{{ job.ticket_number }}</div>
-        <div class="customer-name">{{ job.customer_name }}</div>
-        <div class="vehicle-info">
-          {{ job.vehicle_year or '' }} {{ job.vehicle_make or '' }} {{ job.vehicle_model or '' }}
-        </div>
-        <div class="card-footer-row">
-          <span class="age-badge {{ age_cls }}">
-            {% if days == 0 %}Today{% elif days == 1 %}1 day{% else %}{{ days }} days{% endif %}
-          </span>
-          {% if job.assigned_tech %}
-            <span class="tech-chip">👤 {{ job.assigned_tech.name }}</span>
-          {% endif %}
-        </div>
-      </a>
-    {% endfor %}
   </div>
-  {% endif %}
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+  const MOVE_URL = (jobId) => `/auto_shop/admin/jobs/${jobId}/move`;
+
+  document.querySelectorAll('.kanban-cards').forEach(col => {
+    Sortable.create(col, {
+      group: 'kanban',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      dragClass: 'sortable-drag',
+      // prevent click from firing when dragging
+      onChoose(evt) { evt.item._isDragging = false; },
+      onStart(evt)  { evt.item._isDragging = true; },
+
+      onEnd(evt) {
+        const card    = evt.item;
+        const jobId   = card.dataset.jobId;
+        const newCol  = evt.to;
+        const newStatus = newCol.dataset.status;
+        const oldCol  = evt.from;
+
+        if (!jobId || newStatus === oldCol.dataset.status) return;
+
+        // Optimistically update column counts
+        const oldCount = document.getElementById(`count-${oldCol.dataset.status}`);
+        const newCount = document.getElementById(`count-${newCol.dataset.status}`);
+        if (oldCount) oldCount.textContent = Math.max(0, parseInt(oldCount.textContent) - 1);
+        if (newCount) newCount.textContent = parseInt(newCount.textContent || 0) + 1;
+
+        // Hide empty-col messages when a card drops in
+        newCol.querySelector('.empty-col-msg')?.remove();
+
+        fetch(MOVE_URL(jobId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        }).then(r => {
+          if (!r.ok) {
+            // Revert on error
+            oldCol.prepend(card);
+            if (oldCount) oldCount.textContent = parseInt(oldCount.textContent) + 1;
+            if (newCount) newCount.textContent = Math.max(0, parseInt(newCount.textContent) - 1);
+            alert('Could not update status. Please try again.');
+          }
+        });
+      },
+    });
+  });
+
+  // Prevent click navigation when a card was dragged
+  document.querySelectorAll('.job-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (card._isDragging) { e.preventDefault(); card._isDragging = false; }
+    });
+  });
+</script>
 {% endblock %}

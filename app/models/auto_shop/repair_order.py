@@ -5,50 +5,53 @@ from datetime import date, datetime
 import uuid
 
 VALID_STATUSES = [
-    "intake",
-    "diagnosing",
-    "waiting_on_parts",
-    "parts_received",
-    "in_progress",
-    "waiting_on_adjuster",
-    "adjuster_approved",
-    "completed",
+    "new_arrival",
+    "waiting_for_adjuster",
+    "waiting_for_parts",
+    "disassemble",
+    "body_work",
+    "paint",
+    "assemble",
+    "quality_control",
+    "complete",
     "ready_for_pickup",
 ]
 
 STATUS_LABELS = {
-    "intake": "Intake",
-    "diagnosing": "Diagnosing",
-    "waiting_on_parts": "Waiting on Parts",
-    "parts_received": "Parts Received",
-    "in_progress": "In Progress",
-    "waiting_on_adjuster": "Waiting on Adjuster",
-    "adjuster_approved": "Adjuster Approved",
-    "completed": "Completed",
+    "new_arrival": "New Arrival",
+    "waiting_for_adjuster": "Waiting for Adjuster",
+    "waiting_for_parts": "Waiting for Parts",
+    "disassemble": "Disassemble",
+    "body_work": "Body Work",
+    "paint": "Paint",
+    "assemble": "Assemble",
+    "quality_control": "QC / Final Inspection",
+    "complete": "Complete",
     "ready_for_pickup": "Ready for Pickup",
 }
 
 STATUS_BADGE_COLORS = {
-    "intake": "secondary",
-    "diagnosing": "info",
-    "waiting_on_parts": "warning",
-    "parts_received": "primary",
-    "in_progress": "primary",
-    "waiting_on_adjuster": "warning",
-    "adjuster_approved": "success",
-    "completed": "success",
+    "new_arrival": "secondary",
+    "waiting_for_adjuster": "warning",
+    "waiting_for_parts": "warning",
+    "disassemble": "info",
+    "body_work": "primary",
+    "paint": "primary",
+    "assemble": "primary",
+    "quality_control": "success",
+    "complete": "success",
     "ready_for_pickup": "success",
 }
 
 # Customer-facing SMS templates. Format keys: year, make, model
 STATUS_SMS_MESSAGES = {
-    "waiting_on_parts": "Update on your {year} {make} {model}: we are waiting on parts. We'll notify you when they arrive.",
-    "parts_received": "Update on your {year} {make} {model}: parts have arrived and we're getting started.",
-    "in_progress": "Update on your {year} {make} {model}: work is now underway on your vehicle.",
-    "waiting_on_adjuster": "Update on your {year} {make} {model}: we are waiting on the adjuster. We'll be in touch soon.",
-    "adjuster_approved": "Update on your {year} {make} {model}: the adjuster has approved. Work will begin shortly.",
-    "completed": "Your {year} {make} {model} is ready! Please contact us to arrange pickup.",
-    "ready_for_pickup": "Your {year} {make} {model} is ready for pickup. Come in at your convenience.",
+    "waiting_for_adjuster": "Update on your {year} {make} {model}: we are waiting on the adjuster. We'll be in touch soon.",
+    "waiting_for_parts": "Update on your {year} {make} {model}: we are waiting on parts. We'll notify you when they arrive.",
+    "body_work": "Update on your {year} {make} {model}: body work is now underway on your vehicle.",
+    "paint": "Update on your {year} {make} {model}: your vehicle is in the paint stage.",
+    "quality_control": "Update on your {year} {make} {model}: your vehicle is in final inspection.",
+    "complete": "Great news! Your {year} {make} {model} is complete. We'll contact you to arrange pickup.",
+    "ready_for_pickup": "Your {year} {make} {model} is ready for pickup. Come in at your convenience!",
 }
 
 
