@@ -9,8 +9,10 @@ from sqlalchemy.future import select
 from app.db import get_db
 from app.auth.dependencies import get_current_admin_user
 from app.models.tenant import Tenant
+from app.models.user import User
 from app.utils.security import encrypt_api_key, decrypt_api_key
 from app.utils.email_service import send_test_email
+from app.utils.auth import hash_secret, verify_secret
 
 templates = Jinja2Templates(directory="app/templates")
 router = APIRouter()
@@ -122,6 +124,75 @@ async def test_email_configuration(
             url=f"/admin/settings/email?error={error_msg.replace(' ', '+')}",
             status_code=303,
         )
+
+
+@router.get("/admin/settings/account", response_class=HTMLResponse)
+async def account_settings_get(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    return templates.TemplateResponse(
+        "admin/account_settings.html",
+        {
+            "request": request,
+            "user": user,
+            "success": request.query_params.get("success"),
+            "error": request.query_params.get("error"),
+        },
+    )
+
+
+@router.post("/admin/settings/account/update")
+async def account_settings_update(
+    request: Request,
+    current_password: str = Form(...),
+    new_email: str = Form(""),
+    new_password: str = Form(""),
+    confirm_password: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    result = await db.execute(select(User).where(User.id == user.id))
+    admin = result.scalar_one_or_none()
+
+    if not admin or not verify_secret(current_password, admin.hashed_password):
+        return RedirectResponse(
+            url="/admin/settings/account?error=Current+password+is+incorrect",
+            status_code=303,
+        )
+
+    changed = False
+
+    if new_email and new_email.strip():
+        admin.email = new_email.strip().lower()
+        changed = True
+
+    if new_password:
+        if new_password != confirm_password:
+            return RedirectResponse(
+                url="/admin/settings/account?error=New+passwords+do+not+match",
+                status_code=303,
+            )
+        if len(new_password) < 8:
+            return RedirectResponse(
+                url="/admin/settings/account?error=Password+must+be+at+least+8+characters",
+                status_code=303,
+            )
+        admin.hashed_password = hash_secret(new_password)
+        changed = True
+
+    if not changed:
+        return RedirectResponse(
+            url="/admin/settings/account?error=No+changes+submitted",
+            status_code=303,
+        )
+
+    await db.commit()
+    return RedirectResponse(
+        url="/admin/settings/account?success=Account+updated+successfully",
+        status_code=303,
+    )
 
 
 @router.post("/admin/settings/email/clear")

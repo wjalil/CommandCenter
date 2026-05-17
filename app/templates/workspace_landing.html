@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ tenant.name }} — CookieOps</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+    }
+
+    .workspace-tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #14b8a6;
+      background: rgba(20,184,166,0.1);
+      padding: 0.2rem 0.65rem;
+      border-radius: 20px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+
+    .tenant-name {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-bottom: 2rem;
+    }
+
+    .btn-role {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.875rem 1rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #0f172a;
+      text-decoration: none;
+      margin-bottom: 0.625rem;
+      transition: all 0.12s;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-role:hover {
+      border-color: #14b8a6;
+      background: #f0fdfa;
+      color: #0f172a;
+    }
+
+    .btn-role .icon-wrap {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .icon-wrap.teal   { background: rgba(20,184,166,0.1); color: #14b8a6; }
+    .icon-wrap.blue   { background: rgba(59,130,246,0.1); color: #3b82f6; }
+    .icon-wrap.purple { background: rgba(139,92,246,0.1); color: #8b5cf6; }
+
+    .btn-role i { width: 16px; height: 16px; }
+
+    .btn-role .label-wrap { text-align: left; }
+    .btn-role .label-title { font-weight: 600; display: block; }
+    .btn-role .label-sub { font-size: 0.72rem; color: #94a3b8; display: block; margin-top: 0.1rem; }
+
+    .back-link {
+      display: inline-block;
+      margin-top: 1.25rem;
+      font-size: 0.775rem;
+      color: #94a3b8;
+      text-decoration: none;
+      transition: color 0.12s;
+    }
+
+    .back-link:hover { color: #64748b; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="workspace-tag">Workspace</div>
+  <div class="tenant-name">{{ tenant.name }}</div>
+  <div class="subtitle">Select how you'd like to sign in</div>
+
+  <a href="/t/{{ tenant.slug }}/admin/login" class="btn-role">
+    <div class="icon-wrap teal"><i data-lucide="shield"></i></div>
+    <div class="label-wrap">
+      <span class="label-title">Admin</span>
+      <span class="label-sub">Email &amp; password access</span>
+    </div>
+  </a>
+
+  <a href="/t/{{ tenant.slug }}/login/worker" class="btn-role">
+    <div class="icon-wrap blue"><i data-lucide="users"></i></div>
+    <div class="label-wrap">
+      <span class="label-title">Team Member</span>
+      <span class="label-sub">PIN code access</span>
+    </div>
+  </a>
+
+  <a href="/t/{{ tenant.slug }}/login/customer" class="btn-role">
+    <div class="icon-wrap purple"><i data-lucide="user"></i></div>
+    <div class="label-wrap">
+      <span class="label-title">Customer</span>
+      <span class="label-sub">PIN code access</span>
+    </div>
+  </a>
+
+  <a href="/" class="back-link">← Back to workspace lookup</a>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

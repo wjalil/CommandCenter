@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Integer, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Boolean, Integer, ForeignKey, UniqueConstraint, Text
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 import uuid
@@ -11,7 +11,9 @@ class User(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
+    email = Column(String, nullable=True)
     pin_code = Column(String, nullable=False)
+    hashed_password = Column(Text, nullable=True)
     role = Column(String, nullable=False)  # "admin", "worker"
     #Tenant ID
     tenant_id = Column(Integer, ForeignKey("tenants.id"))

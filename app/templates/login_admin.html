@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% if tenant %}{{ tenant.name }} — {% endif %}{{ role|capitalize }} Login</title>
+  <title>{{ tenant.name }} — Admin Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -68,7 +68,7 @@
 
     .input-wrap {
       position: relative;
-      margin-bottom: 1.25rem;
+      margin-bottom: 1rem;
     }
 
     .input-wrap i {
@@ -82,6 +82,7 @@
       pointer-events: none;
     }
 
+    input[type="email"],
     input[type="password"] {
       width: 100%;
       padding: 0.6rem 0.875rem 0.6rem 2.375rem;
@@ -92,15 +93,17 @@
       color: #0f172a;
       background: #f8fafc;
       outline: none;
-      letter-spacing: 0.15em;
       transition: border-color 0.12s, box-shadow 0.12s;
     }
 
+    input[type="email"]:focus,
     input[type="password"]:focus {
       border-color: #14b8a6;
       box-shadow: 0 0 0 3px rgba(20,184,166,0.1);
       background: #fff;
     }
+
+    .field-group { margin-bottom: 1.25rem; }
 
     button[type="submit"] {
       width: 100%;
@@ -114,6 +117,7 @@
       font-family: inherit;
       cursor: pointer;
       transition: background 0.12s;
+      margin-top: 0.25rem;
     }
 
     button[type="submit"]:hover { background: #0d9488; }
@@ -143,28 +147,43 @@
 </head>
 <body>
 <div class="card">
-  {% if tenant %}
   <div class="workspace-tag">{{ tenant.name }}</div>
-  {% endif %}
-  <div class="title">{{ role|capitalize }} Login</div>
-  <div class="subtitle">Enter your PIN to continue</div>
+  <div class="title">Admin Login</div>
+  <div class="subtitle">Sign in with your email and password</div>
 
   {% if error %}
   <div class="error">{{ error }}</div>
   {% endif %}
 
   <form method="post">
-    <label for="pin_code">PIN code</label>
-    <div class="input-wrap">
-      <i data-lucide="lock"></i>
-      <input type="password" id="pin_code" name="pin_code" placeholder="••••••" required autofocus inputmode="numeric">
+    <div class="field-group">
+      <label for="email">Email address</label>
+      <div class="input-wrap">
+        <i data-lucide="mail"></i>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          placeholder="admin@example.com"
+          required
+          autofocus
+          value="{{ prefill_email or '' }}"
+        >
+      </div>
     </div>
+
+    <div class="field-group">
+      <label for="password">Password</label>
+      <div class="input-wrap">
+        <i data-lucide="lock"></i>
+        <input type="password" id="password" name="password" placeholder="••••••••" required>
+      </div>
+    </div>
+
     <button type="submit">Sign in</button>
   </form>
 
-  {% if tenant %}
   <a href="/t/{{ tenant.slug }}/" class="back-link">← Back</a>
-  {% endif %}
 </div>
 <script>lucide.createIcons();</script>
 </body>

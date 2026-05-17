@@ -30,33 +30,12 @@ router = APIRouter()
 
 @router.get("/customer/login", response_class=HTMLResponse)
 async def customer_login_page(request: Request):
-    return templates.TemplateResponse("login_customer.html", {"request": request})
+    return RedirectResponse("/?error=Please+enter+your+workspace+name+to+sign+in", status_code=302)
 
 
 @router.post("/customer/login", response_class=HTMLResponse)
-async def customer_login_post(
-    request: Request,
-    pin_code: str = Form(...),
-    db: AsyncSession = Depends(get_db),
-):
-    pin = (pin_code or "").strip()
-
-    # IMPORTANT: scope by tenant is handled by customer record (pin is unique per tenant ideally).
-    # If PIN is not tenant-unique globally, you should enforce uniqueness per tenant in DB.
-    result = await db.execute(select(Customer).where(Customer.pin_code == pin))
-    customer = result.scalar_one_or_none()
-
-    if customer:
-        request.session["user_id"] = customer.id
-        request.session["role"] = "customer"
-        request.session["tenant_id"] = customer.tenant_id
-        # Redirect to the actual route, not a template filename
-        return RedirectResponse("/customer", status_code=302)
-
-    return templates.TemplateResponse(
-        "login_customer.html",
-        {"request": request, "error": "Invalid PIN. Please try again."},
-    )
+async def customer_login_post(request: Request):
+    return RedirectResponse("/?error=Please+enter+your+workspace+name+to+sign+in", status_code=302)
 
 
 @router.get("/customer", response_class=HTMLResponse)
@@ -346,9 +325,10 @@ async def create_customer(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_admin_user),
 ):
+    from app.utils.auth import hash_secret
     new_customer = Customer(
         name=(name or "").strip(),
-        pin_code=(pin_code or "").strip(),
+        pin_code=hash_secret((pin_code or "").strip()),
         phone_number=(phone_number or "").strip(),
         tenant_id=user.tenant_id,
     )

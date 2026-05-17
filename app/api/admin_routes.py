@@ -161,9 +161,26 @@ async def create_worker(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    db.add(User(name=name, pin_code=pin_code, role=role, worker_type=worker_type,tenant_id=user.tenant_id))
+    from app.utils.auth import hash_secret
+    db.add(User(name=name, pin_code=hash_secret(pin_code), role=role, worker_type=worker_type, tenant_id=user.tenant_id))
     await db.commit()
     return RedirectResponse("/admin/workers", status_code=303)
+
+@router.post("/admin/workers/{user_id}/reset-pin")
+async def reset_worker_pin(
+    user_id: str,
+    new_pin: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    from app.utils.auth import hash_secret
+    result = await db.execute(select(User).where(User.id == user_id, User.tenant_id == user.tenant_id))
+    worker = result.scalar_one_or_none()
+    if worker:
+        worker.pin_code = hash_secret(new_pin.strip())
+        await db.commit()
+    return RedirectResponse("/admin/workers?success=PIN+updated", status_code=303)
+
 
 @router.post("/admin/workers/delete/{user_id}")
 async def delete_worker(user_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_admin_user)):

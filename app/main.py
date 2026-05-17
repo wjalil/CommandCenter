@@ -25,9 +25,11 @@ from app.api.custom_modules import inventory_routes, driver_order_routes,vending
 from app.api.internal_task_routes import router as internal_task_router
 from app.api.shopping_routes import router as shopping_router
 from sqlalchemy.future import select
+from sqlalchemy import text
 from dotenv import load_dotenv
 import app.models  # registers all models via models/__init__.py
 from sqlalchemy.orm import configure_mappers
+from app.utils.auth import hash_secret, is_hashed
 configure_mappers()
 from fastapi.staticfiles import StaticFiles
 from app.api.admin import admin_timeclock_routes
@@ -147,71 +149,93 @@ async def on_startup():
     print("🔧 Starting DB setup...")
     await create_db_and_tables()
     print("✅ DB schema created.")
-    # ⬇️ Seed default tenant if it doesn't exist
+
+    # ── Schema migration: add new auth columns if missing ─────────────────────
+    async with async_session() as db:
+        for stmt in [
+            "ALTER TABLE users ADD COLUMN email TEXT",
+            "ALTER TABLE users ADD COLUMN hashed_password TEXT",
+        ]:
+            try:
+                await db.execute(text(stmt))
+                await db.commit()
+            except Exception:
+                pass  # Column already exists
+
+    # ── Seed: Chai and Biscuit tenant ─────────────────────────────────────────
     async with async_session() as db:
         result = await db.execute(select(Tenant).where(Tenant.name == "Chai and Biscuit"))
         tenant = result.scalar_one_or_none()
 
         if not tenant:
-            tenant = Tenant(name="Chai and Biscuit")
+            tenant = Tenant(name="Chai and Biscuit", slug="chai-and-biscuit")
             db.add(tenant)
             await db.commit()
+            await db.refresh(tenant)
             print(f"🏢 Created tenant: {tenant.name}")
         else:
+            if not tenant.slug:
+                tenant.slug = "chai-and-biscuit"
+                await db.commit()
             print(f"🏢 Tenant '{tenant.name}' already exists.")
 
-    
         result = await db.execute(select(User).where(User.role == "admin", User.tenant_id == tenant.id))
-        existing_admin = result.scalars().first()
+        admin_count = len(result.scalars().all())
 
-        if not existing_admin:
+        if admin_count == 0:
             print("👤 No admin found. Creating default admin user...")
             admin = User(
                 name="Admin",
-                pin_code="1234",
+                email="admin@chai-and-biscuit.local",
+                pin_code=hash_secret("1234"),
+                hashed_password=hash_secret("admin1234"),
                 role="admin",
                 is_active=True,
-                tenant_id=tenant.id
+                tenant_id=tenant.id,
             )
             db.add(admin)
             await db.commit()
-            print("✅ Default admin created.")
+            print("✅ Default admin created (email: admin@chai-and-biscuit.local, password: admin1234).")
         else:
-            print("🔐 Admin already exists. No seed needed.")
+            print(f"🔐 {admin_count} admin(s) already exist. Skipping seed.")
 
-    # ── Auto Shop Tenant ───────────────────────────────────────────────────────
+    # ── Seed: Collision Kings (Auto Shop) tenant ───────────────────────────────
     async with async_session() as db:
         result = await db.execute(select(Tenant).where(Tenant.name == "Collision Kings"))
         auto_shop_tenant = result.scalar_one_or_none()
 
         if not auto_shop_tenant:
-            auto_shop_tenant = Tenant(name="Collision Kings")
+            auto_shop_tenant = Tenant(name="Collision Kings", slug="collision-kings")
             db.add(auto_shop_tenant)
             await db.commit()
             await db.refresh(auto_shop_tenant)
             print(f"🏢 Created tenant: {auto_shop_tenant.name}")
         else:
+            if not auto_shop_tenant.slug:
+                auto_shop_tenant.slug = "collision-kings"
+                await db.commit()
             print(f"🏢 Tenant '{auto_shop_tenant.name}' already exists.")
 
-        # Seed admin user for auto shop tenant
         result = await db.execute(
             select(User).where(User.role == "admin", User.tenant_id == auto_shop_tenant.id)
         )
-        auto_shop_admin = result.scalars().first()
+        admin_count = len(result.scalars().all())
 
-        if not auto_shop_admin:
+        if admin_count == 0:
             auto_shop_admin = User(
                 name="Shop Admin",
-                pin_code="5678",
+                email="admin@collision-kings.local",
+                pin_code=hash_secret("5678"),
+                hashed_password=hash_secret("admin5678"),
                 role="admin",
                 is_active=True,
                 tenant_id=auto_shop_tenant.id,
             )
             db.add(auto_shop_admin)
             await db.commit()
-            print("✅ Auto shop admin created (PIN: 5678).")
+            print("✅ Auto shop admin created (email: admin@collision-kings.local, password: admin5678).")
         else:
-            print("🔐 Auto shop admin already exists.")
+            print(f"🔐 {admin_count} admin(s) already exist for Collision Kings. Skipping seed.")
 
         # Seed module permissions for Collision Kings
         # Only auto_shop and core_ops (scheduling, timeclock, weekly hours) are enabled.
@@ -246,6 +270,39 @@ async def on_startup():
                 ))
         await db.commit()
         print("✅ Module permissions seeded for Collision Kings.")
+
+    # ── Migrate plaintext PINs and backfill missing passwords ─────────────────
+    async with async_session() as db:
+        from app.models.customer.customer import Customer as CustomerModel
+
+        all_users_result = await db.execute(select(User))
+        all_users = all_users_result.scalars().all()
+        pin_count = pw_count = 0
+        for u in all_users:
+            changed = False
+            original_pin = u.pin_code
+            if not is_hashed(u.pin_code):
+                u.pin_code = hash_secret(original_pin)
+                changed = True
+                pin_count += 1
+            if u.role == "admin" and not u.hashed_password:
+                u.hashed_password = hash_secret(f"admin{original_pin[:4]}")
+                changed = True
+                pw_count += 1
+        if pin_count or pw_count:
+            await db.commit()
+            print(f"🔒 Hashed {pin_count} plaintext PIN(s), set {pw_count} missing admin password(s).")
+
+        customer_result = await db.execute(select(CustomerModel))
+        customers = customer_result.scalars().all()
+        rehashed = 0
+        for c in customers:
+            if not is_hashed(c.pin_code):
+                c.pin_code = hash_secret(c.pin_code)
+                rehashed += 1
+        if rehashed:
+            await db.commit()
+            print(f"🔒 Hashed {rehashed} plaintext customer PIN(s).")
 
 
 # ✅ Core app routers

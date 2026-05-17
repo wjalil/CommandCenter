@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Account Settings — CookieOps{% endblock %}
+
+{% block content %}
+<div class="container mt-4" style="max-width: 560px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">Account Settings</h4>
+    <a href="/admin/dashboard" class="btn btn-sm btn-outline-secondary">← Dashboard</a>
+  </div>
+
+  {% if success %}
+  <div class="alert alert-success alert-dismissible fade show">
+    {{ success }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endif %}
+  {% if error %}
+  <div class="alert alert-danger alert-dismissible fade show">
+    {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endif %}
+
+  <!-- Current info -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <div class="text-muted small mb-1">Signed in as</div>
+      <div class="fw-semibold">{{ user.name }}</div>
+      <div class="text-muted small">{{ user.email or "No email set" }}</div>
+    </div>
+  </div>
+
+  <!-- Change email or password -->
+  <div class="card shadow-sm">
+    <div class="card-header fw-semibold">Change Email or Password</div>
+    <div class="card-body">
+      <form method="POST" action="/admin/settings/account/update">
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Current Password <span class="text-danger">*</span></label>
+          <input type="password" name="current_password" class="form-control" required placeholder="Your current password">
+          <div class="form-text">Required to make any changes.</div>
+        </div>
+
+        <hr>
+
+        <div class="mb-3">
+          <label class="form-label">New Email Address <span class="text-muted fw-normal">(optional)</span></label>
+          <input type="email" name="new_email" class="form-control" placeholder="{{ user.email or 'Enter new email' }}">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">New Password <span class="text-muted fw-normal">(optional)</span></label>
+          <input type="password" name="new_password" class="form-control" placeholder="Min 8 characters">
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label">Confirm New Password</label>
+          <input type="password" name="confirm_password" class="form-control" placeholder="Repeat new password">
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Save Changes</button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
