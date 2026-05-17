@@ -110,4 +110,30 @@ class RepairOrder(Base):
     tenant = relationship("Tenant", back_populates="repair_orders")
     assigned_tech = relationship(
         "User",
-        back_populates="assigned_
+        back_populates="assigned_repairs",
+        foreign_keys=[assigned_tech_id],
+    )
+    payments = relationship(
+        "RepairOrderPayment",
+        back_populates="repair_order",
+        cascade="all, delete-orphan",
+        order_by="RepairOrderPayment.date_received",
+    )
+    photos = relationship(
+        "RepairOrderPhoto",
+        back_populates="repair_order",
+        cascade="all, delete-orphan",
+        order_by="RepairOrderPhoto.uploaded_at",
+    )
+    status_logs = relationship(
+        "RepairOrderStatusLog",
+        back_populates="repair_order",
+        cascade="all, delete-orphan",
+        order_by="RepairOrderStatusLog.changed_at",
+    )
+
+    __table_args__ = (
+        Index("idx_repair_orders_tenant", "tenant_id"),
+        Index("idx_repair_orders_status", "tenant_id", "status"),
+        Index("idx_repair_orders_intake", "tenant_id", "intake_date"),
+    )
