@@ -1,533 +1,1026 @@
 {% set enabled_modules = enabled_modules or {} %}
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>🍪 CookieOps Command Center</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>CookieOps — Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <style>
-    body {
-      background-color: #edf1f5;
-      color: #2b2f42;
-      font-family: 'Segoe UI', sans-serif;
-      padding-bottom: 4rem;
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sidebar-bg:     #0f172a;
+      --sidebar-width:  252px;
+      --accent:         #14b8a6;
+      --accent-hover:   #0d9488;
+      --surface:        #ffffff;
+      --bg:             #f1f5f9;
+      --text-primary:   #0f172a;
+      --text-secondary: #64748b;
+      --text-muted:     #94a3b8;
+      --border:         #e2e8f0;
+      --radius:         10px;
+      --shadow-sm:      0 1px 2px rgba(0,0,0,0.05);
+      --shadow:         0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
     }
 
-    /* Quick Actions */
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      display: flex;
+      min-height: 100vh;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    /* ── Sidebar ──────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-width);
+      min-width: var(--sidebar-width);
+      background: var(--sidebar-bg);
+      height: 100vh;
+      position: fixed;
+      top: 0; left: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .sidebar-logo {
+      padding: 1.375rem 1.25rem 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .sidebar-logo .brand {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+
+    .sidebar-logo .tenant-badge {
+      display: inline-block;
+      margin-top: 0.35rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: rgba(20,184,166,0.12);
+      padding: 0.15rem 0.55rem;
+      border-radius: 20px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 0.875rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+    }
+
+    .nav-group-label {
+      font-size: 0.63rem;
+      font-weight: 600;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.875rem 0.5rem 0.25rem;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      padding: 0.45rem 0.75rem;
+      border-radius: 7px;
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 500;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .nav-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+    .nav-item.active { background: rgba(20,184,166,0.15); color: var(--accent); }
+    .nav-item i { width: 15px; height: 15px; flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 0.875rem 0.75rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* ── Main layout ──────────────────────────────── */
+    .main {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.875rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .topbar-title { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+    .topbar-subtitle { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.1rem; }
+
+    .btn-logout {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 0.4rem 0.875rem;
+      text-decoration: none;
+      transition: all 0.12s;
+    }
+
+    .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+    .btn-logout i { width: 13px; height: 13px; }
+
+    .content { padding: 1.75rem 2rem 3rem; }
+
+    /* ── Section heading ──────────────────────────── */
+    .section-heading {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+
+    /* ── Quick Actions ────────────────────────────── */
     .quick-actions {
-      padding: 1.5rem 0;
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
       gap: 0.75rem;
-      margin-bottom: 1.5rem;
+      margin-bottom: 2rem;
     }
 
     .quick-action-btn {
-      background: white;
-      border: none;
-      border-radius: 12px;
-      padding: 1.25rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.125rem 0.875rem;
       text-align: center;
       text-decoration: none;
-      color: #2b2f42;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      transition: all 0.2s;
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 0.5rem;
-      min-height: 100px;
-      justify-content: center;
     }
 
-    .quick-action-btn:active {
-      transform: scale(0.97);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    .quick-action-btn:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(20,184,166,0.08), var(--shadow);
+      transform: translateY(-1px);
     }
 
-    .quick-action-btn .icon {
-      font-size: 2rem;
-    }
+    .quick-action-btn i { width: 20px; height: 20px; color: var(--accent); }
 
     .quick-action-btn .label {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: #2b2f42;
-    }
-
-    @media (min-width: 768px) {
-      .quick-actions {
-        grid-template-columns: repeat(3, 1fr);
-      }
-    }
-
-    @media (min-width: 1024px) {
-      .quick-actions {
-        grid-template-columns: repeat(5, 1fr);
-      }
-    }
-
-    .navbar {
-      background-color: #ffffff !important;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    }
-
-    .navbar-brand {
-      font-weight: 700;
-      font-size: 1.4rem;
-      color: #005f7f !important;
-    }
-
-    h2 {
-      font-weight: 700;
-      font-size: 2rem;
-      margin-bottom: 2rem;
-      color: #005f7f;
-    }
-
-    .dashboard-card {
-      background-color: #ffffff;
-      border-radius: 1rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-      padding: 2rem;
-      transition: all 0.3s ease;
-      border-left: 5px solid #00c9a7;
-    }
-
-    .dashboard-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 0 18px rgba(0, 201, 167, 0.2);
-    }
-
-    .card-title {
-      font-weight: 600;
-      font-size: 1.3rem;
-      color: #2b2f42;
-      margin-bottom: 1rem;
-    }
-
-    .card-link {
-      display: block;
+      font-size: 0.76rem;
       font-weight: 500;
-      font-size: 1.05rem;
-      margin-bottom: 0.5rem;
-      color: #007c91;
-      text-decoration: none;
+      color: var(--text-primary);
     }
 
-    .card-link:hover {
-      text-decoration: underline;
-      color: #00c9a7;
+    /* ── Dashboard grid ───────────────────────────── */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.125rem;
+      margin-bottom: 1.125rem;
     }
 
-    .btn-outline-primary {
-      border-color: #00c9a7;
-      color: #00c9a7;
+    .dashboard-grid.two-col { grid-template-columns: repeat(2, 1fr); }
+
+    @media (max-width: 1200px) { .dashboard-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 800px)  {
+      .dashboard-grid, .dashboard-grid.two-col { grid-template-columns: 1fr; }
     }
 
-    .btn-outline-primary:hover {
-      background-color: #00c9a7;
-      color: #fff;
+    /* ── Card ─────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
-    .section-label {
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: #6c757d;
+    .card-header {
+      padding: 1rem 1.25rem 0.875rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .card-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .card-icon i { width: 15px; height: 15px; }
+
+    .card-icon.teal   { background: rgba(20,184,166,0.1);  } .card-icon.teal   i { color: #14b8a6; }
+    .card-icon.blue   { background: rgba(59,130,246,0.1);  } .card-icon.blue   i { color: #3b82f6; }
+    .card-icon.orange { background: rgba(249,115,22,0.1);  } .card-icon.orange i { color: #f97316; }
+    .card-icon.red    { background: rgba(239,68,68,0.1);   } .card-icon.red    i { color: #ef4444; }
+    .card-icon.green  { background: rgba(34,197,94,0.1);   } .card-icon.green  i { color: #22c55e; }
+    .card-icon.indigo { background: rgba(99,102,241,0.1);  } .card-icon.indigo i { color: #6366f1; }
+    .card-icon.cyan   { background: rgba(6,182,212,0.1);   } .card-icon.cyan   i { color: #06b6d4; }
+
+    .card-header-text .label {
+      font-size: 0.63rem;
+      font-weight: 600;
+      color: var(--text-muted);
       text-transform: uppercase;
-      margin-bottom: 0.4rem;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.06em;
     }
 
-    .equal-height {
-      min-height: 410px;
+    .card-header-text .title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-top: 0.1rem;
     }
 
-    .badge-daily {
-      background: #ffc107;
-      color: #000;
+    .card-body { padding: 0.875rem 1.25rem; flex: 1; }
+
+    .card-footer {
+      padding: 0.75rem 1.25rem;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+    }
+
+    /* ── Nav link list (inside cards) ────────────── */
+    .nav-link-list { list-style: none; display: flex; flex-direction: column; gap: 0.05rem; }
+
+    .nav-link-list a {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: 6px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 500;
+      transition: all 0.1s;
+    }
+
+    .nav-link-list a:hover { background: #f1f5f9; color: var(--text-primary); }
+    .nav-link-list a:hover i { color: var(--accent); }
+    .nav-link-list a i { width: 14px; height: 14px; flex-shrink: 0; color: var(--text-muted); }
+
+    .link-meta {
+      font-size: 0.71rem;
+      color: var(--text-muted);
+      padding-left: 2rem;
+      margin-top: -0.15rem;
+      margin-bottom: 0.3rem;
+    }
+
+    /* ── Badges ───────────────────────────────────── */
+    .badge {
+      font-size: 0.64rem;
+      font-weight: 600;
+      padding: 0.15rem 0.45rem;
+      border-radius: 20px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .badge-new   { background: rgba(20,184,166,0.12); color: #14b8a6; }
+    .badge-daily { background: rgba(249,115,22,0.12); color: #f97316; }
+    .badge-admin { background: rgba(100,116,139,0.1); color: #64748b; }
+
+    /* ── Internal To-Do ───────────────────────────── */
+    .todo-input-row { display: flex; gap: 0.5rem; margin-bottom: 0.875rem; }
+
+    .todo-input-row input {
+      flex: 1;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 0.82rem;
+      font-family: inherit;
+      color: var(--text-primary);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+
+    .todo-input-row input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(20,184,166,0.1);
+    }
+
+    .btn-add {
+      padding: 0.45rem 0.875rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+
+    .btn-add:hover { background: var(--accent-hover); }
+
+    .todo-list { list-style: none; display: flex; flex-direction: column; gap: 0.2rem; }
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.5rem;
+      border-radius: 6px;
+      transition: background 0.1s;
+    }
+
+    .todo-item:hover { background: #f8fafc; }
+    .todo-item .text { font-size: 0.82rem; color: var(--text-primary); }
+    .todo-item .text.done { text-decoration: line-through; color: var(--text-muted); }
+    .todo-actions { display: flex; gap: 0.3rem; }
+
+    .btn-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.12s;
+      color: var(--text-muted);
+    }
+
+    .btn-icon:hover { border-color: var(--accent); color: var(--accent); background: rgba(20,184,166,0.05); }
+    .btn-icon.danger:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.05); }
+    .btn-icon i { width: 12px; height: 12px; }
+
+    /* ── Financial progress ───────────────────────── */
+    .fin-row { margin-bottom: 1.125rem; }
+
+    .fin-row-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.375rem;
+    }
+
+    .fin-label { font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); }
+    .fin-value { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+    .fin-value.positive { color: #22c55e; }
+
+    .progress-track { height: 5px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
+    .progress-fill  { height: 100%; border-radius: 99px; }
+    .fill-green { background: #22c55e; }
+    .fill-red   { background: #ef4444; }
+    .fill-teal  { background: var(--accent); }
+    .fin-sub { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem; }
+
+    /* ── Weekly hours ─────────────────────────────── */
+    .week-group { margin-bottom: 1rem; }
+
+    .week-label {
       font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .week-label i { width: 13px; height: 13px; color: var(--accent); }
+
+    .hours-list { list-style: none; display: flex; flex-direction: column; gap: 0.15rem; }
+
+    .hours-list li {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      padding: 0.25rem 0.5rem;
+      border-radius: 5px;
+    }
+
+    .hours-list li:hover { background: #f1f5f9; }
+    .hours-val { font-weight: 600; color: var(--text-primary); }
+
+    /* ── Buttons ──────────────────────────────────── */
+    .btn-primary-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.4rem 0.875rem;
+      background: var(--accent);
+      border: none;
+      border-radius: 7px;
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: none;
+      transition: background 0.12s;
+    }
+
+    .btn-primary-sm:hover { background: var(--accent-hover); }
+    .btn-primary-sm i { width: 13px; height: 13px; }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.4rem 0.875rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: none;
+      transition: all 0.12s;
+    }
+
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-outline i { width: 13px; height: 13px; }
+
+    .empty-state {
+      text-align: center;
+      padding: 1.5rem;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .hidden { display: none; }
+
+    /* ── Mobile ───────────────────────────────────── */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; }
+      .content { padding: 1.25rem; }
+      .topbar { padding: 0.875rem 1.25rem; }
+      .quick-actions { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg px-4">
-  <div class="container-fluid">
-    <span class="navbar-brand">🛫 CookieOps Command Center</span>
+<!-- ═══════════ SIDEBAR ═══════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand">CookieOps</div>
     {% if tenant %}
-    <span class="badge rounded-pill bg-info text-dark ms-3 px-3 py-2" style="font-size: 0.9rem; font-weight: 500;">
-    {{ tenant.name }}
-    </span>
+    <span class="tenant-badge">{{ tenant.name }}</span>
     {% endif %}
-    <div class="text-end mb-3">
-      <a href="/logout" class="btn btn-outline-danger btn-sm">🔓 Logout</a>
-    </div>
   </div>
-</nav>
 
-<div class="container mt-5">
-  <h2>🧠 Mission Control Dashboard</h2>
-
-  <!-- Quick Actions -->
-  <div class="quick-actions">
-    <a href="/admin/schedule/grid" class="quick-action-btn">
-      <div class="icon">📅</div>
-      <div class="label">Manage Shifts</div>
+  <nav class="sidebar-nav">
+    <span class="nav-group-label">Overview</span>
+    <a href="#" class="nav-item active">
+      <i data-lucide="layout-dashboard"></i>Dashboard
     </a>
 
-    <a href="/admin/timeclock" class="quick-action-btn">
-      <div class="icon">⏱️</div>
-      <div class="label">Time Clock</div>
+    <span class="nav-group-label">Operations</span>
+    <a href="/admin/schedule/grid" class="nav-item">
+      <i data-lucide="calendar"></i>Manage Shifts
     </a>
-
+    <a href="/admin/timeclock" class="nav-item">
+      <i data-lucide="clock"></i>Time Clock
+    </a>
+    <a href="/admin/workers" class="nav-item">
+      <i data-lucide="users"></i>Workers
+    </a>
+    <a href="/documents/admin/documents" class="nav-item">
+      <i data-lucide="file-text"></i>Documents
+    </a>
     {% if enabled_modules.get("taskboard", True) %}
-    <a href="/admin/taskboard" class="quick-action-btn">
-      <div class="icon">📋</div>
-      <div class="label">Task Board</div>
+    <a href="/admin/taskboard" class="nav-item">
+      <i data-lucide="clipboard-list"></i>Task Board
     </a>
     {% endif %}
 
-    {% if enabled_modules.get("vending", True) %}
-    <a href="/admin/vending-logs" class="quick-action-btn">
-      <div class="icon">📸</div>
-      <div class="label">Vending Log</div>
+    {% if enabled_modules.get("catering", True) or enabled_modules.get("delivery", True) or enabled_modules.get("driver_order", True) %}
+    <span class="nav-group-label">Catering</span>
+    {% endif %}
+    {% if enabled_modules.get("catering", True) %}
+    <a href="/catering" class="nav-item">
+      <i data-lucide="utensils"></i>CACFP Menu
+    </a>
+    {% endif %}
+    {% if enabled_modules.get("delivery", True) %}
+    <a href="/delivery/admin/" class="nav-item">
+      <i data-lucide="truck"></i>Delivery Routes
+    </a>
+    {% endif %}
+    {% if enabled_modules.get("driver_order", True) %}
+    <a href="/modules/driver_order" class="nav-item">
+      <i data-lucide="package"></i>Delivery Log
+    </a>
+    {% endif %}
+
+    {% if enabled_modules.get("auto_shop") %}
+    <span class="nav-group-label">Auto Shop</span>
+    <a href="/auto_shop/admin/" class="nav-item">
+      <i data-lucide="gauge"></i>Dashboard
+    </a>
+    <a href="/auto_shop/admin/jobs" class="nav-item">
+      <i data-lucide="wrench"></i>All Jobs
+    </a>
+    <a href="/auto_shop/admin/jobs/new" class="nav-item">
+      <i data-lucide="plus-circle"></i>New Job
+    </a>
+    {% endif %}
+
+    {% if enabled_modules.get("customer_ordering", True) %}
+    <span class="nav-group-label">Customers</span>
+    <a href="/admin/orders" class="nav-item">
+      <i data-lucide="shopping-bag"></i>Orders
+    </a>
+    <a href="/admin/menus" class="nav-item">
+      <i data-lucide="book-open"></i>Menus
+    </a>
+    <a href="/admin/customers/balances" class="nav-item">
+      <i data-lucide="dollar-sign"></i>Balances
     </a>
     {% endif %}
 
     {% if enabled_modules.get("shopping", True) %}
-    <a href="/shopping/view" class="quick-action-btn">
-      <div class="icon">🛒</div>
-      <div class="label">Shopping Cart</div>
+    <span class="nav-group-label">Inventory</span>
+    <a href="/shopping/items" class="nav-item">
+      <i data-lucide="shopping-cart"></i>Shopping Cart
+    </a>
+    <a href="/admin/shopping/purchased" class="nav-item">
+      <i data-lucide="receipt"></i>Past Purchases
     </a>
     {% endif %}
 
-    {% if enabled_modules.get("catering", True) %}
-    <a href="/catering" class="quick-action-btn">
-      <div class="icon">🍱</div>
-      <div class="label">Catering</div>
+    {% if enabled_modules.get("vending", True) %}
+    <span class="nav-group-label">Vending</span>
+    <a href="/admin/vending-logs" class="nav-item">
+      <i data-lucide="camera"></i>Vending Log
+    </a>
+    <a href="/admin/machines" class="nav-item">
+      <i data-lucide="cpu"></i>Machines
     </a>
     {% endif %}
 
-    {% if enabled_modules.get("delivery", True) %}
-    <a href="/delivery/admin/" class="quick-action-btn">
-      <div class="icon">🚛</div>
-      <div class="label">Delivery Routes</div>
+    <span class="nav-group-label">Settings</span>
+    <a href="/admin/settings/email" class="nav-item">
+      <i data-lucide="settings"></i>Email Settings
     </a>
-    {% endif %}
+  </nav>
 
-    {% if enabled_modules.get("auto_shop") %}
-    <a href="/auto_shop/admin/" class="quick-action-btn">
-      <div class="icon">🔧</div>
-      <div class="label">Auto Shop</div>
+  <div class="sidebar-footer">
+    <a href="/logout" class="nav-item">
+      <i data-lucide="log-out"></i>Logout
     </a>
-    {% endif %}
+  </div>
+</aside>
+
+<!-- ═══════════ MAIN ══════════════════════════════════════════ -->
+<div class="main">
+
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">Command Center</div>
+      <div class="topbar-subtitle">Admin dashboard — manage all operations from here</div>
+    </div>
+    <a href="/logout" class="btn-logout">
+      <i data-lucide="log-out"></i>Logout
+    </a>
   </div>
 
-  <!-- Row 1 -->
-  <div class="row g-4 mb-4">
-    {% if enabled_modules.get("core_ops", True) %}
-    <div class="col-lg-4 col-md-6">
-      <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #0d6efd;">
-        <div>
-          <div class="section-label">Core Operations</div>
-          <h5 class="card-title">🎯 Admin Tools</h5>
-          <ul class="list-unstyled">
-            <li><a href="/admin/schedule/grid" class="card-link">📅 Manage Shifts</a></li>
-            <li><a href="/admin/timeclock" class="card-link text-success fw-semibold">⏱️ Time Clock / Payroll</a></li>
-            <li><a href="/documents/admin/documents" class="card-link">📄 SOP / Recipes</a></li>
-            <li><a href="/admin/workers" class="card-link">👤 Workers</a></li>
-            <li><a href="/admin/settings/email" class="card-link text-primary fw-semibold">⚙️ Email Settings</a></li>
+  <div class="content">
+
+    <!-- Quick Actions -->
+    <div class="section-heading">Quick Access</div>
+    <div class="quick-actions">
+      <a href="/admin/schedule/grid" class="quick-action-btn">
+        <i data-lucide="calendar"></i>
+        <span class="label">Manage Shifts</span>
+      </a>
+      <a href="/admin/timeclock" class="quick-action-btn">
+        <i data-lucide="clock"></i>
+        <span class="label">Time Clock</span>
+      </a>
+      {% if enabled_modules.get("taskboard", True) %}
+      <a href="/admin/taskboard" class="quick-action-btn">
+        <i data-lucide="clipboard-list"></i>
+        <span class="label">Task Board</span>
+      </a>
+      {% endif %}
+      {% if enabled_modules.get("vending", True) %}
+      <a href="/admin/vending-logs" class="quick-action-btn">
+        <i data-lucide="camera"></i>
+        <span class="label">Vending Log</span>
+      </a>
+      {% endif %}
+      {% if enabled_modules.get("shopping", True) %}
+      <a href="/shopping/view" class="quick-action-btn">
+        <i data-lucide="shopping-cart"></i>
+        <span class="label">Shopping Cart</span>
+      </a>
+      {% endif %}
+      {% if enabled_modules.get("catering", True) %}
+      <a href="/catering" class="quick-action-btn">
+        <i data-lucide="utensils"></i>
+        <span class="label">Catering</span>
+      </a>
+      {% endif %}
+      {% if enabled_modules.get("delivery", True) %}
+      <a href="/delivery/admin/" class="quick-action-btn">
+        <i data-lucide="truck"></i>
+        <span class="label">Delivery Routes</span>
+      </a>
+      {% endif %}
+      {% if enabled_modules.get("auto_shop") %}
+      <a href="/auto_shop/admin/" class="quick-action-btn">
+        <i data-lucide="wrench"></i>
+        <span class="label">Auto Shop</span>
+      </a>
+      {% endif %}
+    </div>
+
+    <!-- ── Row 1 ─────────────────────────────────── -->
+    <div class="dashboard-grid">
+
+      {% if enabled_modules.get("core_ops", True) %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon blue"><i data-lucide="settings"></i></div>
+          <div class="card-header-text">
+            <div class="label">Core Operations</div>
+            <div class="title">Admin Tools</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <ul class="nav-link-list">
+            <li><a href="/admin/schedule/grid"><i data-lucide="calendar"></i>Manage Shifts</a></li>
+            <li><a href="/admin/timeclock"><i data-lucide="clock"></i>Time Clock / Payroll</a></li>
+            <li><a href="/documents/admin/documents"><i data-lucide="file-text"></i>SOP / Recipes</a></li>
+            <li><a href="/admin/workers"><i data-lucide="users"></i>Workers</a></li>
+            <li><a href="/admin/settings/email"><i data-lucide="settings"></i>Email Settings</a></li>
           </ul>
         </div>
-        <form method="post" action="/admin/shifts/generate_next_week">
-          <button class="btn btn-outline-primary btn-sm mt-2 w-auto">🔁 Generate Week</button>
-        </form>
-      </div>
-    </div>
-    {% endif %}
-  
-    {% if enabled_modules.get("catering_modules", True) %}
-    <div class="col-lg-4 col-md-6">
-      <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #ff6f00;">
-        <div>
-          <div class="section-label">Catering Modules</div>
-          <h5 class="card-title">🧰 Delivery & Invoicing</h5>
-          <ul class="list-unstyled">
-            {% if enabled_modules.get("catering", True) %}
-            <li class="mb-2">
-              <a href="/catering" class="card-link fw-bold text-success d-flex align-items-center">
-                <span>🍱 CACFP Menu Builder</span>
-                <span class="badge bg-success ms-2">New</span>
-              </a>
-              <div class="text-muted small ms-4">Programs, menus, invoices</div>
-            </li>
-            {% endif %}
-
-            {% if enabled_modules.get("delivery", True) %}
-            <li class="mb-2">
-              <a href="/delivery/admin/" class="card-link fw-bold text-primary d-flex align-items-center">
-                <span>🚛 Delivery Routes</span>
-                <span class="badge bg-success ms-2">New</span>
-              </a>
-              <div class="text-muted small ms-4">Manage routes, stops & drivers</div>
-            </li>
-            {% endif %}
-
-            {% if enabled_modules.get("driver_order", True) %}
-            <li class="mb-2">
-              <a href="/modules/driver_order" class="card-link fw-bold text-primary d-flex align-items-center">
-                <span>🚚 Delivery Log</span>
-                <span class="badge badge-daily ms-2">Daily</span>
-              </a>
-              <div class="text-muted small ms-4">Fridge photo + driver notes</div>
-            </li>
-            {% endif %}
-
-            {% if enabled_modules.get("taskboard", True) %}
-            <li class="mb-2">
-              <a href="/admin/taskboard" class="card-link fw-bold text-primary d-flex align-items-center">
-                <span>📋 Task Board</span>
-                <span class="badge bg-light text-dark ms-2">Admin</span>
-              </a>
-
-            </li>
-            {% endif %}
-
-            {% if enabled_modules.get("invoices", True) %}
-            <li class="mb-2">
-              <a href="/modules/fridge" class="card-link">🧊 Invoices</a>
-            </li>
-            {% endif %}
-          </ul>
-        </div>
-        <div class="text-muted small mt-2">Modules auto-assigned to relevant shifts.</div>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if enabled_modules.get("auto_shop") %}
-    <div class="col-lg-4 col-md-6">
-      <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #e63946;">
-        <div>
-          <div class="section-label">Auto Shop</div>
-          <h5 class="card-title">🔧 Repair Orders</h5>
-          <p class="text-muted small">Track vehicles, jobs, and technician assignments.</p>
-          <ul class="list-unstyled">
-            <li class="mb-2">
-              <a href="/auto_shop/admin/" class="card-link fw-bold text-danger d-flex align-items-center">
-                <span>📋 Dashboard</span>
-              </a>
-              <div class="text-muted small ms-4">Open jobs overview</div>
-            </li>
-            <li class="mb-2">
-              <a href="/auto_shop/admin/jobs" class="card-link fw-bold text-primary">🔩 All Jobs</a>
-              <div class="text-muted small ms-4">Filter by status</div>
-            </li>
-            <li class="mb-2">
-              <a href="/auto_shop/admin/jobs/new" class="card-link fw-bold text-success">➕ New Job</a>
-              <div class="text-muted small ms-4">Create a repair order</div>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if enabled_modules.get("customer_ordering", True) %}
-    <div class="col-lg-4 col-md-6">
-      <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #0d6efd;">
-        <div>
-          <div class="section-label">Customer Management</div>
-          <h5 class="card-title">🍽️ Orders & Menus</h5>
-          <p class="text-muted small">Manage customers, orders, and menu items.</p>
-          <ul class="list-unstyled">
-            <li class="mb-2">
-              <a href="/admin/customers/balances" class="card-link fw-bold text-success">💰 Customer Balances</a>
-              <a href="/admin/orders" class="card-link">📦 View Orders</a>
-              <a href="/admin/menus" class="card-link">🔍 Menus</a>
-              <a href="/admin/menus/create" class="card-link">➕ New Menu</a>
-              <a href="/admin/customers/create" class="card-link">👤 Add Customer</a>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-  </div>
-
-  <!-- Row 2 -->
-  <div class="row g-4 mb-4">
-    {% if enabled_modules.get("internal_tasks", True) %}
-    <div class="col-lg-4 col-md-6">
-      <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #ff474a;">
-        <div>
-          <div class="section-label">Admin Tasks</div>
-          <h5 class="card-title">🛠️ Internal To-Do List</h5>
-          <form method="post" action="/admin/internal-task" class="d-flex mb-3">
-            <input type="text" name="title" class="form-control me-2" placeholder="Add new task..." required>
-            <button type="submit" class="btn btn-outline-primary w-auto">Add</button>
+        <div class="card-footer">
+          <form method="post" action="/admin/shifts/generate_next_week">
+            <button class="btn-primary-sm" type="submit">
+              <i data-lucide="refresh-cw"></i>Generate Next Week
+            </button>
           </form>
-          <ul class="list-group list-group-flush">
+        </div>
+      </div>
+      {% endif %}
+
+      {% if enabled_modules.get("catering_modules", True) %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon orange"><i data-lucide="utensils"></i></div>
+          <div class="card-header-text">
+            <div class="label">Catering Modules</div>
+            <div class="title">Delivery &amp; Invoicing</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <ul class="nav-link-list">
+            {% if enabled_modules.get("catering", True) %}
+            <li>
+              <a href="/catering">
+                <i data-lucide="utensils"></i>CACFP Menu Builder
+                <span class="badge badge-new">New</span>
+              </a>
+              <div class="link-meta">Programs, menus, invoices</div>
+            </li>
+            {% endif %}
+            {% if enabled_modules.get("delivery", True) %}
+            <li>
+              <a href="/delivery/admin/">
+                <i data-lucide="truck"></i>Delivery Routes
+                <span class="badge badge-new">New</span>
+              </a>
+              <div class="link-meta">Manage routes, stops &amp; drivers</div>
+            </li>
+            {% endif %}
+            {% if enabled_modules.get("driver_order", True) %}
+            <li>
+              <a href="/modules/driver_order">
+                <i data-lucide="package"></i>Delivery Log
+                <span class="badge badge-daily">Daily</span>
+              </a>
+              <div class="link-meta">Fridge photo + driver notes</div>
+            </li>
+            {% endif %}
+            {% if enabled_modules.get("taskboard", True) %}
+            <li>
+              <a href="/admin/taskboard">
+                <i data-lucide="clipboard-list"></i>Task Board
+                <span class="badge badge-admin">Admin</span>
+              </a>
+            </li>
+            {% endif %}
+            {% if enabled_modules.get("invoices", True) %}
+            <li><a href="/modules/fridge"><i data-lucide="receipt"></i>Invoices</a></li>
+            {% endif %}
+          </ul>
+        </div>
+        <div class="card-footer" style="font-size: 0.72rem; color: var(--text-muted);">
+          Modules auto-assigned to relevant shifts.
+        </div>
+      </div>
+      {% endif %}
+
+      {% if enabled_modules.get("auto_shop") %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon red"><i data-lucide="wrench"></i></div>
+          <div class="card-header-text">
+            <div class="label">Auto Shop</div>
+            <div class="title">Repair Orders</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <p style="font-size: 0.79rem; color: var(--text-muted); margin-bottom: 0.75rem;">Track vehicles, jobs, and technician assignments.</p>
+          <ul class="nav-link-list">
+            <li>
+              <a href="/auto_shop/admin/"><i data-lucide="gauge"></i>Dashboard</a>
+              <div class="link-meta">Open jobs overview</div>
+            </li>
+            <li>
+              <a href="/auto_shop/admin/jobs"><i data-lucide="wrench"></i>All Jobs</a>
+              <div class="link-meta">Filter by status</div>
+            </li>
+            <li>
+              <a href="/auto_shop/admin/jobs/new"><i data-lucide="plus-circle"></i>New Job</a>
+              <div class="link-meta">Create a repair order</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if enabled_modules.get("customer_ordering", True) %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon blue"><i data-lucide="shopping-bag"></i></div>
+          <div class="card-header-text">
+            <div class="label">Customer Management</div>
+            <div class="title">Orders &amp; Menus</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <p style="font-size: 0.79rem; color: var(--text-muted); margin-bottom: 0.75rem;">Manage customers, orders, and menu items.</p>
+          <ul class="nav-link-list">
+            <li><a href="/admin/customers/balances"><i data-lucide="dollar-sign"></i>Customer Balances</a></li>
+            <li><a href="/admin/orders"><i data-lucide="package"></i>View Orders</a></li>
+            <li><a href="/admin/menus"><i data-lucide="book-open"></i>Menus</a></li>
+            <li><a href="/admin/menus/create"><i data-lucide="plus"></i>New Menu</a></li>
+            <li><a href="/admin/customers/create"><i data-lucide="user-plus"></i>Add Customer</a></li>
+          </ul>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- ── Row 2 ─────────────────────────────────── -->
+    <div class="dashboard-grid">
+
+      {% if enabled_modules.get("internal_tasks", True) %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon red"><i data-lucide="check-square"></i></div>
+          <div class="card-header-text">
+            <div class="label">Admin Tasks</div>
+            <div class="title">Internal To-Do</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <form method="post" action="/admin/internal-task" class="todo-input-row">
+            <input type="text" name="title" placeholder="Add new task..." required>
+            <button type="submit" class="btn-add">Add</button>
+          </form>
+          <ul class="todo-list">
             {% for task in internal_tasks %}
-              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                <div class="{% if task.is_completed %}text-decoration-line-through text-muted{% endif %}">{{ task.title }}</div>
-                <div>
-                  <form method="post" action="/admin/internal-task/{{ task.id }}/toggle" class="d-inline">
-                    <button type="submit" class="btn btn-sm {% if task.is_completed %}btn-warning{% else %}btn-success{% endif %}">
-                      {% if task.is_completed %}Undo{% else %}Done{% endif %}
-                    </button>
-                  </form>
-                  <form method="post" action="/admin/internal-task/{{ task.id }}/delete" class="d-inline ms-2">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">🗑</button>
-                  </form>
-                </div>
-              </li>
+            <li class="todo-item">
+              <span class="text {% if task.is_completed %}done{% endif %}">{{ task.title }}</span>
+              <div class="todo-actions">
+                <form method="post" action="/admin/internal-task/{{ task.id }}/toggle">
+                  <button type="submit" class="btn-icon" title="{% if task.is_completed %}Undo{% else %}Complete{% endif %}">
+                    <i data-lucide="{% if task.is_completed %}rotate-ccw{% else %}check{% endif %}"></i>
+                  </button>
+                </form>
+                <form method="post" action="/admin/internal-task/{{ task.id }}/delete">
+                  <button type="submit" class="btn-icon danger" title="Delete">
+                    <i data-lucide="trash-2"></i>
+                  </button>
+                </form>
+              </div>
+            </li>
             {% else %}
-              <li class="list-group-item text-muted text-center">No tasks yet.</li>
+            <li class="empty-state">No tasks yet. Add one above.</li>
             {% endfor %}
           </ul>
         </div>
       </div>
-    </div>
-    {% endif %}
+      {% endif %}
 
-    {% if enabled_modules.get("shopping", True) %}
-    <div class="col-lg-4 col-md-6">
-      <div class="dashboard-card d-flex flex-column h-100 equal-height gap-2" style="border-left: 5px solid #ffb347;">
-        <div class="mb-1">
-          <div class="section-label">Inventory Insights</div>
-          <h5 class="card-title mb-0">📦 Inventory Management</h5>
-        </div>
-
-        <p class="text-muted small mb-2">Create and view shopping lists/items.</p>
-
-        <ul class="list-unstyled mb-0">
-          <li class="mb-1">
-            <a href="/shopping/items" class="card-link d-block">🛒💰 Create Shopping Cart</a>
-          </li>
-          <li>
-            <a href="/shopping/view" class="card-link d-block">📋 View Shopping Cart</a>
-          </li>
-          <li>
-            <a href="/admin/shopping/purchased" class=card-link d-block>🧾 View Past Purchases</a>
-          </li>
-        </ul>
-      </div>
-    </div>
-    {% endif %}
-
-
-    {% if enabled_modules.get("vending", True) %}
-    <div class="col-lg-4 col-md-6">
-      <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #0dcaf0;">
-        <div>
-          <div class="section-label">Vending Ops</div>
-          <h5 class="card-title">🧃 Vending Machine Tools</h5>
-          <p class="text-muted small">Submit logs or manage QR entries + locations.</p>
-        
-        <ul class="list-unstyled">
-          <li class="mb-2">
-          <a href="/admin/vending-logs" class="card-link">📸 Vending Log</a>
-          <a href="/admin/machines" class="card-link">➕ Add Machine</a>
-          </li>
-        </ul>
-      </div>
-      </div>
-    </div>
-    {% endif %}
-  </div>
-
-  <!-- Row 3 -->
-  <div class="row g-4 mb-4">
-    {% if enabled_modules.get("financial_summary", True) %}
-    <div class="col-lg-6">
-      <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #48b546;">
-        <div>
-          <div class="section-label">Fin Insights</div>
-          <h5 class="card-title">💸 Financial Summary</h5>
-          <div class="mb-3">
-            <div class="fw-semibold small">July Revenue</div>
-            <div class="progress" style="height: 10px;">
-              <div class="progress-bar bg-success" style="width: 72%;"></div>
-            </div>
-            <div class="text-muted small mt-1">$7,200 / $10,000 goal</div>
-          </div>
-          <div class="mb-3">
-            <div class="fw-semibold small">July Expenses</div>
-            <div class="progress" style="height: 10px;">
-              <div class="progress-bar bg-danger" style="width: 58%;"></div>
-            </div>
-            <div class="text-muted small mt-1">$5,800 total</div>
-          </div>
-          <div class="mb-3">
-            <div class="fw-semibold small">Net Profit</div>
-            <div class="progress" style="height: 10px;">
-              <div class="progress-bar bg-info" style="width: 35%;"></div>
-            </div>
-            <div class="text-muted small mt-1">~$1,400 profit</div>
+      {% if enabled_modules.get("shopping", True) %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon orange"><i data-lucide="shopping-cart"></i></div>
+          <div class="card-header-text">
+            <div class="label">Inventory Insights</div>
+            <div class="title">Inventory Management</div>
           </div>
         </div>
-        <a href="#" class="btn btn-outline-secondary btn-sm w-auto disabled">📊 View Report (Coming Soon)</a>
+        <div class="card-body">
+          <p style="font-size: 0.79rem; color: var(--text-muted); margin-bottom: 0.75rem;">Create and view shopping lists and items.</p>
+          <ul class="nav-link-list">
+            <li><a href="/shopping/items"><i data-lucide="shopping-cart"></i>Create Shopping Cart</a></li>
+            <li><a href="/shopping/view"><i data-lucide="clipboard-list"></i>View Shopping Cart</a></li>
+            <li><a href="/admin/shopping/purchased"><i data-lucide="receipt"></i>Past Purchases</a></li>
+          </ul>
+        </div>
       </div>
+      {% endif %}
+
+      {% if enabled_modules.get("vending", True) %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon cyan"><i data-lucide="camera"></i></div>
+          <div class="card-header-text">
+            <div class="label">Vending Ops</div>
+            <div class="title">Vending Machine Tools</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <p style="font-size: 0.79rem; color: var(--text-muted); margin-bottom: 0.75rem;">Submit logs or manage QR entries and locations.</p>
+          <ul class="nav-link-list">
+            <li><a href="/admin/vending-logs"><i data-lucide="camera"></i>Vending Log</a></li>
+            <li><a href="/admin/machines"><i data-lucide="cpu"></i>Add Machine</a></li>
+          </ul>
+        </div>
+      </div>
+      {% endif %}
+
     </div>
-    {% endif %}
 
-    {% if enabled_modules.get("weekly_hours", True) %}
-        <div class="col-lg-6">
-          <div class="dashboard-card d-flex flex-column justify-content-between h-100 equal-height" style="border-left: 5px solid #130f89;">
-            <div>
-              <div class="section-label">Stats</div>
-              <h5 class="card-title">📈 Weekly Worker Hours</h5>
+    <!-- ── Row 3: Financial + Hours ───────────────── -->
+    <div class="dashboard-grid two-col">
 
-              {% if weekly_hours %}
-                {% set max_weeks = 3 %}
-                {% set total_weeks = weekly_hours|length %}
-                {% set weeks_list = weekly_hours.items()|list|reverse %}
-                
-                <div id="weekly-hours-container">
-                  {% for week_label, hours_dict in weeks_list %}
-                    <div class="mt-3 {% if loop.index > max_weeks %}d-none extra-week{% endif %}">
-                      <strong class="text-primary">🗓️ {{ week_label }}</strong>
-                      <ul class="mb-0">
-                        {% for worker_id, hours in hours_dict.items() %}
-                          <li>{{ worker_names.get(worker_id, 'Unknown') }} — 
-                            <span class="text-success fw-semibold">{{ hours|round(1) }} hrs</span>
-                          </li>
-                        {% endfor %}
-                      </ul>
-                    </div>
-                  {% endfor %}
+      {% if enabled_modules.get("financial_summary", True) %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon green"><i data-lucide="bar-chart-2"></i></div>
+          <div class="card-header-text">
+            <div class="label">Financial Insights</div>
+            <div class="title">Financial Summary</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="fin-row">
+            <div class="fin-row-header">
+              <span class="fin-label">July Revenue</span>
+              <span class="fin-value">$7,200</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill fill-green" style="width: 72%;"></div>
+            </div>
+            <div class="fin-sub">72% of $10,000 goal</div>
+          </div>
+          <div class="fin-row">
+            <div class="fin-row-header">
+              <span class="fin-label">July Expenses</span>
+              <span class="fin-value">$5,800</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill fill-red" style="width: 58%;"></div>
+            </div>
+          </div>
+          <div class="fin-row">
+            <div class="fin-row-header">
+              <span class="fin-label">Net Profit</span>
+              <span class="fin-value positive">$1,400</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill fill-teal" style="width: 35%;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <span class="btn-outline" style="opacity: 0.45; cursor: not-allowed; pointer-events: none;">
+            <i data-lucide="bar-chart-2"></i>View Full Report — Coming Soon
+          </span>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if enabled_modules.get("weekly_hours", True) %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon indigo"><i data-lucide="trending-up"></i></div>
+          <div class="card-header-text">
+            <div class="label">Stats</div>
+            <div class="title">Weekly Worker Hours</div>
+          </div>
+        </div>
+        <div class="card-body">
+          {% if weekly_hours %}
+            {% set max_weeks = 3 %}
+            {% set total_weeks = weekly_hours|length %}
+            {% set weeks_list = weekly_hours.items()|list|reverse %}
+
+            <div id="weekly-hours-container">
+              {% for week_label, hours_dict in weeks_list %}
+              <div class="week-group {% if loop.index > max_weeks %}hidden extra-week{% endif %}">
+                <div class="week-label">
+                  <i data-lucide="calendar"></i>{{ week_label }}
                 </div>
-
-                {% if total_weeks > max_weeks %}
-                  <div class="mt-3">
-                    <button id="toggleWeeks" class="btn btn-sm btn-outline-primary">Show More Weeks</button>
-                  </div>
-                {% endif %}
-              {% else %}
-                <div class="text-muted">No shift data available.</div>
-              {% endif %}
+                <ul class="hours-list">
+                  {% for worker_id, hours in hours_dict.items() %}
+                  <li>
+                    <span>{{ worker_names.get(worker_id, 'Unknown') }}</span>
+                    <span class="hours-val">{{ hours|round(1) }} hrs</span>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </div>
+              {% endfor %}
             </div>
-          </div>
-        </div>
-        {% endif %}
-      </div>
 
+            {% if total_weeks > max_weeks %}
+            <div style="margin-top: 0.875rem;">
+              <button id="toggleWeeks" class="btn-outline">
+                <i data-lucide="chevron-down"></i>Show More Weeks
+              </button>
+            </div>
+            {% endif %}
+          {% else %}
+            <div class="empty-state">No shift data available.</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // Toggle extra weeks visibility
+  lucide.createIcons();
+
   const btn = document.getElementById('toggleWeeks');
   if (btn) {
     btn.addEventListener('click', () => {
       const extras = document.querySelectorAll('.extra-week');
-      const showing = btn.textContent.includes('Less');
-      extras.forEach(el => el.classList.toggle('d-none', showing));
-      btn.textContent = showing ? 'Show More Weeks' : 'Show Less Weeks';
+      const isExpanded = !extras[0]?.classList.contains('hidden');
+      extras.forEach(el => el.classList.toggle('hidden', isExpanded));
+      btn.innerHTML = isExpanded
+        ? '<i data-lucide="chevron-down"></i>Show More Weeks'
+        : '<i data-lucide="chevron-up"></i>Show Less Weeks';
+      lucide.createIcons();
     });
   }
 </script>
