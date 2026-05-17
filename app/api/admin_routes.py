@@ -319,22 +319,4 @@ async def admin_submit_vending_log(
             filename = f"{uuid.uuid4()}.{ext}"
             path = os.path.join(UPLOAD_DIR, filename)
             with open(path, "wb") as buffer:
-                shutil.copyfileobj(photo.file, buffer)
-            photo_filenames.append(filename)
-
-    new_log = VendingLog(
-        notes=notes,
-        submitter_id=current_user.id,
-        machine_id=machine_id,
-        photo_filename=",".join(photo_filenames),
-        issue_type="internal",
-        source="internal"
-    )
-    db.add(new_log)
-    await db.commit()
-    return RedirectResponse("/admin/vending-logs", status_code=302)
-
-
-# Keep everything under /admin
-router.include_router(shifts_bulk_router, prefix="/admin", tags=["admin"])
-router.include_router(shifts_clone_router, prefix="/admin", tags=["admin"])
+         

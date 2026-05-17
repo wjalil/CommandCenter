@@ -38,5 +38,4 @@ from .auto_shop import (
     RepairOrder,
     RepairOrderPhoto,
     RepairOrderStatusLog,
-    RepairOrderPayment,
-)
+ 
