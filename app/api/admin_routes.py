@@ -148,9 +148,18 @@ async def remove_task_from_shift(request: Request, task_id: str = Form(...), db:
 
 @router.get("/admin/workers")
 async def get_workers(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_admin_user)):
-    result = await db.execute(select(User).where(User.tenant_id == user.tenant_id))
+    result = await db.execute(
+        select(User)
+        .where(User.tenant_id == user.tenant_id)
+        .order_by(User.role.asc(), User.name.asc())
+    )
     workers = result.scalars().all()
-    return templates.TemplateResponse("create_workers.html", {"request": request, "workers": workers})
+    office_admins = [u for u in workers if u.role == "office_admin"]
+    staff = [u for u in workers if u.role != "office_admin"]
+    return templates.TemplateResponse(
+        "create_workers.html",
+        {"request": request, "workers": staff, "office_admins": office_admins},
+    )
 
 @router.post("/admin/workers")
 async def create_worker(
@@ -207,6 +216,52 @@ async def update_worker_pay(
             pass
         await db.commit()
     return RedirectResponse(url="/admin/workers", status_code=303)
+
+# ------------------------- OFFICE ADMIN -------------------------
+
+@router.post("/admin/office-admin/create")
+async def create_office_admin(
+    name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    from app.utils.auth import hash_secret
+    import uuid as _uuid
+    new_user = User(
+        name=name.strip(),
+        email=email.strip().lower(),
+        hashed_password=hash_secret(password.strip()),
+        pin_code=hash_secret(_uuid.uuid4().hex),  # unusable placeholder PIN
+        role="office_admin",
+        is_active=True,
+        tenant_id=user.tenant_id,
+    )
+    db.add(new_user)
+    await db.commit()
+    return RedirectResponse(url="/admin/workers?success=Office+admin+created", status_code=303)
+
+
+@router.post("/admin/office-admin/{user_id}/delete")
+async def delete_office_admin(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    result = await db.execute(
+        select(User).where(
+            User.id == user_id,
+            User.role == "office_admin",
+            User.tenant_id == user.tenant_id,
+        )
+    )
+    target = result.scalar_one_or_none()
+    if target:
+        await db.delete(target)
+        await db.commit()
+    return RedirectResponse(url="/admin/workers?success=Office+admin+removed", status_code=303)
+
 
 # ------------------------- ADMIN DASHBOARD -------------------------
 

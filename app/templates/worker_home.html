@@ -299,6 +299,9 @@
   <div class="container-fluid tight d-flex justify-content-between align-items-center">
     <span class="navbar-brand">👋 Welcome, {{ worker_name }}</span>
     <div class="d-flex gap-2">
+      {% if request.session.get("role") == "office_admin" %}
+      <a href="/auto_shop/admin/" class="btn btn-outline-secondary btn-sm">🔧 Auto Shop</a>
+      {% endif %}
       <a href="/logout" class="btn btn-outline-danger btn-sm">🔓 Logout</a>
     </div>
   </div>

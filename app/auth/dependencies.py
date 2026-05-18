@@ -23,6 +23,12 @@ async def get_current_admin_user(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access only")
     return user
 
+async def get_current_admin_or_office(user: User = Depends(get_current_user)):
+    """Allows both full admins and office admins (e.g. auto shop staff)."""
+    if user.role not in ("admin", "office_admin"):
+        raise HTTPException(status_code=403, detail="Access denied")
+    return user
+
 async def get_current_customer(
     request: Request,
     db: AsyncSession = Depends(get_db)

@@ -18,7 +18,7 @@ import os
 import shutil
 
 from app.db import get_db
-from app.auth.dependencies import get_current_admin_user
+from app.auth.dependencies import get_current_admin_or_office as get_current_admin_user
 from app.models.user import User
 from app.models.auto_shop.repair_order_payment import RepairOrderPayment, PAYMENT_METHOD_LABELS
 from app.models.auto_shop import (

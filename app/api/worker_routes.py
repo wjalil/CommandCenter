@@ -88,7 +88,7 @@ async def worker_shift_view(
     user=Depends(get_current_user),
 ):
     # Only workers should see this page
-    if getattr(user, "role", None) != "worker":
+    if getattr(user, "role", None) not in {"worker", "office_admin"}:
         return templates.TemplateResponse("unauthorized.html", {"request": request})
 
     shifts = await _load_worker_shifts(db, worker_id=user.id, tenant_id=user.tenant_id)
@@ -226,7 +226,7 @@ async def worker_orders_view(
     user=Depends(get_current_user),
 ):
     # Only workers/staff should see this page
-    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+    if getattr(user, "role", None) not in {"worker", "admin", "manager", "office_admin"}:
         return templates.TemplateResponse("unauthorized.html", {"request": request})
     
     # Fetch orders for this tenant with related data
@@ -287,7 +287,7 @@ async def worker_menus_list(
     user=Depends(get_current_user),
 ):
     """List all program menus for workers to view"""
-    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+    if getattr(user, "role", None) not in {"worker", "admin", "manager", "office_admin"}:
         return templates.TemplateResponse("unauthorized.html", {"request": request})
 
     from calendar import month_name as cal_month_name
@@ -329,7 +329,7 @@ async def worker_menu_view(
     user=Depends(get_current_user),
 ):
     """View a menu (read-only share view) as a worker"""
-    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+    if getattr(user, "role", None) not in {"worker", "admin", "manager", "office_admin"}:
         return templates.TemplateResponse("unauthorized.html", {"request": request})
 
     from app.crud.catering import monthly_menu as menu_crud, program as program_crud
@@ -416,7 +416,7 @@ async def worker_menu_pdf(
     user=Depends(get_current_user),
 ):
     """Download menu as PDF for workers"""
-    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+    if getattr(user, "role", None) not in {"worker", "admin", "manager", "office_admin"}:
         return templates.TemplateResponse("unauthorized.html", {"request": request})
 
     from app.crud.catering import monthly_menu as menu_crud, program as program_crud
@@ -526,7 +526,7 @@ async def worker_timeclock_history(
     end: Optional[str] = None,
 ):
     """View personal clock in/out history"""
-    if getattr(user, "role", None) not in {"worker", "admin", "manager"}:
+    if getattr(user, "role", None) not in {"worker", "admin", "manager", "office_admin"}:
         return templates.TemplateResponse("unauthorized.html", {"request": request})
 
     # Default to current week (Monday to next Monday)

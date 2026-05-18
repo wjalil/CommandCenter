@@ -133,7 +133,7 @@ async def admin_login_post(
     result = await db.execute(
         select(User).where(
             User.email == email.strip().lower(),
-            User.role == "admin",
+            User.role.in_(["admin", "office_admin"]),
             User.tenant_id == tenant.id,
         )
     )
@@ -143,7 +143,9 @@ async def admin_login_post(
         request.session["user_id"] = user.id
         request.session["role"] = user.role
         request.session["tenant_id"] = user.tenant_id
-        return RedirectResponse(url="/admin/dashboard", status_code=302)
+        # Office admins land on the auto shop dashboard, not the full admin panel
+        landing = "/auto_shop/admin/" if user.role == "office_admin" else "/admin/dashboard"
+        return RedirectResponse(url=landing, status_code=302)
 
     return templates.TemplateResponse(
         "login_admin.html",
@@ -179,6 +181,8 @@ async def redirect_home(request: Request, db: AsyncSession = Depends(get_db)):
 
     if role == "admin":
         return RedirectResponse(url="/admin/dashboard", status_code=302)
+    if role == "office_admin":
+        return RedirectResponse(url="/auto_shop/admin/", status_code=302)
     if role == "customer":
         return RedirectResponse(url="/customer/", status_code=302)
 

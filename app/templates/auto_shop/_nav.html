@@ -2,7 +2,7 @@
 <nav class="navbar navbar-expand navbar-light bg-light mb-3 rounded">
   <div class="container-fluid">
     <a class="navbar-brand fw-bold" href="/auto_shop/admin/">🔧 Auto Shop</a>
-    <ul class="navbar-nav">
+    <ul class="navbar-nav ms-auto">
       <li class="nav-item">
         <a class="nav-link {% if active == 'dashboard' %}fw-bold text-primary{% endif %}"
            href="/auto_shop/admin/">Dashboard</a>
@@ -19,6 +19,11 @@
         <a class="nav-link {% if active == 'financials' %}fw-bold text-primary{% endif %}"
            href="/auto_shop/admin/financials">Financials</a>
       </li>
+      {% if request.session.get("role") == "office_admin" %}
+      <li class="nav-item ms-2">
+        <a class="nav-link fw-semibold text-success" href="/worker/home">⏱ My Portal</a>
+      </li>
+      {% endif %}
     </ul>
   </div>
 </nav>
