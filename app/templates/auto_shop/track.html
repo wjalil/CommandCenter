@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if job %}Repair Status — {{ job.ticket_number }}{% else %}Not Found{% endif %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:        #14b8a6;
+      --accent-hover:  #0d9488;
+      --bg:            #f1f5f9;
+      --surface:       #ffffff;
+      --dark:          #0f172a;
+      --text:          #0f172a;
+      --text-muted:    #64748b;
+      --border:        #e2e8f0;
+      --radius:        12px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+
+    .header {
+      background: var(--dark);
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .header .shop-name {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+
+    .header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+
+    .page {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 3rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 0.875rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      background: #f8fafc;
+    }
+
+    .card-body {
+      padding: 1.25rem;
+    }
+
+    /* Vehicle summary */
+    .vehicle-line {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .vehicle-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    .ticket-badge {
+      display: inline-block;
+      background: rgba(20,184,166,.1);
+      color: var(--accent);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      letter-spacing: .04em;
+      margin-top: 0.5rem;
+    }
+
+    /* Current status */
+    .status-hero {
+      text-align: center;
+      padding: 1.75rem 1.25rem;
+    }
+
+    .status-label {
+      font-size: 1.375rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+    .status-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Progress pipeline */
+    .pipeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .pipeline-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.875rem;
+      padding: 0.625rem 1.25rem;
+      position: relative;
+    }
+
+    .pipeline-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: calc(1.25rem + 9px);
+      top: calc(0.625rem + 20px);
+      width: 2px;
+      height: calc(100% - 10px);
+      background: var(--border);
+    }
+
+    .pipeline-step.done::after {
+      background: var(--accent);
+    }
+
+    .step-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+      margin-top: 2px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .pipeline-step.done .step-dot {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .pipeline-step.current .step-dot {
+      background: var(--surface);
+      border-color: var(--accent);
+      border-width: 3px;
+      box-shadow: 0 0 0 4px rgba(20,184,166,.15);
+    }
+
+    .step-label {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      padding-top: 1px;
+    }
+
+    .pipeline-step.done .step-label { color: var(--text); }
+    .pipeline-step.current .step-label { color: var(--accent); font-weight: 600; }
+
+    /* Timeline */
+    .timeline-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+    }
+
+    .timeline-item:last-child { border-bottom: none; }
+
+    .timeline-status {
+      font-weight: 600;
+      font-size: 0.8125rem;
+      color: var(--text);
+    }
+
+    .timeline-date {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* Info grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .info-item label {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      margin-bottom: 0.2rem;
+    }
+
+    .info-item span {
+      font-size: 0.875rem;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* Not found */
+    .not-found {
+      text-align: center;
+      padding: 4rem 1rem;
+    }
+
+    .not-found h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .not-found p {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 480px) {
+      .info-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  {% if job and job.tenant %}
+  <p class="shop-name">{{ job.tenant.name }}</p>
+  {% endif %}
+  <h1>Repair Status</h1>
+</header>
+
+<main class="page">
+
+  {% if not_found %}
+  <div class="not-found">
+    <h2>Link not found</h2>
+    <p>This tracking link is invalid or has expired.<br>Please contact the shop for an updated link.</p>
+  </div>
+
+  {% else %}
+
+  {# Vehicle summary #}
+  <div class="card">
+    <div class="card-body">
+      {% set vehicle = [job.vehicle_year, job.vehicle_make, job.vehicle_model] | select | join(' ') %}
+      <div class="vehicle-line">{{ vehicle if vehicle else 'Vehicle' }}</div>
+      <div class="vehicle-sub">
+        {{ job.customer_name }}
+        {% if job.vehicle_color %} · {{ job.vehicle_color }}{% endif %}
+        {% if job.vehicle_license_plate %} · Plate: {{ job.vehicle_license_plate }}{% endif %}
+      </div>
+      <span class="ticket-badge">{{ job.ticket_number }}</span>
+    </div>
+  </div>
+
+  {# Current status #}
+  <div class="card">
+    <div class="status-hero">
+      <div class="status-label">{{ status_labels.get(job.status, job.status) }}</div>
+      {% if job.estimated_completion %}
+      <div class="status-sub">Estimated completion: <strong>{{ job.estimated_completion.strftime('%B %d, %Y') }}</strong></div>
+      {% elif job.status in ('complete', 'ready_for_pickup') %}
+      <div class="status-sub" style="color: var(--accent); font-weight: 600;">Your vehicle is ready!</div>
+      {% else %}
+      <div class="status-sub">We'll keep you updated as your vehicle progresses.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Progress pipeline #}
+  <div class="card">
+    <div class="card-header">Progress</div>
+    <div class="pipeline" style="padding: 0.75rem 0;">
+      {% set current_idx = valid_statuses.index(job.status) if job.status in valid_statuses else -1 %}
+      {% for s in valid_statuses %}
+        {% set idx = loop.index0 %}
+        {% if idx < current_idx %}
+          <div class="pipeline-step done">
+        {% elif idx == current_idx %}
+          <div class="pipeline-step current">
+        {% else %}
+          <div class="pipeline-step">
+        {% endif %}
+          <div class="step-dot"></div>
+          <div class="step-label">{{ status_labels.get(s, s) }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# Status timeline #}
+  {% if public_logs %}
+  <div class="card">
+    <div class="card-header">History</div>
+    {% for log in public_logs %}
+    <div class="timeline-item">
+      <div class="timeline-status">{{ status_labels.get(log.new_status, log.new_status) }}</div>
+      <div class="timeline-date">
+        {{ log.changed_at.strftime('%b %d, %Y') if log.changed_at else '' }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# Intake date #}
+  <div class="card">
+    <div class="card-header">Details</div>
+    <div class="card-body">
+      <div class="info-grid">
+        <div class="info-item">
+          <label>Intake date</label>
+          <span>{{ job.intake_date.strftime('%B %d, %Y') if job.intake_date else '—' }}</span>
+        </div>
+        {% if job.estimated_completion %}
+        <div class="info-item">
+          <label>Est. completion</label>
+          <span>{{ job.estimated_completion.strftime('%B %d, %Y') }}</span>
+        </div>
+        {% endif %}
+        {% if job.vehicle_vin %}
+        <div class="info-item">
+          <label>VIN</label>
+          <span>{{ job.vehicle_vin }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+
+</main>
+
+<footer class="footer">
+  {% if job and job.tenant %}{{ job.tenant.name }} · {% endif %}Powered by CookieOps
+</footer>
+
+</body>
+</html>

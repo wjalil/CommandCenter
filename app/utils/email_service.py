@@ -1,6 +1,7 @@
 # app/utils/email_service.py
 
 from typing import Any
+import os
 import resend
 from app.models.tenant import Tenant
 from app.models.customer.customer import Customer
@@ -280,3 +281,78 @@ def send_test_email(tenant: Tenant, test_recipient: str) -> dict[str, Any]:
         print(f"❌ Test email error: {error_msg}")
         print(f"  Exception type: {type(e).__name__}")
         return {"success": False, "message": f"Test email failed: {error_msg}"}
+
+
+def send_tracking_email(tenant: Tenant, job: Any, tracking_url: str) -> dict[str, Any]:
+    """
+    Send a repair tracking link to the customer.
+    Uses the tenant's Resend config if available, otherwise falls back to the
+    system RESEND_API_KEY env var. Returns {"success": bool, "message": str}.
+    """
+    if not job.customer_email:
+        return {"success": False, "message": "No customer email on file"}
+
+    # Resolve API key: prefer tenant config, fall back to system env var
+    api_key: str | None = None
+    from_email: str = "noreply@cookieops.app"
+
+    if tenant and tenant.resend_api_key_encrypted and tenant.from_email:
+        api_key = decrypt_api_key(tenant.resend_api_key_encrypted)
+        from_email = tenant.from_email
+
+    if not api_key:
+        api_key = os.getenv("RESEND_API_KEY")
+
+    if not api_key:
+        return {"success": False, "message": "Email not configured — add RESEND_API_KEY to .env"}
+
+    shop_name = tenant.name if tenant else "Your Repair Shop"
+    vehicle = " ".join(filter(None, [job.vehicle_year, job.vehicle_make, job.vehicle_model])) or "your vehicle"
+    ticket = job.ticket_number or ""
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+    <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;">
+      <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+        <div style="background:#0f172a;padding:28px 32px;">
+          <p style="margin:0;font-size:11px;font-weight:700;color:#14b8a6;letter-spacing:.08em;text-transform:uppercase;">{shop_name}</p>
+          <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;color:#fff;letter-spacing:-.02em;">Track Your Repair</h1>
+        </div>
+        <div style="padding:32px;">
+          <p style="margin:0 0 8px;font-size:14px;color:#64748b;">Hi {job.customer_name},</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#0f172a;line-height:1.6;">
+            You can check the live status of your <strong>{vehicle}</strong> (Ticket&nbsp;{ticket}) anytime using the link below.
+          </p>
+          <div style="text-align:center;margin:0 0 28px;">
+            <a href="{tracking_url}"
+               style="display:inline-block;background:#14b8a6;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:600;letter-spacing:-.01em;">
+              View Repair Status
+            </a>
+          </div>
+          <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">
+            Or paste this link in your browser:<br>
+            <span style="color:#14b8a6;">{tracking_url}</span>
+          </p>
+        </div>
+        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center;">
+          <p style="margin:0;font-size:12px;color:#94a3b8;">{shop_name} · sent automatically</p>
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    try:
+        resend.api_key = api_key
+        result = resend.Emails.send({
+            "from": from_email,
+            "to": [job.customer_email],
+            "subject": f"Track your {vehicle} repair — {ticket}",
+            "html": html,
+        })
+        return {"success": True, "message": f"Sent to {job.customer_email} (ID: {result.get('id', '?')})"}
+    except Exception as e:
+        print(f"❌ Tracking email error: {e}")
+        return {"success": False, "message": str(e)}

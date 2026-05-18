@@ -11,7 +11,7 @@ from sqlalchemy.future import select
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from typing import Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from collections import defaultdict
 import uuid
 import os
@@ -20,6 +20,7 @@ import shutil
 from app.db import get_db
 from app.auth.dependencies import get_current_admin_user
 from app.models.user import User
+from app.models.auto_shop.repair_order_payment import RepairOrderPayment, PAYMENT_METHOD_LABELS
 from app.models.auto_shop import (
     RepairOrder,
     RepairOrderPhoto,
@@ -602,6 +603,152 @@ async def job_delete_photo(
         await db.commit()
 
     return RedirectResponse(url=f"/auto_shop/admin/jobs/{job_id}", status_code=303)
+
+
+# ── financials ────────────────────────────────────────────────────────────────
+
+@router.get("/financials")
+async def financials(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    tenant_id = user.tenant_id
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())   # Monday
+    month_start = today.replace(day=1)
+
+    # ── period totals ─────────────────────────────────────────────────────────
+    async def _sum(extra_filters):
+        r = await db.execute(
+            select(func.coalesce(func.sum(RepairOrderPayment.amount), 0))
+            .where(RepairOrderPayment.tenant_id == tenant_id, *extra_filters)
+        )
+        return float(r.scalar())
+
+    week_total  = await _sum([RepairOrderPayment.date_received >= week_start])
+    month_total = await _sum([RepairOrderPayment.date_received >= month_start])
+    all_time    = await _sum([])
+
+    # ── by payment method ─────────────────────────────────────────────────────
+    method_res = await db.execute(
+        select(
+            RepairOrderPayment.payment_method,
+            func.sum(RepairOrderPayment.amount).label("total"),
+            func.count(RepairOrderPayment.id).label("count"),
+        )
+        .where(RepairOrderPayment.tenant_id == tenant_id)
+        .group_by(RepairOrderPayment.payment_method)
+        .order_by(func.sum(RepairOrderPayment.amount).desc())
+    )
+    by_method = method_res.all()
+
+    # ── jobs with financial data (balance tracking) ───────────────────────────
+    jobs_res = await db.execute(
+        select(RepairOrder)
+        .where(
+            RepairOrder.tenant_id == tenant_id,
+            RepairOrder.total_estimate != None,
+        )
+        .options(selectinload(RepairOrder.payments))
+        .order_by(RepairOrder.intake_date.desc())
+    )
+    all_jobs = jobs_res.scalars().all()
+
+    job_rows = []
+    total_outstanding = 0.0
+    total_estimate_sum = 0.0
+
+    for job in all_jobs:
+        sups = sum(float(getattr(job, f"supplement_{i}") or 0) for i in range(1, 5))
+        grand_total = float(job.total_estimate or 0) + sups
+        collected   = sum(float(p.amount) for p in job.payments)
+        balance     = grand_total - collected
+        total_estimate_sum += grand_total
+        if balance > 0:
+            total_outstanding += balance
+        job_rows.append({
+            "job":         job,
+            "grand_total": grand_total,
+            "collected":   collected,
+            "balance":     balance,
+        })
+
+    # ── recent payments ───────────────────────────────────────────────────────
+    recent_res = await db.execute(
+        select(RepairOrderPayment)
+        .where(RepairOrderPayment.tenant_id == tenant_id)
+        .options(selectinload(RepairOrderPayment.repair_order))
+        .order_by(
+            RepairOrderPayment.date_received.desc(),
+            RepairOrderPayment.created_at.desc(),
+        )
+        .limit(25)
+    )
+    recent_payments = recent_res.scalars().all()
+
+    return templates.TemplateResponse(
+        "auto_shop/financials.html",
+        _template_ctx(
+            request,
+            today=today,
+            week_total=week_total,
+            month_total=month_total,
+            all_time=all_time,
+            total_outstanding=total_outstanding,
+            total_estimate_sum=total_estimate_sum,
+            by_method=by_method,
+            job_rows=job_rows,
+            recent_payments=recent_payments,
+            payment_method_labels=PAYMENT_METHOD_LABELS,
+        ),
+    )
+
+
+# ── send tracking link email ──────────────────────────────────────────────────
+
+@router.post("/jobs/{job_id}/send-tracking-email")
+async def send_tracking_link_email(
+    request: Request,
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    from app.models.tenant import Tenant
+    from app.utils.email_service import send_tracking_email
+
+    result = await db.execute(
+        select(RepairOrder).where(
+            RepairOrder.id == job_id, RepairOrder.tenant_id == user.tenant_id
+        )
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        return RedirectResponse(url="/auto_shop/admin/jobs", status_code=303)
+
+    if not job.customer_email:
+        return RedirectResponse(
+            url=f"/auto_shop/admin/jobs/{job_id}?error=No+customer+email+on+file",
+            status_code=303,
+        )
+
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
+    tenant = tenant_result.scalar_one_or_none()
+
+    base_url = str(request.base_url).rstrip("/")
+    tracking_url = f"{base_url}/auto_shop/track/{job.tracking_token}"
+
+    outcome = send_tracking_email(tenant=tenant, job=job, tracking_url=tracking_url)
+
+    if outcome["success"]:
+        return RedirectResponse(
+            url=f"/auto_shop/admin/jobs/{job_id}?success=Tracking+link+emailed+to+customer",
+            status_code=303,
+        )
+    return RedirectResponse(
+        url=f"/auto_shop/admin/jobs/{job_id}?error={outcome['message'].replace(' ', '+')}",
+        status_code=303,
+    )
 
 
 # ── delete job ────────────────────────────────────────────────────────────────

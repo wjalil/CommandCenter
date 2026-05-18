@@ -150,17 +150,35 @@ async def on_startup():
     await create_db_and_tables()
     print("✅ DB schema created.")
 
-    # ── Schema migration: add new auth columns if missing ─────────────────────
-    async with async_session() as db:
-        for stmt in [
-            "ALTER TABLE users ADD COLUMN email TEXT",
-            "ALTER TABLE users ADD COLUMN hashed_password TEXT",
-        ]:
+    # ── Schema migration: add new columns if missing ──────────────────────────
+    # Each statement gets its own session so a failed ALTER TABLE (column already
+    # exists) doesn't leave the connection in a dirty-transaction state.
+    for stmt in [
+        "ALTER TABLE users ADD COLUMN email TEXT",
+        "ALTER TABLE users ADD COLUMN hashed_password TEXT",
+    ]:
+        async with async_session() as db:
             try:
                 await db.execute(text(stmt))
                 await db.commit()
             except Exception:
-                pass  # Column already exists
+                await db.rollback()
+
+    # ── Backfill tracking tokens for existing repair orders ───────────────────
+    import uuid as _uuid
+    from app.models.auto_shop.repair_order import RepairOrder as _RO
+    async with async_session() as db:
+        try:
+            res = await db.execute(select(_RO).where(_RO.tracking_token == None))
+            untracked = res.scalars().all()
+            for ro in untracked:
+                ro.tracking_token = _uuid.uuid4().hex
+            if untracked:
+                await db.commit()
+                print(f"🔑 Assigned tracking tokens to {len(untracked)} existing repair order(s).")
+        except Exception as e:
+            await db.rollback()
+            print(f"⚠️  Tracking token backfill skipped: {e}")
 
     # ── Seed: Chai and Biscuit tenant ─────────────────────────────────────────
     async with async_session() as db:

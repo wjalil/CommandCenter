@@ -92,6 +92,9 @@ class RepairOrder(Base):
     supplement_3 = Column(Numeric(10, 2), nullable=True)
     supplement_4 = Column(Numeric(10, 2), nullable=True)
 
+    # Customer tracking
+    tracking_token = Column(String, nullable=True, unique=True, default=lambda: uuid.uuid4().hex)
+
     # Status
     status = Column(String, nullable=False, default="new_arrival")
 

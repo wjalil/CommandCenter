@@ -406,6 +406,33 @@
       </div>
     </div>
 
+    {# Customer tracking link #}
+    <div class="card mb-3">
+      <div class="card-header"><strong>Customer Tracking Link</strong></div>
+      <div class="card-body">
+        {% if request.query_params.get('success') %}
+        <div class="alert alert-success py-2 mb-2">{{ request.query_params.get('success') }}</div>
+        {% endif %}
+        {% if request.query_params.get('error') %}
+        <div class="alert alert-danger py-2 mb-2">{{ request.query_params.get('error') }}</div>
+        {% endif %}
+        <p class="text-muted small mb-2">Share this link with the customer so they can check their repair status anytime — no login required.</p>
+        <div class="input-group input-group-sm mb-2">
+          <input type="text" id="trackingUrl" class="form-control form-control-sm"
+                 value="{{ request.base_url | string | trim('/') }}/auto_shop/track/{{ job.tracking_token }}"
+                 readonly>
+          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyTrackingLink()">Copy</button>
+        </div>
+        {% if job.customer_email %}
+        <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/send-tracking-email" class="d-inline">
+          <button class="btn btn-sm btn-outline-primary w-100">Email to {{ job.customer_email }}</button>
+        </form>
+        {% else %}
+        <p class="text-muted small mb-0">Add a customer email to enable sending.</p>
+        {% endif %}
+      </div>
+    </div>
+
     <div class="card mb-3">
       <div class="card-header"><strong>Photos</strong></div>
       <div class="card-body">
@@ -477,6 +504,20 @@
   if (editPT) {
     toggleClaim(editPT, editClaim);
     editPT.addEventListener('change', () => toggleClaim(editPT, editClaim));
+  }
+
+  function copyTrackingLink() {
+    const input = document.getElementById('trackingUrl');
+    navigator.clipboard.writeText(input.value).then(() => {
+      const btn = input.nextElementSibling;
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.classList.replace('btn-outline-secondary', 'btn-success');
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.replace('btn-success', 'btn-outline-secondary');
+      }, 2000);
+    });
   }
 </script>
 {% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Financials — Auto Shop{% endblock %}
+
+{% block content %}
+{% set active = 'financials' %}
+{% include "auto_shop/_nav.html" %}
+
+{# ── stat cards ─────────────────────────────────────────────────────────── #}
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-lg-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">This Week</div>
+        <div style="font-size:1.6rem;font-weight:700;letter-spacing:-.03em;color:var(--text-primary);margin-top:.25rem;">${{ '%.2f'|format(week_total) }}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-top:.15rem;">
+          {{ today.strftime('Mon %b %d') }} — today
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">This Month</div>
+        <div style="font-size:1.6rem;font-weight:700;letter-spacing:-.03em;color:var(--text-primary);margin-top:.25rem;">${{ '%.2f'|format(month_total) }}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-top:.15rem;">{{ today.strftime('%B %Y') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">Outstanding</div>
+        <div style="font-size:1.6rem;font-weight:700;letter-spacing:-.03em;color:{% if total_outstanding > 0 %}#ef4444{% else %}#10b981{% endif %};margin-top:.25rem;">${{ '%.2f'|format(total_outstanding) }}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-top:.15rem;">balance owed across all jobs</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);">All Time</div>
+        <div style="font-size:1.6rem;font-weight:700;letter-spacing:-.03em;color:var(--text-primary);margin-top:.25rem;">${{ '%.2f'|format(all_time) }}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-top:.15rem;">total collected</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="row g-3">
+
+  {# ── left column ── #}
+  <div class="col-lg-5">
+
+    {# By payment method #}
+    <div class="card mb-3">
+      <div class="card-header"><strong>Collected by Method</strong></div>
+      {% if by_method %}
+      <div class="card-body p-0">
+        {% set method_max = by_method[0].total|float if by_method else 1 %}
+        {% for row in by_method %}
+        {% set pct = ((row.total|float / method_max) * 100)|round(1) %}
+        <div style="padding:.75rem 1rem;border-bottom:1px solid var(--border);">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span style="font-size:.8125rem;font-weight:500;">{{ payment_method_labels.get(row.payment_method, row.payment_method) }}</span>
+            <span style="font-size:.8125rem;font-weight:700;">${{ '%.2f'|format(row.total|float) }}</span>
+          </div>
+          <div style="height:5px;background:#f1f5f9;border-radius:999px;overflow:hidden;">
+            <div style="height:100%;width:{{ pct }}%;background:var(--accent);border-radius:999px;transition:width .3s;"></div>
+          </div>
+          <div style="font-size:.72rem;color:var(--text-muted);margin-top:.2rem;">{{ row.count }} payment{{ 's' if row.count != 1 }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card-body text-muted small">No payments recorded yet.</div>
+      {% endif %}
+    </div>
+
+    {# Recent payments #}
+    <div class="card mb-3">
+      <div class="card-header"><strong>Recent Payments</strong></div>
+      {% if recent_payments %}
+      <div style="max-height:360px;overflow-y:auto;">
+        {% for p in recent_payments %}
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:.65rem 1rem;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:.8125rem;font-weight:600;">${{ '%.2f'|format(p.amount|float) }}
+              <span style="font-weight:400;color:var(--text-muted);font-size:.75rem;">· {{ payment_method_labels.get(p.payment_method, p.payment_method) }}</span>
+            </div>
+            {% if p.repair_order %}
+            <a href="/auto_shop/admin/jobs/{{ p.repair_order.id }}"
+               style="font-size:.75rem;color:var(--accent);text-decoration:none;">
+              {{ p.repair_order.ticket_number }} — {{ p.repair_order.customer_name }}
+            </a>
+            {% endif %}
+          </div>
+          <div style="font-size:.75rem;color:var(--text-muted);white-space:nowrap;margin-left:.75rem;">
+            {{ p.date_received.strftime('%b %d') if p.date_received else '' }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card-body text-muted small">No payments yet.</div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  {# ── right column ── #}
+  <div class="col-lg-7">
+
+    {# Job balances #}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Job Financials</strong>
+        <span style="font-size:.75rem;color:var(--text-muted);">{{ job_rows|length }} job{{ 's' if job_rows|length != 1 }} with estimate</span>
+      </div>
+      {% if job_rows %}
+      <div style="overflow-x:auto;">
+        <table class="table table-sm mb-0">
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Type</th>
+              <th class="text-end">Estimate</th>
+              <th class="text-end">Collected</th>
+              <th class="text-end">Balance</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in job_rows %}
+            {% set job = row.job %}
+            <tr>
+              <td>
+                <a href="/auto_shop/admin/jobs/{{ job.id }}"
+                   style="font-weight:600;color:var(--accent);text-decoration:none;font-size:.8rem;">
+                  {{ job.ticket_number }}
+                </a>
+                <div style="font-size:.72rem;color:var(--text-muted);">{{ job.customer_name }}</div>
+              </td>
+              <td>
+                {% if job.payment_type == 'insurance' %}
+                  <span class="badge" style="background:rgba(59,130,246,.1);color:#2563eb;">Insurance</span>
+                {% elif job.payment_type == 'cash' %}
+                  <span class="badge" style="background:rgba(16,185,129,.1);color:#059669;">Cash</span>
+                {% else %}
+                  <span style="color:var(--text-muted);font-size:.75rem;">—</span>
+                {% endif %}
+              </td>
+              <td class="text-end" style="font-size:.8125rem;">${{ '%.2f'|format(row.grand_total) }}</td>
+              <td class="text-end" style="font-size:.8125rem;color:#10b981;font-weight:500;">${{ '%.2f'|format(row.collected) }}</td>
+              <td class="text-end" style="font-size:.8125rem;font-weight:600;color:{% if row.balance > 0 %}#ef4444{% else %}#10b981{% endif %};">
+                {% if row.balance > 0 %}-${{ '%.2f'|format(row.balance) }}{% else %}Paid{% endif %}
+              </td>
+              <td>
+                <span class="badge bg-{{ status_badge_colors.get(job.status, 'secondary') }}" style="font-size:.68rem;">
+                  {{ status_labels.get(job.status, job.status) }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot style="background:#f8fafc;border-top:2px solid var(--border);">
+            <tr>
+              <td colspan="2" style="font-size:.75rem;font-weight:600;color:var(--text-muted);padding:.6rem 1rem;">Totals</td>
+              <td class="text-end" style="font-weight:700;font-size:.8125rem;">${{ '%.2f'|format(total_estimate_sum) }}</td>
+              <td class="text-end" style="font-weight:700;font-size:.8125rem;color:#10b981;">${{ '%.2f'|format(all_time) }}</td>
+              <td class="text-end" style="font-weight:700;font-size:.8125rem;color:{% if total_outstanding > 0 %}#ef4444{% else %}#10b981{% endif %};">
+                {% if total_outstanding > 0 %}-${{ '%.2f'|format(total_outstanding) }}{% else %}$0.00{% endif %}
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body text-muted small">No jobs with estimates yet. Add a total estimate to a job to see it here.</div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

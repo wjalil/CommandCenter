@@ -571,6 +571,9 @@
     <a href="/auto_shop/admin/jobs/new" class="nav-item">
       <i data-lucide="plus-circle"></i>New Job
     </a>
+    <a href="/auto_shop/admin/financials" class="nav-item">
+      <i data-lucide="dollar-sign"></i>Financials
+    </a>
     {% endif %}
 
     {% if enabled_modules.get("customer_ordering", True) %}
@@ -797,6 +800,10 @@
             <li>
               <a href="/auto_shop/admin/jobs/new"><i data-lucide="plus-circle"></i>New Job</a>
               <div class="link-meta">Create a repair order</div>
+            </li>
+            <li>
+              <a href="/auto_shop/admin/financials"><i data-lucide="dollar-sign"></i>Financials</a>
+              <div class="link-meta">Revenue, payments & balances</div>
             </li>
           </ul>
         </div>
