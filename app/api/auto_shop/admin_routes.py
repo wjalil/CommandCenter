@@ -373,6 +373,7 @@ async def job_update_status(
     new_status = form.get("new_status", "").strip()
     notes = form.get("notes", "").strip() or None
     notify_customer = "notify_customer" in form
+    new_tech_id = form.get("assigned_tech_id", "").strip() or None
 
     if new_status not in VALID_STATUSES:
         return RedirectResponse(url=f"/auto_shop/admin/jobs/{job_id}", status_code=303)
@@ -388,6 +389,7 @@ async def job_update_status(
 
     old_status = job.status
     job.status = new_status
+    job.assigned_tech_id = new_tech_id
     job.updated_at = datetime.utcnow()
 
     if new_status == "complete":

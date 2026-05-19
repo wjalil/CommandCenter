@@ -144,8 +144,8 @@
       <div class="card-header"><strong>Update Status</strong></div>
       <div class="card-body">
         <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/status">
-          <div class="row align-items-end g-2">
-            <div class="col-md-5">
+          <div class="row g-2 mb-2">
+            <div class="col-md-6">
               <label class="form-label small">New Status</label>
               <select name="new_status" class="form-select form-select-sm">
                 {% for s in valid_statuses %}
@@ -155,7 +155,20 @@
                 {% endfor %}
               </select>
             </div>
-            <div class="col-md-5">
+            <div class="col-md-6">
+              <label class="form-label small">Assign Tech</label>
+              <select name="assigned_tech_id" class="form-select form-select-sm">
+                <option value="">— Unassigned —</option>
+                {% for tech in techs %}
+                <option value="{{ tech.id }}" {% if job.assigned_tech_id == tech.id %}selected{% endif %}>
+                  {{ tech.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="row align-items-end g-2">
+            <div class="col-md-10">
               <label class="form-label small">Notes (optional)</label>
               <input name="notes" type="text" class="form-control form-control-sm"
                      placeholder="e.g. Parts expected Thursday">
@@ -437,10 +450,20 @@
       <div class="card-header"><strong>Photos</strong></div>
       <div class="card-body">
         <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/photos"
-              enctype="multipart/form-data">
-          <div class="mb-2">
-            <input type="file" name="file" class="form-control form-control-sm"
-                   accept="image/*" required>
+              enctype="multipart/form-data" id="adminPhotoForm">
+          <div class="btn-group w-100 mb-2" role="group">
+            <button type="button" class="btn btn-sm btn-primary active" id="adminBtnCamera"
+                    onclick="adminSwitchPhotoMode('camera')">📷 Take Photo</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="adminBtnGallery"
+                    onclick="adminSwitchPhotoMode('gallery')">📁 Choose File</button>
+          </div>
+          <div id="adminCameraSection" class="mb-2">
+            <input type="file" name="file" id="adminCameraInput" class="form-control form-control-sm"
+                   accept="image/*" capture="environment">
+          </div>
+          <div id="adminGallerySection" class="mb-2" style="display:none">
+            <input type="file" name="file" id="adminGalleryInput" class="form-control form-control-sm"
+                   accept="image/*" disabled>
           </div>
           <div class="row g-2 mb-2">
             <div class="col">
@@ -504,6 +527,36 @@
   if (editPT) {
     toggleClaim(editPT, editClaim);
     editPT.addEventListener('change', () => toggleClaim(editPT, editClaim));
+  }
+
+  function adminSwitchPhotoMode(mode) {
+    const cameraInput  = document.getElementById('adminCameraInput');
+    const galleryInput = document.getElementById('adminGalleryInput');
+    const cameraSection  = document.getElementById('adminCameraSection');
+    const gallerySection = document.getElementById('adminGallerySection');
+    const btnCamera  = document.getElementById('adminBtnCamera');
+    const btnGallery = document.getElementById('adminBtnGallery');
+    if (mode === 'camera') {
+      cameraInput.disabled  = false;
+      galleryInput.disabled = true;
+      galleryInput.value    = '';
+      cameraSection.style.display  = '';
+      gallerySection.style.display = 'none';
+      btnCamera.classList.add('active', 'btn-primary');
+      btnCamera.classList.remove('btn-outline-secondary');
+      btnGallery.classList.remove('active', 'btn-primary');
+      btnGallery.classList.add('btn-outline-secondary');
+    } else {
+      cameraInput.disabled  = true;
+      galleryInput.disabled = false;
+      cameraInput.value     = '';
+      cameraSection.style.display  = 'none';
+      gallerySection.style.display = '';
+      btnGallery.classList.add('active', 'btn-primary');
+      btnGallery.classList.remove('btn-outline-secondary');
+      btnCamera.classList.remove('active', 'btn-primary');
+      btnCamera.classList.add('btn-outline-secondary');
+    }
   }
 
   function copyTrackingLink() {
