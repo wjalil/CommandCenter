@@ -450,21 +450,16 @@
       <div class="card-header"><strong>Photos</strong></div>
       <div class="card-body">
         <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/photos"
-              enctype="multipart/form-data" id="adminPhotoForm">
-          <div class="btn-group w-100 mb-2" role="group">
-            <button type="button" class="btn btn-sm btn-primary active" id="adminBtnCamera"
-                    onclick="adminSwitchPhotoMode('camera')">📷 Take Photo</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="adminBtnGallery"
-                    onclick="adminSwitchPhotoMode('gallery')">📁 Choose File</button>
+              enctype="multipart/form-data">
+          <div class="d-flex gap-2 mb-2">
+            <button type="button" class="btn btn-primary btn-sm flex-fill"
+                    onclick="adminTriggerCamera()">📷 Take Photo</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm flex-fill"
+                    onclick="adminTriggerGallery()">📁 Choose File</button>
           </div>
-          <div id="adminCameraSection" class="mb-2">
-            <input type="file" name="file" id="adminCameraInput" class="form-control form-control-sm"
-                   accept="image/*" capture="environment">
-          </div>
-          <div id="adminGallerySection" class="mb-2" style="display:none">
-            <input type="file" name="file" id="adminGalleryInput" class="form-control form-control-sm"
-                   accept="image/*" disabled>
-          </div>
+          <input type="file" name="file" id="adminPhotoInput"
+                 accept="image/*" style="display:none">
+          <div id="adminPhotoName" class="mb-2 text-success small" style="display:none"></div>
           <div class="row g-2 mb-2">
             <div class="col">
               <select name="category" class="form-select form-select-sm">
@@ -529,35 +524,23 @@
     editPT.addEventListener('change', () => toggleClaim(editPT, editClaim));
   }
 
-  function adminSwitchPhotoMode(mode) {
-    const cameraInput  = document.getElementById('adminCameraInput');
-    const galleryInput = document.getElementById('adminGalleryInput');
-    const cameraSection  = document.getElementById('adminCameraSection');
-    const gallerySection = document.getElementById('adminGallerySection');
-    const btnCamera  = document.getElementById('adminBtnCamera');
-    const btnGallery = document.getElementById('adminBtnGallery');
-    if (mode === 'camera') {
-      cameraInput.disabled  = false;
-      galleryInput.disabled = true;
-      galleryInput.value    = '';
-      cameraSection.style.display  = '';
-      gallerySection.style.display = 'none';
-      btnCamera.classList.add('active', 'btn-primary');
-      btnCamera.classList.remove('btn-outline-secondary');
-      btnGallery.classList.remove('active', 'btn-primary');
-      btnGallery.classList.add('btn-outline-secondary');
-    } else {
-      cameraInput.disabled  = true;
-      galleryInput.disabled = false;
-      cameraInput.value     = '';
-      cameraSection.style.display  = 'none';
-      gallerySection.style.display = '';
-      btnGallery.classList.add('active', 'btn-primary');
-      btnGallery.classList.remove('btn-outline-secondary');
-      btnCamera.classList.remove('active', 'btn-primary');
-      btnCamera.classList.add('btn-outline-secondary');
-    }
+  function adminTriggerCamera() {
+    const input = document.getElementById('adminPhotoInput');
+    input.setAttribute('capture', 'environment');
+    input.click();
   }
+  function adminTriggerGallery() {
+    const input = document.getElementById('adminPhotoInput');
+    input.removeAttribute('capture');
+    input.click();
+  }
+  document.getElementById('adminPhotoInput').addEventListener('change', function () {
+    const label = document.getElementById('adminPhotoName');
+    if (this.files && this.files[0]) {
+      label.textContent = '✓ ' + this.files[0].name;
+      label.style.display = '';
+    }
+  });
 
   function copyTrackingLink() {
     const input = document.getElementById('trackingUrl');

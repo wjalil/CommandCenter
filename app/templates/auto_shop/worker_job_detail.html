@@ -81,20 +81,14 @@
   <div class="card p-3 mb-3">
     <div class="section-title" style="font-size:1rem; margin-bottom:.75rem;">Upload Photo</div>
     <form method="post" action="/auto_shop/worker/jobs/{{ job.id }}/photos" enctype="multipart/form-data">
-      <div class="btn-group w-100 mb-2" role="group">
-        <button type="button" class="btn btn-sm btn-primary active" id="wBtnCamera"
-                onclick="wSwitchPhotoMode('camera')">📷 Take Photo</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="wBtnGallery"
-                onclick="wSwitchPhotoMode('gallery')">📁 Choose File</button>
+      <div class="d-flex gap-2 mb-2">
+        <button type="button" class="btn btn-primary btn-sm flex-fill"
+                onclick="wTriggerCamera()">📷 Take Photo</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm flex-fill"
+                onclick="wTriggerGallery()">📁 Choose File</button>
       </div>
-      <div id="wCameraSection" class="mb-2">
-        <input type="file" name="file" id="wCameraInput" class="form-control form-control-sm"
-               accept="image/*" capture="environment"/>
-      </div>
-      <div id="wGallerySection" class="mb-2" style="display:none">
-        <input type="file" name="file" id="wGalleryInput" class="form-control form-control-sm"
-               accept="image/*" disabled/>
-      </div>
+      <input type="file" name="file" id="wPhotoInput" accept="image/*" style="display:none"/>
+      <div id="wPhotoName" class="mb-2 text-success" style="font-size:.85rem; display:none"></div>
       <div class="row g-2">
         <div class="col-12 col-sm-5">
           <select name="category" class="form-select form-select-sm">
@@ -162,34 +156,23 @@
 </div>
 
 <script>
-  function wSwitchPhotoMode(mode) {
-    const cameraInput  = document.getElementById('wCameraInput');
-    const galleryInput = document.getElementById('wGalleryInput');
-    const cameraSection  = document.getElementById('wCameraSection');
-    const gallerySection = document.getElementById('wGallerySection');
-    const btnCamera  = document.getElementById('wBtnCamera');
-    const btnGallery = document.getElementById('wBtnGallery');
-    if (mode === 'camera') {
-      cameraInput.disabled  = false;
-      galleryInput.disabled = true;
-      galleryInput.value    = '';
-      cameraSection.style.display  = '';
-      gallerySection.style.display = 'none';
-      btnCamera.classList.add('active', 'btn-primary');
-      btnCamera.classList.remove('btn-outline-secondary');
-      btnGallery.classList.remove('active', 'btn-primary');
-      btnGallery.classList.add('btn-outline-secondary');
-    } else {
-      cameraInput.disabled  = true;
-      galleryInput.disabled = false;
-      cameraInput.value     = '';
-      cameraSection.style.display  = 'none';
-      gallerySection.style.display = '';
-      btnGallery.classList.add('active', 'btn-primary');
-      btnGallery.classList.remove('btn-outline-secondary');
-      btnCamera.classList.remove('active', 'btn-primary');
-      btnCamera.classList.add('btn-outline-secondary');
-    }
+  function wTriggerCamera() {
+    const input = document.getElementById('wPhotoInput');
+    input.setAttribute('capture', 'environment');
+    input.click();
   }
+  function wTriggerGallery() {
+    const input = document.getElementById('wPhotoInput');
+    input.removeAttribute('capture');
+    input.click();
+  }
+  document.getElementById('wPhotoInput').addEventListener('change', function () {
+    const label = document.getElementById('wPhotoName');
+    if (this.files && this.files[0]) {
+      label.textContent = '✓ ' + this.files[0].name;
+      label.style.display = '';
+    }
+  });
+
 </script>
 {% endblock %}
