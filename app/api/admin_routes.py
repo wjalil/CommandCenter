@@ -13,7 +13,7 @@ from app.db import get_db
 from app.auth.dependencies import get_current_admin_user
 from app.utils.admin import compute_weekly_shifts_and_hours
 from app.models.shift import Shift
-from app.models.task import Task, TaskTemplate
+from app.models.task import Task, TaskTemplate, TaskSubmission
 from app.models.user import User
 from app.models.internal_task import InternalTask
 from app.models.shortage_log import ShortageLog
@@ -28,6 +28,9 @@ from app.api.admin.shifts_clone import router as shifts_clone_router
 from app.api.admin.schedule_grid_routes import schedule_grid_page
 from app.auth.module_gates import get_enabled_modules
 from app.models.tenant import Tenant
+from app.models.auto_shop import RepairOrder, RepairOrderPhoto, RepairOrderStatusLog
+from app.models.timeclock import TimeEntry
+from sqlalchemy import update, delete
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -191,11 +194,26 @@ async def reset_worker_pin(
     return RedirectResponse("/admin/workers?success=PIN+updated", status_code=303)
 
 
+async def _detach_user_references(db: AsyncSession, user_id: str):
+    """Null out or remove all FK references to a user before deletion."""
+    # Nullable FKs — safe to set NULL
+    await db.execute(update(Shift).where(Shift.assigned_worker_id == user_id).values(assigned_worker_id=None))
+    await db.execute(update(RepairOrder).where(RepairOrder.assigned_tech_id == user_id).values(assigned_tech_id=None))
+    await db.execute(update(RepairOrderPhoto).where(RepairOrderPhoto.uploaded_by_id == user_id).values(uploaded_by_id=None))
+    await db.execute(update(RepairOrderStatusLog).where(RepairOrderStatusLog.changed_by_id == user_id).values(changed_by_id=None))
+    await db.execute(update(TimeEntry).where(TimeEntry.created_by_id == user_id).values(created_by_id=None))
+    await db.execute(update(TimeEntry).where(TimeEntry.edited_by_id == user_id).values(edited_by_id=None))
+    # NOT NULL FKs — must delete rows entirely
+    await db.execute(delete(TimeEntry).where(TimeEntry.user_id == user_id))
+    await db.execute(delete(TaskSubmission).where(TaskSubmission.worker_id == user_id))
+
+
 @router.post("/admin/workers/delete/{user_id}")
 async def delete_worker(user_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_admin_user)):
-    result = await db.execute(select(User).where(User.id == user_id,User.tenant_id == user.tenant_id))
+    result = await db.execute(select(User).where(User.id == user_id, User.tenant_id == user.tenant_id))
     worker = result.scalar_one_or_none()
     if worker:
+        await _detach_user_references(db, user_id)
         await db.delete(worker)
         await db.commit()
     return RedirectResponse(url="/admin/workers", status_code=302)
@@ -258,6 +276,7 @@ async def delete_office_admin(
     )
     target = result.scalar_one_or_none()
     if target:
+        await _detach_user_references(db, user_id)
         await db.delete(target)
         await db.commit()
     return RedirectResponse(url="/admin/workers?success=Office+admin+removed", status_code=303)

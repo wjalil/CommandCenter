@@ -56,6 +56,18 @@
             {% endfor %}
           </select>
         </div>
+        {% if techs %}
+        <div class="col-12 col-sm-6">
+          <select name="assigned_tech_id" class="form-select form-select-sm">
+            <option value="">— Assign tech (optional) —</option>
+            {% for tech in techs %}
+              <option value="{{ tech.id }}" {% if job.assigned_tech_id == tech.id %}selected{% endif %}>
+                {{ tech.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
         <div class="col-12">
           <input type="text" name="notes" class="form-control form-control-sm" placeholder="Optional note (visible in history)"/>
         </div>

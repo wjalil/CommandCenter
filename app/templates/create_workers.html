@@ -104,16 +104,36 @@
     <ul class="list-group mb-5">
       {% for oa in office_admins %}
       <li class="list-group-item">
-        <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div>
             <strong>{{ oa.name }}</strong>
             <span class="badge bg-info ms-2">Office Admin</span>
             {% if oa.email %}<span class="text-muted small ms-2">{{ oa.email }}</span>{% endif %}
           </div>
-          <form method="post" action="/admin/office-admin/{{ oa.id }}/delete"
-                onsubmit="return confirm('Remove {{ oa.name }}?')">
-            <button class="btn btn-sm btn-danger">🗑️</button>
-          </form>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <!-- Pay rate -->
+            <form method="post" action="/admin/workers/{{ oa.id }}/pay" class="d-flex align-items-center gap-1">
+              <span class="text-muted" style="font-size:.85rem;">$</span>
+              <input
+                type="number"
+                name="hourly_rate"
+                step="0.01"
+                min="0"
+                value="{{ '%.2f'|format(oa.hourly_rate|float) if oa.hourly_rate else '' }}"
+                placeholder="0.00"
+                class="form-control form-control-sm"
+                style="width:90px;"
+                title="Hourly rate"
+              />
+              <span class="text-muted" style="font-size:.85rem;">/hr</span>
+              <button type="submit" class="btn btn-sm btn-outline-success">Save</button>
+            </form>
+            <!-- Delete -->
+            <form method="post" action="/admin/office-admin/{{ oa.id }}/delete"
+                  onsubmit="return confirm('Remove {{ oa.name }}?')">
+              <button class="btn btn-sm btn-danger">🗑️</button>
+            </form>
+          </div>
         </div>
       </li>
       {% endfor %}

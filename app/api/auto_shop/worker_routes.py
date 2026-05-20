@@ -121,9 +121,16 @@ async def worker_job_detail(
     if not job:
         return RedirectResponse(url="/auto_shop/worker/jobs", status_code=303)
 
+    techs_result = await db.execute(
+        select(User)
+        .where(User.tenant_id == user.tenant_id, User.is_active == True)
+        .order_by(User.name)
+    )
+    techs = techs_result.scalars().all()
+
     return templates.TemplateResponse(
         "auto_shop/worker_job_detail.html",
-        _ctx(request, job=job, worker_name=user.name),
+        _ctx(request, job=job, worker_name=user.name, techs=techs),
     )
 
 
@@ -137,6 +144,7 @@ async def worker_update_status(
     form = await request.form()
     new_status = form.get("new_status", "").strip()
     notes = form.get("notes", "").strip() or None
+    new_tech_id = form.get("assigned_tech_id", "").strip() or None
 
     if new_status not in VALID_STATUSES:
         return RedirectResponse(url=f"/auto_shop/worker/jobs/{job_id}", status_code=303)
@@ -152,6 +160,8 @@ async def worker_update_status(
 
     old_status = job.status
     job.status = new_status
+    if new_tech_id is not None:
+        job.assigned_tech_id = new_tech_id
     job.updated_at = datetime.utcnow()
     if new_status == "complete":
         job.completed_at = datetime.utcnow()
