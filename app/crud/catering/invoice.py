@@ -29,6 +29,10 @@ async def create_invoice(db: AsyncSession, invoice: CateringInvoiceCreate):
         lunch_vegan_count=invoice.lunch_vegan_count,
         snack_count=invoice.snack_count,
         snack_vegan_count=invoice.snack_vegan_count,
+        am_snack_count=invoice.am_snack_count,
+        am_snack_vegan_count=invoice.am_snack_vegan_count,
+        pm_snack_count=invoice.pm_snack_count,
+        pm_snack_vegan_count=invoice.pm_snack_vegan_count,
         status="draft",
         tenant_id=invoice.tenant_id
     )
@@ -108,6 +112,10 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
             selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
             selectinload(CateringMenuDay.snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
             selectinload(CateringMenuDay.snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.am_snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.am_snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.pm_snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.pm_snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
         )
     )
     menu_day = result.scalar_one_or_none()
@@ -125,10 +133,12 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
     meal_types_required = meal_types_required or []
 
     # Normalize meal type names (handle both "Breakfast" and "breakfast" formats)
-    meal_types_lower = [mt.lower() for mt in meal_types_required]
+    meal_types_lower = [mt.lower().replace(' ', '_') for mt in meal_types_required]
     program_has_breakfast = 'breakfast' in meal_types_lower
     program_has_lunch = 'lunch' in meal_types_lower
     program_has_snack = 'snack' in meal_types_lower
+    program_has_am_snack = 'am_snack' in meal_types_lower
+    program_has_pm_snack = 'pm_snack' in meal_types_lower
 
     # Check if invoice already exists for this day
     existing_result = await db.execute(
@@ -145,6 +155,8 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
     lunch_count = program.lunch_count if program.lunch_count is not None else program.total_children
     lunch_vegan = program.lunch_vegan_count or 0
     snack_count = program.snack_count if program.snack_count is not None else program.total_children
+    am_snack_count = program.am_snack_count if program.am_snack_count is not None else program.total_children
+    pm_snack_count = program.pm_snack_count if program.pm_snack_count is not None else program.total_children
 
     # Check if using component-first mode
     has_components = menu_day.components and len(menu_day.components) > 0
@@ -161,6 +173,10 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
         has_lunch_vegan = program_has_lunch and 'lunch' in slots_with_vegan
         has_snack = program_has_snack and 'snack' in slots_with_components
         has_snack_vegan = program_has_snack and 'snack' in slots_with_vegan
+        has_am_snack = program_has_am_snack and 'am_snack' in slots_with_components
+        has_am_snack_vegan = program_has_am_snack and 'am_snack' in slots_with_vegan
+        has_pm_snack = program_has_pm_snack and 'pm_snack' in slots_with_components
+        has_pm_snack_vegan = program_has_pm_snack and 'pm_snack' in slots_with_vegan
     else:
         # Pre-built meal item mode: only include meals required by program
         has_breakfast = program_has_breakfast and menu_day.breakfast_item_id is not None
@@ -169,6 +185,10 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
         has_lunch_vegan = program_has_lunch and menu_day.lunch_vegan_item_id is not None
         has_snack = program_has_snack and menu_day.snack_item_id is not None
         has_snack_vegan = program_has_snack and menu_day.snack_vegan_item_id is not None
+        has_am_snack = program_has_am_snack and menu_day.am_snack_item_id is not None
+        has_am_snack_vegan = program_has_am_snack and menu_day.am_snack_vegan_item_id is not None
+        has_pm_snack = program_has_pm_snack and menu_day.pm_snack_item_id is not None
+        has_pm_snack_vegan = program_has_pm_snack and menu_day.pm_snack_vegan_item_id is not None
 
     # Build meal count fields
     meal_counts = dict(
@@ -180,6 +200,10 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
         lunch_vegan_count=lunch_vegan if has_lunch_vegan else 0,
         snack_count=snack_count if has_snack else None,
         snack_vegan_count=0 if has_snack_vegan else 0,
+        am_snack_count=am_snack_count if has_am_snack else None,
+        am_snack_vegan_count=0 if has_am_snack_vegan else 0,
+        pm_snack_count=pm_snack_count if has_pm_snack else None,
+        pm_snack_vegan_count=0 if has_pm_snack_vegan else 0,
     )
 
     # Update existing invoice if one already exists for this menu day
@@ -204,17 +228,33 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
 
 
 async def generate_bulk_invoices_for_month(db: AsyncSession, monthly_menu_id: str, tenant_id: int):
-    """Generate invoices for all menu days in a monthly menu"""
+    """Generate invoices for all menu days in a monthly menu, skipping program holidays"""
     from .monthly_menu import get_monthly_menu
+    from app.models.catering import CateringProgramHoliday
 
     monthly_menu = await get_monthly_menu(db, monthly_menu_id, tenant_id)
     if not monthly_menu:
         return []
 
+    # Load program holidays to skip closed days
+    holidays_result = await db.execute(
+        select(CateringProgramHoliday).where(
+            CateringProgramHoliday.program_id == monthly_menu.program_id
+        )
+    )
+    holiday_dates = {h.holiday_date for h in holidays_result.scalars().all()}
+
     generated_invoices = []
     for menu_day in monthly_menu.menu_days:
+        # Skip program-closed days
+        if menu_day.service_date in holiday_dates:
+            continue
+
         # Check both pre-built meal items and component-first mode
-        has_meal_items = menu_day.breakfast_item_id or menu_day.lunch_item_id or menu_day.snack_item_id
+        has_meal_items = (
+            menu_day.breakfast_item_id or menu_day.lunch_item_id or menu_day.snack_item_id
+            or menu_day.am_snack_item_id or menu_day.pm_snack_item_id
+        )
         has_components = hasattr(menu_day, 'components') and menu_day.components and len(menu_day.components) > 0
         if has_meal_items or has_components:
             invoice = await generate_invoice_from_menu_day(db, menu_day.id, tenant_id)

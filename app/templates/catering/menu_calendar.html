@@ -54,16 +54,16 @@
         {% for week in calendar_weeks %}
         <tr>
           {% for day in week %}
-          <td class="calendar-day {% if not day.in_month %}text-muted{% elif not day.is_service_day %}bg-light{% endif %}"
-              style="vertical-align: top; height: 150px; {% if day.in_month and day.is_service_day %}cursor: pointer;{% endif %}"
-              {% if day.in_month and day.is_service_day %}
+          <td class="calendar-day {% if not day.in_month %}text-muted{% elif not day.is_service_day or day.is_holiday %}bg-light{% endif %}"
+              style="vertical-align: top; height: 150px; {% if day.in_month and day.is_service_day and not day.is_holiday %}cursor: pointer;{% endif %}"
+              {% if day.in_month and day.is_service_day and not day.is_holiday %}
               onclick="openMealEditor('{{ day.date }}', {{ day.day }})"
               {% endif %}>
 
             <div class="d-flex justify-content-between align-items-start mb-2">
               <strong>{{ day.day if day.in_month else '' }}</strong>
-              <div>
-                {% if day.in_month and day.is_service_day and day.menu_day %}
+              <div class="d-flex gap-1 align-items-center">
+                {% if day.in_month and day.is_service_day and day.menu_day and not day.is_holiday %}
                 <form method="POST" action="/catering/invoices/generate/{{ day.menu_day.id }}" style="display: inline;">
                   <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size: 0.7rem; padding: 0px 4px;" title="Generate Invoice">📄</button>
                 </form>
@@ -71,16 +71,26 @@
                 {% if day.in_month and not day.is_service_day %}
                 <small class="badge bg-secondary">Closed</small>
                 {% endif %}
+                {% if day.in_month and day.is_service_day %}
+                <form method="POST" action="/catering/programs/{{ program.id }}/holidays/toggle" style="display: inline;" onclick="event.stopPropagation();">
+                  <input type="hidden" name="holiday_date" value="{{ day.date }}">
+                  <input type="hidden" name="redirect_url" value="{{ request.url.path }}">
+                  <button type="submit" class="btn btn-sm {% if day.is_holiday %}btn-danger{% else %}btn-outline-secondary{% endif %}" style="font-size: 0.65rem; padding: 0px 4px;" title="{% if day.is_holiday %}Mark as Open{% else %}Mark as Closed{% endif %}">{% if day.is_holiday %}🔓{% else %}🔒{% endif %}</button>
+                </form>
+                {% endif %}
               </div>
             </div>
+            {% if day.in_month and day.is_service_day and day.is_holiday %}
+            <div><small class="badge bg-danger">Program Closed</small></div>
+            {% endif %}
 
-            {% if day.in_month and day.is_service_day %}
+            {% if day.in_month and day.is_service_day and not day.is_holiday %}
             <div class="meal-preview" id="preview-{{ day.date }}">
               {% if day.menu_day %}
                 {# Check if using pre-built meals #}
-                {% set has_meals = day.menu_day.breakfast_item or day.menu_day.lunch_item or day.menu_day.snack_item %}
+                {% set has_meals = day.menu_day.breakfast_item or day.menu_day.lunch_item or day.menu_day.snack_item or day.menu_day.am_snack_item or day.menu_day.pm_snack_item %}
                 {# Check if using component-first mode (use pre-computed preview) #}
-                {% set has_components = day.component_preview.breakfast or day.component_preview.lunch or day.component_preview.snack %}
+                {% set has_components = day.component_preview.breakfast or day.component_preview.lunch or day.component_preview.snack or day.component_preview.am_snack or day.component_preview.pm_snack %}
 
                 {% if has_meals %}
                   {# Show pre-built meals #}
@@ -105,12 +115,32 @@
                   </div>
                   {% endif %}
                   {% if 'Snack' in meal_types and day.menu_day.snack_item %}
-                  <div class="meal-item" style="font-size: 0.75rem;">
+                  <div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;">
                     <strong>S:</strong>
                     {% if day.menu_day.snack_item.components %}
                       {{ day.menu_day.snack_item.components | map(attribute='food_component.name') | join(', ') }}
                     {% else %}
                       {{ day.menu_day.snack_item.name[:20] }}{% if day.menu_day.snack_item.name|length > 20 %}...{% endif %}
+                    {% endif %}
+                  </div>
+                  {% endif %}
+                  {% if 'AM Snack' in meal_types and day.menu_day.am_snack_item %}
+                  <div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;">
+                    <strong>AM:</strong>
+                    {% if day.menu_day.am_snack_item.components %}
+                      {{ day.menu_day.am_snack_item.components | map(attribute='food_component.name') | join(', ') }}
+                    {% else %}
+                      {{ day.menu_day.am_snack_item.name[:20] }}{% if day.menu_day.am_snack_item.name|length > 20 %}...{% endif %}
+                    {% endif %}
+                  </div>
+                  {% endif %}
+                  {% if 'PM Snack' in meal_types and day.menu_day.pm_snack_item %}
+                  <div class="meal-item" style="font-size: 0.75rem;">
+                    <strong>PM:</strong>
+                    {% if day.menu_day.pm_snack_item.components %}
+                      {{ day.menu_day.pm_snack_item.components | map(attribute='food_component.name') | join(', ') }}
+                    {% else %}
+                      {{ day.menu_day.pm_snack_item.name[:20] }}{% if day.menu_day.pm_snack_item.name|length > 20 %}...{% endif %}
                     {% endif %}
                   </div>
                   {% endif %}
@@ -127,8 +157,18 @@
                   </div>
                   {% endif %}
                   {% if 'Snack' in meal_types and day.component_preview.snack %}
-                  <div class="meal-item component-item" style="font-size: 0.75rem;">
+                  <div class="meal-item component-item" style="font-size: 0.75rem; margin-bottom: 2px;">
                     <strong>S:</strong> {{ day.component_preview.snack }}
+                  </div>
+                  {% endif %}
+                  {% if 'AM Snack' in meal_types and day.component_preview.am_snack %}
+                  <div class="meal-item component-item" style="font-size: 0.75rem; margin-bottom: 2px;">
+                    <strong>AM:</strong> {{ day.component_preview.am_snack }}
+                  </div>
+                  {% endif %}
+                  {% if 'PM Snack' in meal_types and day.component_preview.pm_snack %}
+                  <div class="meal-item component-item" style="font-size: 0.75rem;">
+                    <strong>PM:</strong> {{ day.component_preview.pm_snack }}
                   </div>
                   {% endif %}
                 {% else %}
@@ -236,6 +276,58 @@
           </div>
         </div>
         {% endif %}
+
+        {% if 'AM Snack' in meal_types %}
+        <div class="mb-4">
+          <h6>AM Snack</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular Components</label>
+              <div class="component-selector" data-slot="am_snack" data-vegan="false">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-am_snack"></div>
+              </div>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Components</label>
+              <div class="component-selector" data-slot="am_snack_vegan" data-vegan="true">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-am_snack_vegan"></div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if 'PM Snack' in meal_types %}
+        <div class="mb-4">
+          <h6>PM Snack</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular Components</label>
+              <div class="component-selector" data-slot="pm_snack" data-vegan="false">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-pm_snack"></div>
+              </div>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Components</label>
+              <div class="component-selector" data-slot="pm_snack_vegan" data-vegan="true">
+                <input type="text" class="form-control component-search" placeholder="Type to search..." autocomplete="off">
+                <div class="component-dropdown"></div>
+                <div class="selected-tags" id="tags-pm_snack_vegan"></div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
@@ -331,6 +423,62 @@
               <select class="form-select" id="snack_vegan_item_id">
                 <option value="">-- No vegan option --</option>
                 {% for item in snack_vegan_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if 'AM Snack' in meal_types %}
+        <div class="mb-4">
+          <h6>AM Snack</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular</label>
+              <select class="form-select" id="am_snack_item_id">
+                <option value="">-- No AM snack --</option>
+                {% for item in am_snack_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Alternative</label>
+              <select class="form-select" id="am_snack_vegan_item_id">
+                <option value="">-- No vegan option --</option>
+                {% for item in am_snack_vegan_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if 'PM Snack' in meal_types %}
+        <div class="mb-4">
+          <h6>PM Snack</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <label class="form-label">Regular</label>
+              <select class="form-select" id="pm_snack_item_id">
+                <option value="">-- No PM snack --</option>
+                {% for item in pm_snack_items %}
+                <option value="{{ item.id }}">{{ item.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% if program.vegan_count > 0 %}
+            <div class="col-md-6">
+              <label class="form-label">Vegan Alternative</label>
+              <select class="form-select" id="pm_snack_vegan_item_id">
+                <option value="">-- No vegan option --</option>
+                {% for item in pm_snack_vegan_items %}
                 <option value="{{ item.id }}">{{ item.name }}</option>
                 {% endfor %}
               </select>
@@ -504,7 +652,11 @@ let selectedComponents = {
   lunch: [],
   lunch_vegan: [],
   snack: [],
-  snack_vegan: []
+  snack_vegan: [],
+  am_snack: [],
+  am_snack_vegan: [],
+  pm_snack: [],
+  pm_snack_vegan: []
 };
 
 // All components as array for searching
@@ -527,7 +679,9 @@ function openComponentEditor(dateStr, dayNum) {
   const dayComponents = menuDayComponents[dateStr] || {
     breakfast: [], breakfast_vegan: [],
     lunch: [], lunch_vegan: [],
-    snack: [], snack_vegan: []
+    snack: [], snack_vegan: [],
+    am_snack: [], am_snack_vegan: [],
+    pm_snack: [], pm_snack_vegan: []
   };
 
   // Reset selected components
@@ -537,7 +691,11 @@ function openComponentEditor(dateStr, dayNum) {
     lunch: [...(dayComponents.lunch || [])],
     lunch_vegan: [...(dayComponents.lunch_vegan || [])],
     snack: [...(dayComponents.snack || [])],
-    snack_vegan: [...(dayComponents.snack_vegan || [])]
+    snack_vegan: [...(dayComponents.snack_vegan || [])],
+    am_snack: [...(dayComponents.am_snack || [])],
+    am_snack_vegan: [...(dayComponents.am_snack_vegan || [])],
+    pm_snack: [...(dayComponents.pm_snack || [])],
+    pm_snack_vegan: [...(dayComponents.pm_snack_vegan || [])]
   };
 
   // Clear all search inputs
@@ -556,7 +714,7 @@ function openComponentEditor(dateStr, dayNum) {
 }
 
 function renderAllTags() {
-  const slots = ['breakfast', 'breakfast_vegan', 'lunch', 'lunch_vegan', 'snack', 'snack_vegan'];
+  const slots = ['breakfast', 'breakfast_vegan', 'lunch', 'lunch_vegan', 'snack', 'snack_vegan', 'am_snack', 'am_snack_vegan', 'pm_snack', 'pm_snack_vegan'];
   slots.forEach(slot => {
     const container = document.getElementById(`tags-${slot}`);
     if (container) {
@@ -809,6 +967,28 @@ function saveDayComponents() {
   {% endif %}
   {% endif %}
 
+  {% if 'AM Snack' in meal_types %}
+  selectedComponents.am_snack.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'am_snack', is_vegan: false, sort_order: idx });
+  });
+  {% if program.vegan_count > 0 %}
+  selectedComponents.am_snack_vegan.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'am_snack', is_vegan: true, sort_order: idx });
+  });
+  {% endif %}
+  {% endif %}
+
+  {% if 'PM Snack' in meal_types %}
+  selectedComponents.pm_snack.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'pm_snack', is_vegan: false, sort_order: idx });
+  });
+  {% if program.vegan_count > 0 %}
+  selectedComponents.pm_snack_vegan.forEach((c, idx) => {
+    components.push({ component_id: c.component_id, meal_slot: 'pm_snack', is_vegan: true, sort_order: idx });
+  });
+  {% endif %}
+  {% endif %}
+
   // Store in pending component changes
   pendingComponentChanges[dateStr] = {
     service_date: dateStr,
@@ -836,7 +1016,11 @@ function updateMenuDayComponentsLocal(dateStr, components) {
     lunch: [],
     lunch_vegan: [],
     snack: [],
-    snack_vegan: []
+    snack_vegan: [],
+    am_snack: [],
+    am_snack_vegan: [],
+    pm_snack: [],
+    pm_snack_vegan: []
   };
 
   components.forEach(comp => {
@@ -871,7 +1055,21 @@ function updateComponentDayPreview(dateStr) {
   {% if 'Snack' in meal_types %}
   const snackComps = (dayComponents.snack || []).map(c => c.name);
   if (snackComps.length > 0) {
-    html += `<div class="meal-item component-item" style="font-size: 0.75rem;"><strong>S:</strong> ${snackComps.join(', ')}</div>`;
+    html += `<div class="meal-item component-item" style="font-size: 0.75rem; margin-bottom: 2px;"><strong>S:</strong> ${snackComps.join(', ')}</div>`;
+  }
+  {% endif %}
+
+  {% if 'AM Snack' in meal_types %}
+  const amSnackComps = (dayComponents.am_snack || []).map(c => c.name);
+  if (amSnackComps.length > 0) {
+    html += `<div class="meal-item component-item" style="font-size: 0.75rem; margin-bottom: 2px;"><strong>AM:</strong> ${amSnackComps.join(', ')}</div>`;
+  }
+  {% endif %}
+
+  {% if 'PM Snack' in meal_types %}
+  const pmSnackComps = (dayComponents.pm_snack || []).map(c => c.name);
+  if (pmSnackComps.length > 0) {
+    html += `<div class="meal-item component-item" style="font-size: 0.75rem;"><strong>PM:</strong> ${pmSnackComps.join(', ')}</div>`;
   }
   {% endif %}
 
@@ -911,6 +1109,20 @@ function openPrebuiltMealEditor(dateStr, dayNum) {
   {% endif %}
   {% endif %}
 
+  {% if 'AM Snack' in meal_types %}
+  document.getElementById('am_snack_item_id').value = menuDay.am_snack_item_id || '';
+  {% if program.vegan_count > 0 %}
+  document.getElementById('am_snack_vegan_item_id').value = menuDay.am_snack_vegan_item_id || '';
+  {% endif %}
+  {% endif %}
+
+  {% if 'PM Snack' in meal_types %}
+  document.getElementById('pm_snack_item_id').value = menuDay.pm_snack_item_id || '';
+  {% if program.vegan_count > 0 %}
+  document.getElementById('pm_snack_vegan_item_id').value = menuDay.pm_snack_vegan_item_id || '';
+  {% endif %}
+  {% endif %}
+
   document.getElementById('notes').value = menuDay.notes || '';
 
   // Show modal
@@ -938,6 +1150,18 @@ function saveDayMeals() {
     snack_item_id: document.getElementById('snack_item_id').value || null,
     {% if program.vegan_count > 0 %}
     snack_vegan_item_id: document.getElementById('snack_vegan_item_id').value || null,
+    {% endif %}
+    {% endif %}
+    {% if 'AM Snack' in meal_types %}
+    am_snack_item_id: document.getElementById('am_snack_item_id').value || null,
+    {% if program.vegan_count > 0 %}
+    am_snack_vegan_item_id: document.getElementById('am_snack_vegan_item_id').value || null,
+    {% endif %}
+    {% endif %}
+    {% if 'PM Snack' in meal_types %}
+    pm_snack_item_id: document.getElementById('pm_snack_item_id').value || null,
+    {% if program.vegan_count > 0 %}
+    pm_snack_vegan_item_id: document.getElementById('pm_snack_vegan_item_id').value || null,
     {% endif %}
     {% endif %}
     notes: document.getElementById('notes').value || null
@@ -980,7 +1204,23 @@ function updateDayPreview(dateStr, dayData) {
   if (dayData.snack_item_id && mealItems[dayData.snack_item_id]) {
     const components = mealItemComponents[dayData.snack_item_id];
     const displayName = components && components.length > 0 ? components.join(', ') : mealItems[dayData.snack_item_id];
-    html += `<div class="meal-item" style="font-size: 0.75rem;"><strong>S:</strong> ${displayName}</div>`;
+    html += `<div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;"><strong>S:</strong> ${displayName}</div>`;
+  }
+  {% endif %}
+
+  {% if 'AM Snack' in meal_types %}
+  if (dayData.am_snack_item_id && mealItems[dayData.am_snack_item_id]) {
+    const components = mealItemComponents[dayData.am_snack_item_id];
+    const displayName = components && components.length > 0 ? components.join(', ') : mealItems[dayData.am_snack_item_id];
+    html += `<div class="meal-item" style="font-size: 0.75rem; margin-bottom: 2px;"><strong>AM:</strong> ${displayName}</div>`;
+  }
+  {% endif %}
+
+  {% if 'PM Snack' in meal_types %}
+  if (dayData.pm_snack_item_id && mealItems[dayData.pm_snack_item_id]) {
+    const components = mealItemComponents[dayData.pm_snack_item_id];
+    const displayName = components && components.length > 0 ? components.join(', ') : mealItems[dayData.pm_snack_item_id];
+    html += `<div class="meal-item" style="font-size: 0.75rem;"><strong>PM:</strong> ${displayName}</div>`;
   }
   {% endif %}
 

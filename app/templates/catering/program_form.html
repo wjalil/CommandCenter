@@ -99,6 +99,26 @@
             </div>
           </div>
 
+          <div class="row" id="am_snack-counts" style="display: none;">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">AM Snack Count *</label>
+              <input type="number" name="am_snack_count" id="am_snack_count" class="form-control" value="{{ program.am_snack_count if program and program.am_snack_count else '' }}" min="1">
+            </div>
+            <div class="col-md-6 mb-3">
+              <!-- Empty for alignment -->
+            </div>
+          </div>
+
+          <div class="row" id="pm_snack-counts" style="display: none;">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">PM Snack Count *</label>
+              <input type="number" name="pm_snack_count" id="pm_snack_count" class="form-control" value="{{ program.pm_snack_count if program and program.pm_snack_count else '' }}" min="1">
+            </div>
+            <div class="col-md-6 mb-3">
+              <!-- Empty for alignment -->
+            </div>
+          </div>
+
           <div id="no-meals-warning" class="alert alert-info" style="display: none;">
             Select meal types below to configure counts.
           </div>
@@ -139,12 +159,12 @@
       <div class="mb-3">
         <label class="form-label">Meal Types Required *</label>
         <div class="row">
-          {% for meal_type in ['Breakfast', 'Lunch', 'Snack'] %}
+          {% for meal_type in ['Breakfast', 'Lunch', 'Snack', 'AM Snack', 'PM Snack'] %}
           <div class="col-md-4 mb-2">
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="meal_types_required" value="{{ meal_type }}" id="meal_{{ meal_type }}"
+              <input class="form-check-input" type="checkbox" name="meal_types_required" value="{{ meal_type }}" id="meal_{{ meal_type|replace(' ', '_') }}"
                 {% if program and meal_type in program.meal_types_required %}checked{% endif %}>
-              <label class="form-check-label" for="meal_{{ meal_type }}">{{ meal_type }}</label>
+              <label class="form-check-label" for="meal_{{ meal_type|replace(' ', '_') }}">{{ meal_type }}</label>
             </div>
           </div>
           {% endfor %}
@@ -171,18 +191,24 @@ function updateMealCountVisibility() {
   const breakfastChecked = document.getElementById('meal_Breakfast').checked;
   const lunchChecked = document.getElementById('meal_Lunch').checked;
   const snackChecked = document.getElementById('meal_Snack').checked;
+  const amSnackChecked = document.getElementById('meal_AM_Snack').checked;
+  const pmSnackChecked = document.getElementById('meal_PM_Snack').checked;
 
   document.getElementById('breakfast-counts').style.display = breakfastChecked ? 'flex' : 'none';
   document.getElementById('lunch-counts').style.display = lunchChecked ? 'flex' : 'none';
   document.getElementById('snack-counts').style.display = snackChecked ? 'flex' : 'none';
+  document.getElementById('am_snack-counts').style.display = amSnackChecked ? 'flex' : 'none';
+  document.getElementById('pm_snack-counts').style.display = pmSnackChecked ? 'flex' : 'none';
 
-  const anyChecked = breakfastChecked || lunchChecked || snackChecked;
+  const anyChecked = breakfastChecked || lunchChecked || snackChecked || amSnackChecked || pmSnackChecked;
   document.getElementById('no-meals-warning').style.display = anyChecked ? 'none' : 'block';
 
   // Update required attributes
   document.getElementById('breakfast_count').required = breakfastChecked;
   document.getElementById('lunch_count').required = lunchChecked;
   document.getElementById('snack_count').required = snackChecked;
+  document.getElementById('am_snack_count').required = amSnackChecked;
+  document.getElementById('pm_snack_count').required = pmSnackChecked;
 }
 
 // Run on page load
@@ -190,7 +216,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateMealCountVisibility();
 
   // Add event listeners to meal type checkboxes
-  ['Breakfast', 'Lunch', 'Snack'].forEach(function(meal) {
+  ['Breakfast', 'Lunch', 'Snack', 'AM_Snack', 'PM_Snack'].forEach(function(meal) {
     const checkbox = document.getElementById('meal_' + meal);
     if (checkbox) {
       checkbox.addEventListener('change', updateMealCountVisibility);

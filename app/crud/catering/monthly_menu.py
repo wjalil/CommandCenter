@@ -49,6 +49,8 @@ async def get_monthly_menu(db: AsyncSession, menu_id: str, tenant_id: int):
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.breakfast_item),
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.lunch_item),
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.snack_item),
+            selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.am_snack_item),
+            selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.pm_snack_item),
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component).selectinload(FoodComponent.component_type),
             selectinload(CateringMonthlyMenu.program)
         )
@@ -93,6 +95,10 @@ async def upsert_menu_day(db: AsyncSession, monthly_menu_id: str, menu_day: Menu
         existing_day.lunch_vegan_item_id = menu_day.lunch_vegan_item_id
         existing_day.snack_item_id = menu_day.snack_item_id
         existing_day.snack_vegan_item_id = menu_day.snack_vegan_item_id
+        existing_day.am_snack_item_id = menu_day.am_snack_item_id
+        existing_day.am_snack_vegan_item_id = menu_day.am_snack_vegan_item_id
+        existing_day.pm_snack_item_id = menu_day.pm_snack_item_id
+        existing_day.pm_snack_vegan_item_id = menu_day.pm_snack_vegan_item_id
         existing_day.notes = menu_day.notes
         day = existing_day
     else:
@@ -107,6 +113,10 @@ async def upsert_menu_day(db: AsyncSession, monthly_menu_id: str, menu_day: Menu
             lunch_vegan_item_id=menu_day.lunch_vegan_item_id,
             snack_item_id=menu_day.snack_item_id,
             snack_vegan_item_id=menu_day.snack_vegan_item_id,
+            am_snack_item_id=menu_day.am_snack_item_id,
+            am_snack_vegan_item_id=menu_day.am_snack_vegan_item_id,
+            pm_snack_item_id=menu_day.pm_snack_item_id,
+            pm_snack_vegan_item_id=menu_day.pm_snack_vegan_item_id,
             notes=menu_day.notes
         )
         db.add(day)

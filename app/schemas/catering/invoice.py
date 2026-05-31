@@ -24,6 +24,10 @@ class CateringInvoiceBase(BaseModel):
     lunch_vegan_count: int = 0
     snack_count: Optional[int] = None
     snack_vegan_count: int = 0
+    am_snack_count: Optional[int] = None
+    am_snack_vegan_count: int = 0
+    pm_snack_count: Optional[int] = None
+    pm_snack_vegan_count: int = 0
 
 
 class CateringInvoiceCreate(CateringInvoiceBase):
@@ -43,6 +47,10 @@ class CateringInvoiceUpdate(BaseModel):
     lunch_vegan_count: Optional[int] = None
     snack_count: Optional[int] = None
     snack_vegan_count: Optional[int] = None
+    am_snack_count: Optional[int] = None
+    am_snack_vegan_count: Optional[int] = None
+    pm_snack_count: Optional[int] = None
+    pm_snack_vegan_count: Optional[int] = None
 
     status: Optional[InvoiceStatus] = None
     pdf_filename: Optional[str] = None

@@ -38,6 +38,8 @@ class CateringProgramBase(BaseModel):
     lunch_count: Optional[int] = None
     lunch_vegan_count: int = 0
     snack_count: Optional[int] = None
+    am_snack_count: Optional[int] = None
+    pm_snack_count: Optional[int] = None
 
     invoice_prefix: str  # e.g., "BC", "LC"
     service_days: List[str]  # ["Monday", "Tuesday", ...]
@@ -68,6 +70,8 @@ class CateringProgramUpdate(BaseModel):
     lunch_count: Optional[int] = None
     lunch_vegan_count: Optional[int] = None
     snack_count: Optional[int] = None
+    am_snack_count: Optional[int] = None
+    pm_snack_count: Optional[int] = None
 
     invoice_prefix: Optional[str] = None
     service_days: Optional[List[str]] = None

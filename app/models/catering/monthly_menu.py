@@ -51,6 +51,14 @@ class CateringMenuDay(Base):
     snack_item_id = Column(String, ForeignKey("catering_meal_items.id"), nullable=True)
     snack_vegan_item_id = Column(String, ForeignKey("catering_meal_items.id"), nullable=True)
 
+    # AM Snack
+    am_snack_item_id = Column(String, ForeignKey("catering_meal_items.id"), nullable=True)
+    am_snack_vegan_item_id = Column(String, ForeignKey("catering_meal_items.id"), nullable=True)
+
+    # PM Snack
+    pm_snack_item_id = Column(String, ForeignKey("catering_meal_items.id"), nullable=True)
+    pm_snack_vegan_item_id = Column(String, ForeignKey("catering_meal_items.id"), nullable=True)
+
     notes = Column(Text, nullable=True)
 
     monthly_menu = relationship("CateringMonthlyMenu", back_populates="menu_days")
@@ -62,6 +70,10 @@ class CateringMenuDay(Base):
     lunch_vegan_item = relationship("CateringMealItem", foreign_keys=[lunch_vegan_item_id], back_populates="menu_days_lunch_vegan")
     snack_item = relationship("CateringMealItem", foreign_keys=[snack_item_id], back_populates="menu_days_snack")
     snack_vegan_item = relationship("CateringMealItem", foreign_keys=[snack_vegan_item_id], back_populates="menu_days_snack_vegan")
+    am_snack_item = relationship("CateringMealItem", foreign_keys=[am_snack_item_id], back_populates="menu_days_am_snack")
+    am_snack_vegan_item = relationship("CateringMealItem", foreign_keys=[am_snack_vegan_item_id], back_populates="menu_days_am_snack_vegan")
+    pm_snack_item = relationship("CateringMealItem", foreign_keys=[pm_snack_item_id], back_populates="menu_days_pm_snack")
+    pm_snack_vegan_item = relationship("CateringMealItem", foreign_keys=[pm_snack_vegan_item_id], back_populates="menu_days_pm_snack_vegan")
 
     invoices = relationship("CateringInvoice", back_populates="menu_day")
     components = relationship("MenuDayComponent", back_populates="menu_day", cascade="all, delete-orphan")

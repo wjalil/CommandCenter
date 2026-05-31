@@ -27,6 +27,10 @@ class MenuDayBase(BaseModel):
     lunch_vegan_item_id: Optional[str] = None
     snack_item_id: Optional[str] = None
     snack_vegan_item_id: Optional[str] = None
+    am_snack_item_id: Optional[str] = None
+    am_snack_vegan_item_id: Optional[str] = None
+    pm_snack_item_id: Optional[str] = None
+    pm_snack_vegan_item_id: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -100,6 +104,10 @@ class MenuDayAssignment(BaseModel):
     lunch_vegan_item_id: Optional[str] = None
     snack_item_id: Optional[str] = None
     snack_vegan_item_id: Optional[str] = None
+    am_snack_item_id: Optional[str] = None
+    am_snack_vegan_item_id: Optional[str] = None
+    pm_snack_item_id: Optional[str] = None
+    pm_snack_vegan_item_id: Optional[str] = None
     notes: Optional[str] = None
 
 

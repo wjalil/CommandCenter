@@ -534,8 +534,8 @@
 
               {% if day.is_service_day %}
                 {% if day.menu_day %}
-                  {% set has_meals = day.menu_day.breakfast_item or day.menu_day.lunch_item or day.menu_day.snack_item %}
-                  {% set has_components = day.component_preview.breakfast or day.component_preview.lunch or day.component_preview.snack %}
+                  {% set has_meals = day.menu_day.breakfast_item or day.menu_day.lunch_item or day.menu_day.snack_item or day.menu_day.am_snack_item or day.menu_day.pm_snack_item %}
+                  {% set has_components = day.component_preview.breakfast or day.component_preview.lunch or day.component_preview.snack or day.component_preview.am_snack or day.component_preview.pm_snack %}
 
                   <div class="meals-container">
                   {% if has_meals %}
@@ -578,6 +578,32 @@
                     </div>
                     {% endif %}
 
+                    {% if 'AM Snack' in meal_types and day.menu_day.am_snack_item %}
+                    <div class="meal-card snack">
+                      <div class="meal-label">AM Snack</div>
+                      <div class="meal-items">
+                        {% if day.menu_day.am_snack_item.components %}
+                          {{ day.menu_day.am_snack_item.components | map(attribute='food_component.name') | join(', ') }}
+                        {% else %}
+                          {{ day.menu_day.am_snack_item.name }}
+                        {% endif %}
+                      </div>
+                    </div>
+                    {% endif %}
+
+                    {% if 'PM Snack' in meal_types and day.menu_day.pm_snack_item %}
+                    <div class="meal-card snack">
+                      <div class="meal-label">PM Snack</div>
+                      <div class="meal-items">
+                        {% if day.menu_day.pm_snack_item.components %}
+                          {{ day.menu_day.pm_snack_item.components | map(attribute='food_component.name') | join(', ') }}
+                        {% else %}
+                          {{ day.menu_day.pm_snack_item.name }}
+                        {% endif %}
+                      </div>
+                    </div>
+                    {% endif %}
+
                   {% elif has_components %}
                     {% if 'Breakfast' in meal_types and day.component_preview.breakfast %}
                     <div class="meal-card breakfast">
@@ -597,6 +623,20 @@
                     <div class="meal-card snack">
                       <div class="meal-label">Snack</div>
                       <div class="meal-items">{{ day.component_preview.snack }}</div>
+                    </div>
+                    {% endif %}
+
+                    {% if 'AM Snack' in meal_types and day.component_preview.am_snack %}
+                    <div class="meal-card snack">
+                      <div class="meal-label">AM Snack</div>
+                      <div class="meal-items">{{ day.component_preview.am_snack }}</div>
+                    </div>
+                    {% endif %}
+
+                    {% if 'PM Snack' in meal_types and day.component_preview.pm_snack %}
+                    <div class="meal-card snack">
+                      <div class="meal-label">PM Snack</div>
+                      <div class="meal-items">{{ day.component_preview.pm_snack }}</div>
                     </div>
                     {% endif %}
                   {% endif %}

@@ -30,6 +30,8 @@
           <option value="Breakfast" {% if meal_item and meal_item.meal_type == 'Breakfast' %}selected{% endif %}>Breakfast</option>
           <option value="Lunch" {% if meal_item and meal_item.meal_type == 'Lunch' %}selected{% endif %}>Lunch</option>
           <option value="Snack" {% if meal_item and meal_item.meal_type == 'Snack' %}selected{% endif %}>Snack</option>
+          <option value="AM Snack" {% if meal_item and meal_item.meal_type == 'AM Snack' %}selected{% endif %}>AM Snack</option>
+          <option value="PM Snack" {% if meal_item and meal_item.meal_type == 'PM Snack' %}selected{% endif %}>PM Snack</option>
         </select>
       </div>
 

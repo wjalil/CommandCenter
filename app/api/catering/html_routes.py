@@ -21,6 +21,7 @@ from app.auth.dependencies import get_current_admin_user
 from app.models.user import User
 from app.models.catering import (
     CateringProgram,
+    CateringProgramHoliday,
     CateringMealItem,
     CateringMonthlyMenu,
     CateringInvoice,
@@ -161,9 +162,11 @@ async def program_create(
     lunch_count = parse_optional_int(form.get("lunch_count"))
     lunch_vegan_count = int(form.get("lunch_vegan_count") or 0)
     snack_count = parse_optional_int(form.get("snack_count"))
+    am_snack_count = parse_optional_int(form.get("am_snack_count"))
+    pm_snack_count = parse_optional_int(form.get("pm_snack_count"))
 
     # Set legacy total_children from the highest meal count for backward compat
-    counts = [c for c in [breakfast_count, lunch_count, snack_count] if c is not None]
+    counts = [c for c in [breakfast_count, lunch_count, snack_count, am_snack_count, pm_snack_count] if c is not None]
     total_children = max(counts) if counts else 0
     vegan_count = lunch_vegan_count  # Use lunch vegan as the legacy fallback
 
@@ -189,6 +192,8 @@ async def program_create(
         lunch_count=lunch_count,
         lunch_vegan_count=lunch_vegan_count,
         snack_count=snack_count,
+        am_snack_count=am_snack_count,
+        pm_snack_count=pm_snack_count,
         invoice_prefix=invoice_prefix,
         service_days=service_days,
         meal_types_required=meal_types_required,
@@ -239,6 +244,8 @@ async def program_edit_form(
         "lunch_count": program.lunch_count,
         "lunch_vegan_count": program.lunch_vegan_count,
         "snack_count": program.snack_count,
+        "am_snack_count": program.am_snack_count,
+        "pm_snack_count": program.pm_snack_count,
         "invoice_prefix": program.invoice_prefix,
         "start_date": program.start_date,
         "end_date": program.end_date,
@@ -285,9 +292,11 @@ async def program_update(
     lunch_count = parse_optional_int(form.get("lunch_count"))
     lunch_vegan_count = int(form.get("lunch_vegan_count") or 0)
     snack_count = parse_optional_int(form.get("snack_count"))
+    am_snack_count = parse_optional_int(form.get("am_snack_count"))
+    pm_snack_count = parse_optional_int(form.get("pm_snack_count"))
 
     # Set legacy total_children from the highest meal count for backward compat
-    counts = [c for c in [breakfast_count, lunch_count, snack_count] if c is not None]
+    counts = [c for c in [breakfast_count, lunch_count, snack_count, am_snack_count, pm_snack_count] if c is not None]
     total_children = max(counts) if counts else 0
     vegan_count = lunch_vegan_count  # Use lunch vegan as the legacy fallback
 
@@ -313,6 +322,8 @@ async def program_update(
         lunch_count=lunch_count,
         lunch_vegan_count=lunch_vegan_count,
         snack_count=snack_count,
+        am_snack_count=am_snack_count,
+        pm_snack_count=pm_snack_count,
         invoice_prefix=invoice_prefix,
         service_days=service_days,
         meal_types_required=meal_types_required,
@@ -323,6 +334,60 @@ async def program_update(
 
     await program_crud.update_program(db, program_id, tenant_id, program_data)
     return RedirectResponse(url="/catering/programs", status_code=303)
+
+
+# ==================== PROGRAM HOLIDAYS ====================
+
+@router.post("/programs/{program_id}/holidays/toggle")
+async def toggle_program_holiday(
+    request: Request,
+    program_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Toggle a holiday date for a program (add if not present, remove if present)"""
+    import uuid as _uuid
+
+    tenant_id = request.state.tenant_id
+    form = await request.form()
+    holiday_date_str = form.get("holiday_date")
+    redirect_url = form.get("redirect_url", "/catering/programs")
+
+    if not holiday_date_str:
+        return RedirectResponse(url=redirect_url, status_code=303)
+
+    from datetime import datetime as dt
+    holiday_date = dt.strptime(holiday_date_str, "%Y-%m-%d").date()
+
+    # Verify program belongs to tenant
+    program = await program_crud.get_program(db, program_id, tenant_id)
+    if not program:
+        return RedirectResponse(url=redirect_url, status_code=303)
+
+    # Check if holiday already exists
+    existing = await db.execute(
+        select(CateringProgramHoliday).where(
+            CateringProgramHoliday.program_id == program_id,
+            CateringProgramHoliday.holiday_date == holiday_date
+        )
+    )
+    holiday = existing.scalar_one_or_none()
+
+    if holiday:
+        # Remove the holiday (mark as open again)
+        await db.delete(holiday)
+    else:
+        # Add the holiday (mark as closed)
+        new_holiday = CateringProgramHoliday(
+            id=str(_uuid.uuid4()),
+            program_id=program_id,
+            holiday_date=holiday_date,
+            description=form.get("description") or None
+        )
+        db.add(new_holiday)
+
+    await db.commit()
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 # ==================== MEAL ITEMS ====================
@@ -591,6 +656,10 @@ async def menu_create(
                     lunch_vegan_item_id=source_day.lunch_vegan_item_id,
                     snack_item_id=source_day.snack_item_id,
                     snack_vegan_item_id=source_day.snack_vegan_item_id,
+                    am_snack_item_id=source_day.am_snack_item_id,
+                    am_snack_vegan_item_id=source_day.am_snack_vegan_item_id,
+                    pm_snack_item_id=source_day.pm_snack_item_id,
+                    pm_snack_vegan_item_id=source_day.pm_snack_vegan_item_id,
                     notes=source_day.notes
                 )
                 new_day = await menu_crud.upsert_menu_day(db, monthly_menu.id, day_data)
@@ -692,11 +761,15 @@ async def menu_calendar_view(
     breakfast_items = [item for item in all_meal_items if item.meal_type == "Breakfast"]
     lunch_items = [item for item in all_meal_items if item.meal_type == "Lunch"]
     snack_items = [item for item in all_meal_items if item.meal_type == "Snack"]
+    am_snack_items = [item for item in all_meal_items if item.meal_type == "AM Snack"]
+    pm_snack_items = [item for item in all_meal_items if item.meal_type == "PM Snack"]
 
     # Filter vegan options
     breakfast_vegan_items = [item for item in breakfast_items if item.is_vegan]
     lunch_vegan_items = [item for item in lunch_items if item.is_vegan]
     snack_vegan_items = [item for item in snack_items if item.is_vegan]
+    am_snack_vegan_items = [item for item in am_snack_items if item.is_vegan]
+    pm_snack_vegan_items = [item for item in pm_snack_items if item.is_vegan]
 
     # Build calendar
     from calendar import monthcalendar, month_name, setfirstweekday, SUNDAY
@@ -709,15 +782,17 @@ async def menu_calendar_view(
     # Get existing menu days
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
 
+    # Get program holiday dates (program-closed days)
+    holiday_dates = {h.holiday_date.isoformat() for h in program.holidays} if program.holidays else set()
+
     # Helper to build component preview strings for a menu day
     def get_component_preview(menu_day):
-        """Returns dict with breakfast, lunch, snack component name strings"""
-        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        """Returns dict with meal slot component name strings"""
+        preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
         if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
             return preview
 
-        for slot in ['breakfast', 'lunch', 'snack']:
-            # Sort by sort_order and filter to non-vegan components for the preview
+        for slot in ['breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack']:
             slot_components = sorted(
                 [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
                 key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
@@ -738,14 +813,16 @@ async def menu_calendar_view(
                     'date': '',
                     'in_month': False,
                     'is_service_day': False,
+                    'is_holiday': False,
                     'menu_day': None,
-                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
                 })
             else:
                 date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)
                 date_str = date_obj.isoformat()
                 day_name = date_obj.strftime('%A')
                 is_service_day = day_name in service_days
+                is_holiday = date_str in holiday_dates
                 menu_day = menu_days_dict.get(date_str)
 
                 week_data.append({
@@ -753,6 +830,7 @@ async def menu_calendar_view(
                     'date': date_str,
                     'in_month': True,
                     'is_service_day': is_service_day,
+                    'is_holiday': is_holiday,
                     'menu_day': menu_day,
                     'component_preview': get_component_preview(menu_day)
                 })
@@ -768,6 +846,10 @@ async def menu_calendar_view(
             'lunch_vegan_item_id': day.lunch_vegan_item_id,
             'snack_item_id': day.snack_item_id,
             'snack_vegan_item_id': day.snack_vegan_item_id,
+            'am_snack_item_id': day.am_snack_item_id,
+            'am_snack_vegan_item_id': day.am_snack_vegan_item_id,
+            'pm_snack_item_id': day.pm_snack_item_id,
+            'pm_snack_vegan_item_id': day.pm_snack_vegan_item_id,
             'notes': day.notes
         }
         for day in monthly_menu.menu_days
@@ -807,22 +889,26 @@ async def menu_calendar_view(
             "lunch": [],
             "lunch_vegan": [],
             "snack": [],
-            "snack_vegan": []
+            "snack_vegan": [],
+            "am_snack": [],
+            "am_snack_vegan": [],
+            "pm_snack": [],
+            "pm_snack_vegan": []
         }
         if hasattr(day, 'components') and day.components:
-            # Sort components by sort_order before adding
             sorted_components = sorted(day.components, key=lambda c: (c.meal_slot, c.is_vegan, c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0))
             for comp in sorted_components:
                 slot_key = comp.meal_slot
                 if comp.is_vegan:
                     slot_key = f"{comp.meal_slot}_vegan"
-                menu_day_components[date_str][slot_key].append({
-                    "id": comp.id,
-                    "component_id": comp.component_id,
-                    "name": comp.food_component.name if comp.food_component else None,
-                    "type": comp.food_component.component_type.name if comp.food_component and comp.food_component.component_type else None,
-                    "sort_order": comp.sort_order if hasattr(comp, 'sort_order') else 0
-                })
+                if slot_key in menu_day_components[date_str]:
+                    menu_day_components[date_str][slot_key].append({
+                        "id": comp.id,
+                        "component_id": comp.component_id,
+                        "name": comp.food_component.name if comp.food_component else None,
+                        "type": comp.food_component.component_type.name if comp.food_component and comp.food_component.component_type else None,
+                        "sort_order": comp.sort_order if hasattr(comp, 'sort_order') else 0
+                    })
 
     return templates.TemplateResponse("catering/menu_calendar.html", {
         "request": request,
@@ -836,9 +922,14 @@ async def menu_calendar_view(
         "breakfast_items": breakfast_items,
         "lunch_items": lunch_items,
         "snack_items": snack_items,
+        "am_snack_items": am_snack_items,
+        "pm_snack_items": pm_snack_items,
         "breakfast_vegan_items": breakfast_vegan_items,
         "lunch_vegan_items": lunch_vegan_items,
         "snack_vegan_items": snack_vegan_items,
+        "am_snack_vegan_items": am_snack_vegan_items,
+        "pm_snack_vegan_items": pm_snack_vegan_items,
+        "holiday_dates": list(holiday_dates),
         "menu_days_json": menu_days_json,
         "meal_items_map": json.dumps(meal_items_map),
         "meal_items_components_map": json.dumps(meal_items_components_map),
@@ -884,11 +975,10 @@ async def menu_share_view(
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
 
     def get_component_preview(menu_day):
-        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
         if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
             return preview
-        for slot in ['breakfast', 'lunch', 'snack']:
-            # Sort by sort_order for consistent display order
+        for slot in ['breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack']:
             slot_components = sorted(
                 [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
                 key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
@@ -908,7 +998,7 @@ async def menu_share_view(
                     'in_month': False,
                     'is_service_day': False,
                     'menu_day': None,
-                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
                 })
             else:
                 date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)
@@ -983,11 +1073,10 @@ async def menu_pdf_download(
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
 
     def get_component_preview(menu_day):
-        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
         if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
             return preview
-        for slot in ['breakfast', 'lunch', 'snack']:
-            # Sort by sort_order for consistent display order
+        for slot in ['breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack']:
             slot_components = sorted(
                 [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
                 key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
@@ -1007,7 +1096,7 @@ async def menu_pdf_download(
                     'in_month': False,
                     'is_service_day': False,
                     'menu_day': None,
-                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
                 })
             else:
                 date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)
@@ -1100,6 +1189,10 @@ async def _get_menu_day_for_invoice(db: AsyncSession, menu_day_id: str):
             selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
             selectinload(CateringMenuDay.snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
             selectinload(CateringMenuDay.snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.am_snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.am_snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.pm_snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.pm_snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
         )
     )
     return result.scalar_one_or_none()

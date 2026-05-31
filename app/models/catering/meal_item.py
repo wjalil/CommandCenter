@@ -29,6 +29,10 @@ class CateringMealItem(Base):
     menu_days_lunch_vegan = relationship("CateringMenuDay", foreign_keys="CateringMenuDay.lunch_vegan_item_id", back_populates="lunch_vegan_item")
     menu_days_snack = relationship("CateringMenuDay", foreign_keys="CateringMenuDay.snack_item_id", back_populates="snack_item")
     menu_days_snack_vegan = relationship("CateringMenuDay", foreign_keys="CateringMenuDay.snack_vegan_item_id", back_populates="snack_vegan_item")
+    menu_days_am_snack = relationship("CateringMenuDay", foreign_keys="CateringMenuDay.am_snack_item_id", back_populates="am_snack_item")
+    menu_days_am_snack_vegan = relationship("CateringMenuDay", foreign_keys="CateringMenuDay.am_snack_vegan_item_id", back_populates="am_snack_vegan_item")
+    menu_days_pm_snack = relationship("CateringMenuDay", foreign_keys="CateringMenuDay.pm_snack_item_id", back_populates="pm_snack_item")
+    menu_days_pm_snack_vegan = relationship("CateringMenuDay", foreign_keys="CateringMenuDay.pm_snack_vegan_item_id", back_populates="pm_snack_vegan_item")
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "name", name="uq_meal_item_tenant_name"),

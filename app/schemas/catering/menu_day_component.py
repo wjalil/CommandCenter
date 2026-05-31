@@ -9,6 +9,8 @@ class MealSlot(str, Enum):
     breakfast = "breakfast"
     lunch = "lunch"
     snack = "snack"
+    am_snack = "am_snack"
+    pm_snack = "pm_snack"
 
 
 # ---------- Single Component Assignment ----------

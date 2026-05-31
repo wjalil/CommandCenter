@@ -9,6 +9,8 @@ class MealType(str, Enum):
     breakfast = "Breakfast"
     lunch = "Lunch"
     snack = "Snack"
+    am_snack = "AM Snack"
+    pm_snack = "PM Snack"
 
 
 # ---------- Meal Component (food items within a meal) ----------

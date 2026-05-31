@@ -25,6 +25,10 @@ class CateringInvoice(Base):
     lunch_vegan_count = Column(Integer, default=0, nullable=False)
     snack_count = Column(Integer, nullable=True)
     snack_vegan_count = Column(Integer, default=0, nullable=False)
+    am_snack_count = Column(Integer, nullable=True)
+    am_snack_vegan_count = Column(Integer, default=0, nullable=False)
+    pm_snack_count = Column(Integer, nullable=True)
+    pm_snack_vegan_count = Column(Integer, default=0, nullable=False)
 
     status = Column(String, default="draft", nullable=False)  # draft, finalized, sent
     pdf_filename = Column(String, nullable=True)

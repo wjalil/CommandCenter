@@ -102,7 +102,9 @@ def _process_menu_days_to_weeks(menu_days):
         "all": set(),
         "breakfast": set(),
         "lunch": set(),
-        "snack": set()
+        "snack": set(),
+        "am_snack": set(),
+        "pm_snack": set(),
     })
 
     for day in menu_days:
@@ -130,6 +132,8 @@ def _process_menu_days_to_weeks(menu_days):
                 "breakfast": sorted(week_data["breakfast"]),
                 "lunch": sorted(week_data["lunch"]),
                 "snack": sorted(week_data["snack"]),
+                "am_snack": sorted(week_data["am_snack"]),
+                "pm_snack": sorted(week_data["pm_snack"]),
             }
         })
 

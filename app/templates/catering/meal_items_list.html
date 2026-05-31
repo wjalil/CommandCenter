@@ -28,6 +28,12 @@
   <li class="nav-item">
     <a class="nav-link {% if meal_type_filter == 'Snack' %}active{% endif %}" href="/catering/meal-items?meal_type=Snack">Snack</a>
   </li>
+  <li class="nav-item">
+    <a class="nav-link {% if meal_type_filter == 'AM Snack' %}active{% endif %}" href="/catering/meal-items?meal_type=AM+Snack">AM Snack</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if meal_type_filter == 'PM Snack' %}active{% endif %}" href="/catering/meal-items?meal_type=PM+Snack">PM Snack</a>
+  </li>
 </ul>
 
 {% if meal_items %}

@@ -107,6 +107,12 @@
 
         <input type="radio" class="btn-check" name="mealFilter" id="filterSnack" value="snack">
         <label class="btn btn-outline-info" for="filterSnack">Snack</label>
+
+        <input type="radio" class="btn-check" name="mealFilter" id="filterAmSnack" value="am_snack">
+        <label class="btn btn-outline-info" for="filterAmSnack">AM Snack</label>
+
+        <input type="radio" class="btn-check" name="mealFilter" id="filterPmSnack" value="pm_snack">
+        <label class="btn btn-outline-info" for="filterPmSnack">PM Snack</label>
       </div>
     </div>
   </div>
@@ -125,7 +131,9 @@
                 data-all="{{ week.ingredients|length }}"
                 data-breakfast="{{ week.by_meal.breakfast|length }}"
                 data-lunch="{{ week.by_meal.lunch|length }}"
-                data-snack="{{ week.by_meal.snack|length }}">
+                data-snack="{{ week.by_meal.snack|length }}"
+                data-am-snack="{{ week.by_meal.am_snack|length }}"
+                data-pm-snack="{{ week.by_meal.pm_snack|length }}">
             {{ week.ingredients|length }} items
           </span>
         </div>
@@ -203,6 +211,42 @@
               <p class="text-muted mb-0">No snack ingredients.</p>
             {% endif %}
           </div>
+
+          <!-- AM Snack -->
+          <div class="ingredient-section" data-meal="am_snack" style="display: none;">
+            {% if week.by_meal.am_snack %}
+              <div class="row">
+                {% for ingredient in week.by_meal.am_snack %}
+                  <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
+                    <div class="form-check">
+                      <input type="checkbox" class="form-check-input ingredient-check" id="am-{{ week_idx }}-{{ loop.index }}">
+                      <label class="form-check-label ingredient-label" for="am-{{ week_idx }}-{{ loop.index }}">{{ ingredient }}</label>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-muted mb-0">No AM snack ingredients.</p>
+            {% endif %}
+          </div>
+
+          <!-- PM Snack -->
+          <div class="ingredient-section" data-meal="pm_snack" style="display: none;">
+            {% if week.by_meal.pm_snack %}
+              <div class="row">
+                {% for ingredient in week.by_meal.pm_snack %}
+                  <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
+                    <div class="form-check">
+                      <input type="checkbox" class="form-check-input ingredient-check" id="pm-{{ week_idx }}-{{ loop.index }}">
+                      <label class="form-check-label ingredient-label" for="pm-{{ week_idx }}-{{ loop.index }}">{{ ingredient }}</label>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-muted mb-0">No PM snack ingredients.</p>
+            {% endif %}
+          </div>
         </div>
       </div>
     {% endfor %}
@@ -228,13 +272,14 @@
 document.querySelectorAll('input[name="mealFilter"]').forEach(radio => {
   radio.addEventListener('change', function() {
     const meal = this.value;
+    const dataKey = meal.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
     document.querySelectorAll('.ingredient-section').forEach(section => {
       section.style.display = section.dataset.meal === meal ? 'block' : 'none';
     });
 
     document.querySelectorAll('.item-count').forEach(badge => {
-      const count = badge.dataset[meal];
+      const count = badge.dataset[dataKey] ?? badge.dataset[meal] ?? '0';
       badge.textContent = count + ' items';
     });
   });

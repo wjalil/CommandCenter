@@ -24,6 +24,8 @@ class CateringProgram(Base):
     lunch_count = Column(Integer, nullable=True)
     lunch_vegan_count = Column(Integer, default=0, nullable=False)
     snack_count = Column(Integer, nullable=True)
+    am_snack_count = Column(Integer, nullable=True)
+    pm_snack_count = Column(Integer, nullable=True)
 
     invoice_prefix = Column(String, nullable=False)  # BC, LC, etc.
     last_invoice_number = Column(Integer, default=0, nullable=False)

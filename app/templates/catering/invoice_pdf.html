@@ -316,6 +316,38 @@
           </tr>
           {% endif %}
 
+          {% set am_snack_comps = menu_day.components|selectattr('meal_slot','equalto','am_snack')|selectattr('is_vegan','equalto',false)|list %}
+          {% if am_snack_comps and invoice.am_snack_count %}
+          <tr>
+            <td class="qty-cell">{{ invoice.am_snack_count }}</td>
+            <td>
+              <span class="meal-label">AM Snack</span><br>
+              <span class="components">
+                {%- for comp in am_snack_comps|sort(attribute='sort_order') -%}
+                  {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% set pm_snack_comps = menu_day.components|selectattr('meal_slot','equalto','pm_snack')|selectattr('is_vegan','equalto',false)|list %}
+          {% if pm_snack_comps and invoice.pm_snack_count %}
+          <tr>
+            <td class="qty-cell">{{ invoice.pm_snack_count }}</td>
+            <td>
+              <span class="meal-label">PM Snack</span><br>
+              <span class="components">
+                {%- for comp in pm_snack_comps|sort(attribute='sort_order') -%}
+                  {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
+                  {%- if not loop.last %}, {% endif -%}
+                {%- endfor -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
         {% else %}
           {# ---- Pre-built meal item mode ---- #}
 
@@ -385,6 +417,42 @@
                   {%- endfor -%}
                 {%- else -%}
                   {{ menu_day.snack_item.name }}
+                {%- endif -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% if menu_day.am_snack_item and invoice.am_snack_count %}
+          <tr>
+            <td class="qty-cell">{{ invoice.am_snack_count }}</td>
+            <td>
+              <span class="meal-label">AM Snack</span><br>
+              <span class="components">
+                {%- if menu_day.am_snack_item.components -%}
+                  {%- for comp in menu_day.am_snack_item.components -%}
+                    {{ comp.food_component.name }} {{ comp.portion_oz }}oz{%- if not loop.last %}, {% endif -%}
+                  {%- endfor -%}
+                {%- else -%}
+                  {{ menu_day.am_snack_item.name }}
+                {%- endif -%}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+
+          {% if menu_day.pm_snack_item and invoice.pm_snack_count %}
+          <tr>
+            <td class="qty-cell">{{ invoice.pm_snack_count }}</td>
+            <td>
+              <span class="meal-label">PM Snack</span><br>
+              <span class="components">
+                {%- if menu_day.pm_snack_item.components -%}
+                  {%- for comp in menu_day.pm_snack_item.components -%}
+                    {{ comp.food_component.name }} {{ comp.portion_oz }}oz{%- if not loop.last %}, {% endif -%}
+                  {%- endfor -%}
+                {%- else -%}
+                  {{ menu_day.pm_snack_item.name }}
                 {%- endif -%}
               </span>
             </td>
