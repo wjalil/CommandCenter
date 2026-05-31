@@ -275,6 +275,8 @@ async def admin_timeclock_entries(
             TimeEntry.edited_by_id,
             TimeEntry.edited_at,
             TimeEntry.edit_reason,
+            TimeEntry.clock_in_lat,
+            TimeEntry.clock_in_lng,
             User.name.label("edited_by_name")
         )
         .outerjoin(User, User.id == TimeEntry.edited_by_id)
@@ -298,6 +300,8 @@ async def admin_timeclock_entries(
             "edited_by_name": r.edited_by_name,
             "edited_at": (r.edited_at.isoformat() + "Z") if r.edited_at else None,
             "edit_reason": r.edit_reason or "",
+            "clock_in_lat": float(r.clock_in_lat) if r.clock_in_lat is not None else None,
+            "clock_in_lng": float(r.clock_in_lng) if r.clock_in_lng is not None else None,
         }
         for r in rows
     ]

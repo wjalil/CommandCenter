@@ -483,7 +483,7 @@
         <div class="row g-2">
           {% for photo in job.photos %}
           <div class="col-6 position-relative">
-            <img src="/static/auto_shop_photos/{{ photo.filename }}"
+            <img src="{{ photo.filename }}"
                  class="img-fluid rounded" style="object-fit:cover; height:140px; width:100%;"
                  alt="{{ photo.original_filename }}">
             <div class="mt-1">

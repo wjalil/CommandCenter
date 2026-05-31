@@ -185,6 +185,8 @@ async def post_clock_in(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
     shift_id: Optional[str] = Form(default=None),
+    lat: Optional[float] = Form(default=None),
+    lng: Optional[float] = Form(default=None),
 ):
     if shift_id is not None and not shift_id.strip():
         shift_id = None
@@ -196,6 +198,8 @@ async def post_clock_in(
         shift_id=shift_id,
         ip=request.client.host if request.client else None,
         source="web",
+        lat=lat,
+        lng=lng,
     )
     await db.commit()
     return {"ok": True, "entry_id": e.id}

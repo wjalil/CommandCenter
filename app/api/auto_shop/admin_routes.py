@@ -15,7 +15,6 @@ from datetime import datetime, date, timedelta
 from collections import defaultdict
 import uuid
 import os
-import shutil
 
 from app.db import get_db
 from app.auth.dependencies import get_current_admin_or_office as get_current_admin_user
@@ -35,13 +34,11 @@ from app.models.auto_shop import (
     PAYMENT_METHODS,
     PAYMENT_METHOD_LABELS,
 )
-from app.core.constants import UPLOAD_PATHS
+from app.utils.spaces import put_public_object, public_url, delete_object, key_from_url, DO_SPACES_PREFIX
 from app.utils.twilio_client import send_sms
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
-
-PHOTO_DIR = UPLOAD_PATHS["auto_shop_photos"]
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -488,17 +485,15 @@ async def job_upload_photo(
         return RedirectResponse(url="/auto_shop/admin/jobs", status_code=303)
 
     ext = os.path.splitext(file.filename or "photo.jpg")[1].lower() or ".jpg"
-    safe_name = f"{uuid.uuid4()}{ext}"
-    dest = os.path.join(PHOTO_DIR, safe_name)
-
-    with open(dest, "wb") as buf:
-        shutil.copyfileobj(file.file, buf)
+    key = f"{DO_SPACES_PREFIX}/tenants/{tenant_id}/auto_shop/photos/{uuid.uuid4().hex}{ext}"
+    contents = await file.read()
+    await put_public_object(key=key, body=contents, content_type=file.content_type or "image/jpeg")
 
     photo = RepairOrderPhoto(
         id=str(uuid.uuid4()),
         repair_order_id=job.id,
-        filename=safe_name,
-        original_filename=file.filename or safe_name,
+        filename=public_url(key),
+        original_filename=file.filename or key,
         caption=caption.strip() or None,
         category=category or "intake",
         uploaded_by_id=user.id,
@@ -598,9 +593,9 @@ async def job_delete_photo(
     )
     photo = result.scalar_one_or_none()
     if photo:
-        disk_path = os.path.join(PHOTO_DIR, photo.filename)
-        if os.path.exists(disk_path):
-            os.remove(disk_path)
+        spaces_key = key_from_url(photo.filename)
+        if spaces_key:
+            await delete_object(spaces_key)
         await db.delete(photo)
         await db.commit()
 
@@ -772,9 +767,9 @@ async def job_delete(
     job = result.scalar_one_or_none()
     if job:
         for photo in job.photos:
-            disk_path = os.path.join(PHOTO_DIR, photo.filename)
-            if os.path.exists(disk_path):
-                os.remove(disk_path)
+            spaces_key = key_from_url(photo.filename)
+            if spaces_key:
+                await delete_object(spaces_key)
         await db.delete(job)
         await db.commit()
 

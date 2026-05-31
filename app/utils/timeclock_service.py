@@ -23,7 +23,7 @@ async def get_open_entry(db: AsyncSession, tenant_id: int, user_id: str):
     return res.scalars().first()
 
 
-async def clock_in(db: AsyncSession, tenant_id: int, user_id: str, shift_id=None, ip=None, source=None):
+async def clock_in(db: AsyncSession, tenant_id: int, user_id: str, shift_id=None, ip=None, source=None, lat=None, lng=None):
     # Idempotent: if already OPEN, just return it
     open_entry = await get_open_entry(db, tenant_id, user_id)
     if open_entry:
@@ -38,6 +38,8 @@ async def clock_in(db: AsyncSession, tenant_id: int, user_id: str, shift_id=None
         status=TimeStatus.OPEN,
         clock_in_ip=ip,
         clock_in_source=source or "web",
+        clock_in_lat=lat,
+        clock_in_lng=lng,
     )
 
     db.add(e)

@@ -398,6 +398,15 @@
       badges += `<span class="badge bg-secondary ms-1" title="${editInfo}">✎</span>`;
     }
 
+    // Location row (soft geofence)
+    let locationHtml = '';
+    if (e.clock_in_lat != null && e.clock_in_lng != null) {
+      const lat = e.clock_in_lat.toFixed(5);
+      const lng = e.clock_in_lng.toFixed(5);
+      const mapsUrl = `https://www.google.com/maps?q=${e.clock_in_lat},${e.clock_in_lng}`;
+      locationHtml = `<div class="mt-1 text-muted small">📍 <a href="${mapsUrl}" target="_blank" rel="noopener">${lat}, ${lng}</a></div>`;
+    }
+
     // Edit reason tooltip
     const editReasonHtml = e.edit_reason ?
       `<div class="mt-2 text-muted small"><em>Edit reason: ${escapeHtml(e.edit_reason)}</em></div>` : '';
@@ -424,6 +433,7 @@
             <div>
               <div class="fw-semibold">Clock In: ${dt(e.clock_in)} ${badges}</div>
               <div class="text-muted small">Clock Out: ${dt(e.clock_out)}</div>
+              ${locationHtml}
             </div>
             <span class="badge bg-${statusColor(e.status)} status-badge">${e.status}</span>
           </div>

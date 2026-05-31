@@ -297,12 +297,13 @@
 <!-- Header -->
 <nav class="navbar navbar-expand-lg px-3 mb-4">
   <div class="container-fluid tight d-flex justify-content-between align-items-center">
-    <span class="navbar-brand">👋 Welcome, {{ worker_name }}</span>
-    <div class="d-flex gap-2">
+    <span class="navbar-brand">👋 <span data-i18n="welcome">Welcome</span>, {{ worker_name }}</span>
+    <div class="d-flex gap-2 align-items-center">
+      <button id="langToggle" class="btn btn-outline-secondary btn-sm" style="font-size:.78rem; padding:.25rem .6rem; min-width:42px;">EN</button>
       {% if request.session.get("role") == "office_admin" %}
       <a href="/auto_shop/admin/" class="btn btn-outline-secondary btn-sm">🔧 Auto Shop</a>
       {% endif %}
-      <a href="/logout" class="btn btn-outline-danger btn-sm">🔓 Logout</a>
+      <a href="/logout" class="btn btn-outline-danger btn-sm" data-i18n="logout">🔓 Logout</a>
     </div>
   </div>
 </nav>
@@ -315,19 +316,19 @@
       <div style="position: relative; z-index: 1;">
         {% if open_entry %}
           <div class="fw-bold" style="font-size: 1.15rem; color: var(--text-primary);">
-            ✅ On the clock — started at
+            ✅ <span data-i18n="on_clock">On the clock — started at</span>
             {% set est_time = open_entry.clock_in.astimezone(pytz.timezone('America/New_York')) %}
             <span id="clockInTime">{{ est_time.strftime('%I:%M %p') }}</span>
           </div>
           <div class="clock-meta mt-1">
-            Elapsed: <span id="elapsed" data-start="{{ open_entry.clock_in.isoformat() }}Z" style="font-weight: 700; font-size: 1.05rem; color: var(--text-primary);">--:--:--</span>
-            <span class="ms-2 chip ok">Active</span>
+            <span data-i18n="elapsed">Elapsed</span>: <span id="elapsed" data-start="{{ open_entry.clock_in.isoformat() }}Z" style="font-weight: 700; font-size: 1.05rem; color: var(--text-primary);">--:--:--</span>
+            <span class="ms-2 chip ok" data-i18n="active">Active</span>
           </div>
         {% else %}
-          <div class="fw-bold" style="font-size: 1.15rem; color: var(--text-primary);">⏱ You are currently clocked out.</div>
+          <div class="fw-bold" style="font-size: 1.15rem; color: var(--text-primary);">⏱ <span data-i18n="clocked_out">You are currently clocked out.</span></div>
           <div class="clock-meta mt-1">
-            Tap "Clock In" to start your shift timer
-            <span class="ms-2 chip out">Off shift</span>
+            <span data-i18n="tap_clock_in">Tap "Clock In" to start your shift timer</span>
+            <span class="ms-2 chip out" data-i18n="off_shift">Off shift</span>
           </div>
         {% endif %}
       </div>
@@ -335,14 +336,16 @@
       <div class="d-flex gap-2" style="position: relative; z-index: 1;">
         {% if open_entry %}
           <form id="clockOutForm" method="post" action="/worker/clock-out">
-            <button class="btn btn-danger btn-lg">Clock Out</button>
+            <button class="btn btn-danger btn-lg" data-i18n="clock_out">Clock Out</button>
           </form>
         {% else %}
           <form id="clockInForm" method="post" action="/worker/clock-in">
             {% if default_shift_id %}
               <input type="hidden" name="shift_id" value="{{ default_shift_id }}" />
             {% endif %}
-            <button class="btn btn-primary btn-lg">Clock In</button>
+            <input type="hidden" name="lat" id="geoLat" value=""/>
+            <input type="hidden" name="lng" id="geoLng" value=""/>
+            <button class="btn btn-primary btn-lg" data-i18n="clock_in">Clock In</button>
           </form>
         {% endif %}
       </div>
@@ -351,7 +354,7 @@
 
   <!-- ⚡ Quick Actions -->
   <div class="d-flex align-items-center justify-content-between mb-3">
-    <h5 class="section-title m-0">Quick Actions</h5>
+    <h5 class="section-title m-0" data-i18n="quick_actions">Quick Actions</h5>
   </div>
 
   {% set em = enabled_modules or {} %}
@@ -364,8 +367,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">📋</div>
             <div class="qa-text">
-              <h5>Today's Task Board</h5>
-              <p>Check off your assigned tasks</p>
+              <h5 data-i18n="task_board">Today's Task Board</h5>
+              <p data-i18n="task_board_sub">Check off your assigned tasks</p>
             </div>
           </div>
         </div>
@@ -380,8 +383,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">🗓️</div>
             <div class="qa-text">
-              <h5>View Schedule</h5>
-              <p>See all your assigned shifts</p>
+              <h5 data-i18n="view_schedule">View Schedule</h5>
+              <p data-i18n="view_schedule_sub">See all your assigned shifts</p>
             </div>
           </div>
         </div>
@@ -395,8 +398,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">🛒</div>
             <div class="qa-text">
-              <h5>View Orders</h5>
-              <p>Check customer orders</p>
+              <h5 data-i18n="view_orders">View Orders</h5>
+              <p data-i18n="view_orders_sub">Check customer orders</p>
             </div>
           </div>
         </div>
@@ -411,8 +414,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">📦</div>
             <div class="qa-text">
-              <h5>Report Missing Items</h5>
-              <p>Open the shopping module</p>
+              <h5 data-i18n="report_missing">Report Missing Items</h5>
+              <p data-i18n="report_missing_sub">Open the shopping module</p>
             </div>
           </div>
         </div>
@@ -427,8 +430,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">📄</div>
             <div class="qa-text">
-              <h5>View Recipes</h5>
-              <p>Recipes & SOP repository</p>
+              <h5 data-i18n="view_recipes">View Recipes</h5>
+              <p data-i18n="view_recipes_sub">Recipes & SOP repository</p>
             </div>
           </div>
         </div>
@@ -442,8 +445,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">📝</div>
             <div class="qa-text">
-              <h5>Driver Log</h5>
-              <p>Submit delivery notes & photo</p>
+              <h5 data-i18n="driver_log">Driver Log</h5>
+              <p data-i18n="driver_log_sub">Submit delivery notes & photo</p>
             </div>
           </div>
         </div>
@@ -458,8 +461,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">⏱️</div>
             <div class="qa-text">
-              <h5>Time Clock History</h5>
-              <p>View your hours & pay</p>
+              <h5 data-i18n="timeclock_hist">Time Clock History</h5>
+              <p data-i18n="timeclock_hist_sub">View your hours & pay</p>
             </div>
           </div>
         </div>
@@ -473,8 +476,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">📋</div>
             <div class="qa-text">
-              <h5>Production Sheet</h5>
-              <p>Today's kitchen prep & deliveries</p>
+              <h5 data-i18n="production_sheet">Production Sheet</h5>
+              <p data-i18n="production_sheet_sub">Today's kitchen prep & deliveries</p>
             </div>
           </div>
         </div>
@@ -486,8 +489,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">🍽️</div>
             <div class="qa-text">
-              <h5>View Menus</h5>
-              <p>Program menus & PDF downloads</p>
+              <h5 data-i18n="view_menus">View Menus</h5>
+              <p data-i18n="view_menus_sub">Program menus & PDF downloads</p>
             </div>
           </div>
         </div>
@@ -502,8 +505,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico">🚛</div>
             <div class="qa-text">
-              <h5>My Delivery Routes</h5>
-              <p>View & track deliveries</p>
+              <h5 data-i18n="delivery_routes">My Delivery Routes</h5>
+              <p data-i18n="delivery_routes_sub">View & track deliveries</p>
             </div>
           </div>
         </div>
@@ -518,8 +521,8 @@
           <div class="card-body qa-body">
             <div class="qa-ico" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3);">🔧</div>
             <div class="qa-text">
-              <h5>Repair Orders</h5>
-              <p>View & update active jobs</p>
+              <h5 data-i18n="repair_orders">Repair Orders</h5>
+              <p data-i18n="repair_orders_sub">View & update active jobs</p>
             </div>
           </div>
         </div>
@@ -532,18 +535,37 @@
 </div><!-- /container -->
 
 <script>
-  // Intercept clock forms to POST via fetch and reload on success
-  function hookAjax(formId){
-    const f = document.getElementById(formId);
-    if(!f) return;
-    f.addEventListener('submit', async (e) => {
+  // ── Geofence: capture location before clock-in (soft mode) ───
+  const clockInForm = document.getElementById('clockInForm');
+  if (clockInForm) {
+    clockInForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const resp = await fetch(f.action, { method:'POST', body: new FormData(f) });
+      const doSubmit = () => {
+        fetch(clockInForm.action, { method: 'POST', body: new FormData(clockInForm) })
+          .then(r => { if (r.ok) window.location.reload(); });
+      };
+      if (!navigator.geolocation) { doSubmit(); return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          document.getElementById('geoLat').value = pos.coords.latitude.toFixed(6);
+          document.getElementById('geoLng').value = pos.coords.longitude.toFixed(6);
+          doSubmit();
+        },
+        () => doSubmit(),   // silently skip on deny/error
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+  }
+
+  // Clock-out: plain ajax
+  const clockOutForm = document.getElementById('clockOutForm');
+  if (clockOutForm) {
+    clockOutForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const resp = await fetch(clockOutForm.action, { method: 'POST', body: new FormData(clockOutForm) });
       if (resp.ok) window.location.reload();
     });
   }
-  hookAjax('clockInForm');
-  hookAjax('clockOutForm');
 
   // Live elapsed timer from ISO start
   (function(){
@@ -564,6 +586,71 @@
     tick();
     setInterval(tick, 1000);
   })();
+
+  // ── Spanish i18n ──────────────────────────────────────────────
+  const HOME_TRANSLATIONS = {
+    es: {
+      welcome:              'Bienvenido',
+      logout:               '🔓 Cerrar Sesión',
+      on_clock:             'En turno — comenzaste a las',
+      elapsed:              'Tiempo',
+      active:               'Activo',
+      clocked_out:          'Actualmente no estás en turno.',
+      tap_clock_in:         'Toca "Iniciar Turno" para comenzar',
+      off_shift:            'Fuera de turno',
+      clock_out:            'Finalizar Turno',
+      clock_in:             'Iniciar Turno',
+      quick_actions:        'Acciones Rápidas',
+      task_board:           'Tablero de Tareas',
+      task_board_sub:       'Marca tus tareas asignadas',
+      view_schedule:        'Ver Horario',
+      view_schedule_sub:    'Todos tus turnos asignados',
+      view_orders:          'Ver Pedidos',
+      view_orders_sub:      'Revisar pedidos de clientes',
+      report_missing:       'Reportar Faltantes',
+      report_missing_sub:   'Abrir módulo de compras',
+      view_recipes:         'Ver Recetas',
+      view_recipes_sub:     'Recetas y procedimientos',
+      driver_log:           'Registro de Conductor',
+      driver_log_sub:       'Enviar notas y foto de entrega',
+      timeclock_hist:       'Historial de Horas',
+      timeclock_hist_sub:   'Ver tus horas y pago',
+      production_sheet:     'Hoja de Producción',
+      production_sheet_sub: 'Preparación y entregas del día',
+      view_menus:           'Ver Menús',
+      view_menus_sub:       'Menús del programa y PDFs',
+      delivery_routes:      'Mis Rutas de Entrega',
+      delivery_routes_sub:  'Ver y rastrear entregas',
+      repair_orders:        'Órdenes de Reparación',
+      repair_orders_sub:    'Ver y actualizar trabajos activos',
+    }
+  };
+
+  function applyHomeLang(lang) {
+    const t = HOME_TRANSLATIONS[lang];
+    if (!t) return;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (t[key] !== undefined) el.textContent = t[key];
+    });
+  }
+
+  function setLang(lang) {
+    localStorage.setItem('workerLang', lang);
+    const btn = document.getElementById('langToggle');
+    btn.textContent = lang === 'es' ? 'ES' : 'EN';
+    if (lang === 'es') applyHomeLang('es');
+    else location.reload();
+  }
+
+  const savedLang = localStorage.getItem('workerLang') || 'en';
+  document.getElementById('langToggle').textContent = savedLang === 'es' ? 'ES' : 'EN';
+  if (savedLang === 'es') applyHomeLang('es');
+
+  document.getElementById('langToggle').addEventListener('click', () => {
+    const current = localStorage.getItem('workerLang') || 'en';
+    setLang(current === 'es' ? 'en' : 'es');
+  });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

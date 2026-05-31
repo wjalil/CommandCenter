@@ -80,15 +80,15 @@
 
 <!-- view toggle -->
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h5 class="section-title m-0">🔧 Repair Board</h5>
+  <h5 class="section-title m-0">🔧 <span data-i18n="repair_board">Repair Board</span></h5>
   <div class="d-flex gap-2 align-items-center">
     <a href="/auto_shop/worker/jobs?view=mine"
        class="btn btn-sm {% if view == 'mine' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-      My Jobs {% if my_count %}<span class="badge bg-white text-primary ms-1">{{ my_count }}</span>{% endif %}
+      <span data-i18n="my_jobs">My Jobs</span> {% if my_count %}<span class="badge bg-white text-primary ms-1">{{ my_count }}</span>{% endif %}
     </a>
     <a href="/auto_shop/worker/jobs?view=all"
        class="btn btn-sm {% if view == 'all' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-      All Jobs
+      <span data-i18n="all_jobs">All Jobs</span>
     </a>
   </div>
 </div>
@@ -98,7 +98,7 @@
     {% set col_jobs = jobs_by_status.get(status_key, []) %}
     <div class="kanban-col">
       <div class="kanban-col-header">
-        <span class="kanban-col-title">{{ status_labels.get(status_key, status_key) }}</span>
+        <span class="kanban-col-title" data-status-key="{{ status_key }}">{{ status_labels.get(status_key, status_key) }}</span>
         <span class="kanban-count">{{ col_jobs | length }}</span>
       </div>
 
@@ -132,10 +132,55 @@
           </a>
         {% endfor %}
       {% else %}
-        <div style="font-size:.75rem;color:#94a3b8;text-align:center;padding:.75rem 0;">Empty</div>
+        <div style="font-size:.75rem;color:#94a3b8;text-align:center;padding:.75rem 0;" data-i18n="empty">Empty</div>
       {% endif %}
     </div>
   {% endfor %}
 </div>
+
+<script>
+  const STATUS_LABELS_ES = {
+    'intake':           'Recepción',
+    'diagnosed':        'Diagnosticado',
+    'waiting_parts':    'Esperando Piezas',
+    'in_progress':      'En Progreso',
+    'ready_for_pickup': 'Listo',
+    'complete':         'Completado',
+  };
+
+  const JOBS_TRANSLATIONS = {
+    es: {
+      repair_board: 'Tablero de Reparaciones',
+      my_jobs:      'Mis Trabajos',
+      all_jobs:     'Todos los Trabajos',
+      empty:        'Vacío',
+    }
+  };
+
+  function applyJobsLang(lang) {
+    const t = JOBS_TRANSLATIONS[lang];
+    if (!t) return;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (t[key]) el.textContent = t[key];
+    });
+    if (lang === 'es') {
+      document.querySelectorAll('[data-status-key]').forEach(el => {
+        const key = el.getAttribute('data-status-key');
+        if (STATUS_LABELS_ES[key]) el.textContent = STATUS_LABELS_ES[key];
+      });
+      document.querySelectorAll('.mine-chip').forEach(el => { el.textContent = 'Asignado a mí'; });
+      document.querySelectorAll('.age-badge').forEach(el => {
+        const t = el.textContent.trim();
+        if (t === 'Today') el.textContent = 'Hoy';
+        else if (t === '1 day') el.textContent = '1 día';
+        else el.textContent = el.textContent.replace('d', 'd');
+      });
+    }
+  }
+
+  const savedLang = localStorage.getItem('workerLang') || 'en';
+  if (savedLang === 'es') applyJobsLang('es');
+</script>
 
 {% endblock %}

@@ -36,6 +36,8 @@ class TimeEntry(Base):
     clock_out_source = Column(String, nullable=True)
     clock_in_ip = Column(String, nullable=True)
     clock_out_ip = Column(String, nullable=True)
+    clock_in_lat = Column(Numeric(9, 6), nullable=True)
+    clock_in_lng = Column(Numeric(9, 6), nullable=True)
 
     # snapshot at close
     duration_minutes = Column(Integer, nullable=True)

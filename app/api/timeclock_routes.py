@@ -42,6 +42,8 @@ async def post_clock_in(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
     shift_id: Optional[str] = Form(default=None),
+    lat: Optional[float] = Form(default=None),
+    lng: Optional[float] = Form(default=None),
 ):
     e = await clock_in(
         db,
@@ -50,6 +52,8 @@ async def post_clock_in(
         shift_id,
         request.client.host if request.client else None,
         "web",
+        lat=lat,
+        lng=lng,
     )
     await db.commit()
     return {"ok": True, "entry_id": e.id}
@@ -282,6 +286,8 @@ async def admin_timeclock_entries(
             TimeEntry.gross_pay,
             TimeEntry.status,
             TimeEntry.notes,
+            TimeEntry.clock_in_lat,
+            TimeEntry.clock_in_lng,
         )
         .where(and_(*conds))
         .order_by(TimeEntry.clock_in.desc())
@@ -292,7 +298,7 @@ async def admin_timeclock_entries(
 
     # Serialize for the drawer card component (ISO with tz info if present)
     def _iso(dt):
-        return dt.isoformat() if dt else None
+        return dt.isoformat() + "Z" if dt else None
 
     data = []
     for (
@@ -304,6 +310,8 @@ async def admin_timeclock_entries(
         gross_pay,
         status_val,
         notes,
+        clock_in_lat,
+        clock_in_lng,
     ) in rows:
         data.append(
             {
@@ -315,6 +323,8 @@ async def admin_timeclock_entries(
                 "gross_pay": float(gross_pay or 0.0),
                 "status": status_val,
                 "notes": notes or "",
+                "clock_in_lat": float(clock_in_lat) if clock_in_lat is not None else None,
+                "clock_in_lng": float(clock_in_lng) if clock_in_lng is not None else None,
             }
         )
 

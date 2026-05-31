@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Request, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, Request, UploadFile, File, Form, Query, HTTPException
+from fastapi.responses import JSONResponse
+from typing import List
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +10,6 @@ from datetime import datetime, date
 from collections import defaultdict
 import uuid
 import os
-import shutil
 
 from app.db import get_db
 from app.auth.dependencies import get_current_user
@@ -21,12 +22,10 @@ from app.models.auto_shop import (
     STATUS_LABELS,
     STATUS_BADGE_COLORS,
 )
-from app.core.constants import UPLOAD_PATHS
+from app.utils.spaces import put_public_object, public_url, DO_SPACES_PREFIX
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
-
-PHOTO_DIR = UPLOAD_PATHS["auto_shop_photos"]
 
 
 def _ctx(request: Request, **kwargs) -> dict:
@@ -224,7 +223,7 @@ async def worker_add_note(
 async def worker_upload_photo(
     request: Request,
     job_id: str,
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     caption: str = Form(""),
     category: str = Form("progress"),
     db: AsyncSession = Depends(get_db),
@@ -239,24 +238,51 @@ async def worker_upload_photo(
     if not job:
         return RedirectResponse(url="/auto_shop/worker/jobs", status_code=303)
 
-    ext = os.path.splitext(file.filename or "photo.jpg")[1].lower() or ".jpg"
-    safe_name = f"{uuid.uuid4()}{ext}"
-    dest = os.path.join(PHOTO_DIR, safe_name)
+    for file in files:
+        if not file.filename:
+            continue
+        ext = os.path.splitext(file.filename)[1].lower() or ".jpg"
+        key = f"{DO_SPACES_PREFIX}/tenants/{user.tenant_id}/auto_shop/photos/{uuid.uuid4().hex}{ext}"
+        contents = await file.read()
+        await put_public_object(key=key, body=contents, content_type=file.content_type or "image/jpeg")
+        photo = RepairOrderPhoto(
+            id=str(uuid.uuid4()),
+            repair_order_id=job.id,
+            filename=public_url(key),
+            original_filename=file.filename,
+            caption=caption.strip() or None,
+            category=category or "progress",
+            uploaded_by_id=user.id,
+            tenant_id=user.tenant_id,
+        )
+        db.add(photo)
 
-    with open(dest, "wb") as buf:
-        shutil.copyfileobj(file.file, buf)
-
-    photo = RepairOrderPhoto(
-        id=str(uuid.uuid4()),
-        repair_order_id=job.id,
-        filename=safe_name,
-        original_filename=file.filename or safe_name,
-        caption=caption.strip() or None,
-        category=category or "progress",
-        uploaded_by_id=user.id,
-        tenant_id=user.tenant_id,
-    )
-    db.add(photo)
     await db.commit()
-
     return RedirectResponse(url=f"/auto_shop/worker/jobs/{job_id}", status_code=303)
+
+
+@router.post("/jobs/{job_id}/photos/{photo_id}/caption")
+async def worker_update_photo_caption(
+    job_id: str,
+    photo_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    body = await request.json()
+    caption = (body.get("caption") or "").strip()
+
+    result = await db.execute(
+        select(RepairOrderPhoto).where(
+            RepairOrderPhoto.id == photo_id,
+            RepairOrderPhoto.repair_order_id == job_id,
+            RepairOrderPhoto.tenant_id == user.tenant_id,
+        )
+    )
+    photo = result.scalar_one_or_none()
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    photo.caption = caption or None
+    await db.commit()
+    return JSONResponse({"ok": True, "caption": photo.caption or ""})
