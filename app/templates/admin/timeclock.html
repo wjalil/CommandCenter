@@ -11,8 +11,8 @@
     .kpi-card { border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.05); }
     .table th { font-weight: 600; color: #445; }
     .status-badge { font-size: .8rem; }
-    .offcanvas-lg { width: 600px; }
     .btn-preset { white-space: nowrap; }
+    #entriesContainer { min-height: 120px; }
   </style>
 </head>
 <body>
@@ -178,21 +178,26 @@
   </div>
 </div>
 
-<!-- Right-side entries drawer -->
-<div class="offcanvas offcanvas-end offcanvas-lg" tabindex="-1" id="entriesDrawer">
-  <div class="offcanvas-header flex-column align-items-start pb-2">
-    <div class="d-flex w-100 justify-content-between align-items-center">
-      <h5 class="offcanvas-title mb-0" id="drawerTitle">Entries</h5>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+<!-- Entries Modal -->
+<div class="modal fade" id="entriesDrawer" tabindex="-1" aria-labelledby="drawerTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-0" id="drawerTitle">Entries</h5>
+          <small class="text-muted" id="drawerSubtitle"></small>
+        </div>
+        <div class="d-flex align-items-center gap-2 ms-auto me-2">
+          <button type="button" class="btn btn-sm btn-success" id="createManualEntryBtn">
+            + Manual Entry
+          </button>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="entriesContainer" class="vstack gap-2"></div>
+      </div>
     </div>
-    <div class="mt-2">
-      <button type="button" class="btn btn-sm btn-success" id="createManualEntryBtn">
-        + Manual Entry
-      </button>
-    </div>
-  </div>
-  <div class="offcanvas-body">
-    <div id="entriesContainer" class="vstack gap-2"></div>
   </div>
 </div>
 
@@ -358,21 +363,22 @@
     if (resp.ok) location.reload();
   });
 
-  // Drawer logic
+  // Entries modal logic
   const drawerEl = document.getElementById('entriesDrawer');
-  const drawer = new bootstrap.Offcanvas(drawerEl);
+  const drawer = new bootstrap.Modal(drawerEl);
   document.querySelectorAll('.view-entries').forEach(btn => {
     btn.addEventListener('click', async () => {
       const userId = btn.getAttribute('data-user');
       const name = btn.getAttribute('data-name');
-      document.getElementById('drawerTitle').textContent = name ? `Entries · ${name}` : 'Entries';
-      document.getElementById('entriesContainer').innerHTML = '<div class="text-muted">Loading…</div>';
+      document.getElementById('drawerTitle').textContent = name || 'Entries';
+      document.getElementById('drawerSubtitle').textContent = `${fmtDate.format(new Date(START + 'T00:00:00Z'))} – ${fmtDate.format(new Date(END + 'T00:00:00Z'))} · All times EST`;
+      document.getElementById('entriesContainer').innerHTML = '<div class="text-muted py-3 text-center">Loading…</div>';
       drawer.show();
       const url = `/admin/timeclock/entries?user_id=${encodeURIComponent(userId)}&start=${START}&end=${END}&status=${STATUS}`;
       const resp = await fetch(url);
       const data = await resp.json();
       const list = (data.entries || []).map(e => entryCard(e)).join('');
-      document.getElementById('entriesContainer').innerHTML = list || '<div class="text-muted">No entries.</div>';
+      document.getElementById('entriesContainer').innerHTML = list || '<div class="text-muted py-3 text-center">No entries found.</div>';
     });
   });
 
@@ -482,9 +488,14 @@
 
     const resp = await fetch(`/admin/timeclock/entries/${entryId}`, { method: 'DELETE' });
     if (resp.ok) {
-      // Reload drawer data by clicking the active view button
-      const activeBtn = document.querySelector('.view-entries.btn-primary') || document.querySelector('.view-entries');
-      if (activeBtn) activeBtn.click();
+      // Refresh entries in the open modal
+      if (currentDrawerUserId) {
+        const url = `/admin/timeclock/entries?user_id=${encodeURIComponent(currentDrawerUserId)}&start=${START}&end=${END}&status=${STATUS}`;
+        const r2 = await fetch(url);
+        const d2 = await r2.json();
+        const list = (d2.entries || []).map(e => entryCard(e)).join('');
+        document.getElementById('entriesContainer').innerHTML = list || '<div class="text-muted py-3 text-center">No entries found.</div>';
+      }
     } else {
       const data = await resp.json();
       alert('Error: ' + (data.error || 'Failed to delete'));

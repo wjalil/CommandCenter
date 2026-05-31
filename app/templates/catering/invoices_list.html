@@ -8,7 +8,7 @@
 <div class="row mb-4">
   <div class="col-md-8">
     <h2>Catering Invoices</h2>
-    <p class="text-muted">Invoices organized by program</p>
+    <p class="text-muted">Invoices organized by program and month</p>
   </div>
 </div>
 
@@ -25,70 +25,105 @@
 </div>
 {% endif %}
 
-{% if programs_with_invoices %}
+{% if programs_with_months %}
 <div class="accordion" id="invoiceAccordion">
-  {% for program, invoices in programs_with_invoices %}
+  {% for program, months in programs_with_months %}
+  {% set prog_idx = loop.index %}
   <div class="accordion-item mb-3 border rounded">
-    <h2 class="accordion-header" id="heading-{{ loop.index }}">
+    <h2 class="accordion-header" id="heading-{{ prog_idx }}">
       <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
-              data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}"
-              aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="collapse-{{ loop.index }}">
+              data-bs-toggle="collapse" data-bs-target="#collapse-{{ prog_idx }}"
+              aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="collapse-{{ prog_idx }}">
         <span class="fw-bold me-2">{{ program.name }}</span>
-        <span class="badge bg-secondary me-2">{{ invoices|length }} invoice{{ 's' if invoices|length != 1 }}</span>
+        {% set total = namespace(count=0) %}
+        {% for m in months %}{% set total.count = total.count + m.invoices|length %}{% endfor %}
+        <span class="badge bg-secondary me-2">{{ total.count }} invoice{{ 's' if total.count != 1 }}</span>
+        <span class="badge bg-light text-muted border">{{ months|length }} month{{ 's' if months|length != 1 }}</span>
       </button>
     </h2>
-    <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
-         aria-labelledby="heading-{{ loop.index }}" data-bs-parent="#invoiceAccordion">
+    <div id="collapse-{{ prog_idx }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+         aria-labelledby="heading-{{ prog_idx }}" data-bs-parent="#invoiceAccordion">
       <div class="accordion-body p-0">
-        <div class="d-flex justify-content-end p-3 pb-0">
-          <a href="/catering/invoices/program/{{ program.id }}/download-all" class="btn btn-sm btn-outline-primary">
-            <i class="bi bi-file-earmark-zip"></i> Download All PDFs (.zip)
-          </a>
+
+        <!-- Month sub-accordions -->
+        <div class="accordion accordion-flush" id="monthAccordion-{{ prog_idx }}">
+          {% for month_data in months %}
+          {% set month_idx = loop.index %}
+          <div class="accordion-item">
+            <div class="accordion-header" id="mheading-{{ prog_idx }}-{{ month_idx }}">
+              <button class="accordion-button {% if not loop.first %}collapsed{% endif %} py-2 ps-4"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#mcollapse-{{ prog_idx }}-{{ month_idx }}"
+                      aria-expanded="{{ 'true' if loop.first else 'false' }}"
+                      style="background:#f8f9fa; font-size:0.85rem;">
+                <span class="fw-semibold me-2">{{ month_data.label }}</span>
+                <span class="badge bg-secondary" style="font-size:0.7em;">
+                  {{ month_data.invoices|length }} invoice{{ 's' if month_data.invoices|length != 1 }}
+                </span>
+              </button>
+            </div>
+            <div id="mcollapse-{{ prog_idx }}-{{ month_idx }}"
+                 class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+                 data-bs-parent="#monthAccordion-{{ prog_idx }}">
+              <div class="accordion-body p-0">
+                <div class="d-flex justify-content-end px-3 pt-3 pb-1">
+                  <a href="/catering/invoices/program/{{ program.id }}/download-month?month={{ month_data.month }}&year={{ month_data.year }}"
+                     class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-file-earmark-zip"></i>
+                    Download {{ month_data.label }} (.zip)
+                  </a>
+                </div>
+                <div class="table-responsive">
+                  <table class="nice-table mb-0">
+                    <thead>
+                      <tr>
+                        <th>Invoice #</th>
+                        <th>Service Date</th>
+                        <th>Meals</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for invoice in month_data.invoices %}
+                      <tr>
+                        <td><strong>{{ invoice.invoice_number }}</strong></td>
+                        <td>{{ invoice.service_date.strftime('%b %d, %Y') }}</td>
+                        <td>
+                          {{ invoice.regular_meal_count }} regular
+                          {% if invoice.vegan_meal_count > 0 %}
+                          <br><small class="text-success">+ {{ invoice.vegan_meal_count }} vegan</small>
+                          {% endif %}
+                        </td>
+                        <td>
+                          {% if invoice.status == 'draft' %}
+                          <span class="badge bg-secondary">Draft</span>
+                          {% elif invoice.status == 'finalized' %}
+                          <span class="badge bg-success">Finalized</span>
+                          {% elif invoice.status == 'sent' %}
+                          <span class="badge bg-primary">Sent</span>
+                          {% elif invoice.status == 'paid' %}
+                          <span class="badge bg-success">Paid</span>
+                          {% endif %}
+                        </td>
+                        <td>
+                          <div class="btn-group btn-group-sm">
+                            <a href="/catering/invoices/{{ invoice.id }}/view" class="btn btn-outline-primary">View</a>
+                            <a href="/catering/invoices/{{ invoice.id }}/pdf" class="btn btn-outline-secondary">PDF</a>
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
         </div>
-        <div class="table-responsive">
-          <table class="nice-table mb-0">
-            <thead>
-              <tr>
-                <th>Invoice #</th>
-                <th>Service Date</th>
-                <th>Meals</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for invoice in invoices %}
-              <tr>
-                <td><strong>{{ invoice.invoice_number }}</strong></td>
-                <td>{{ invoice.service_date.strftime('%b %d, %Y') }}</td>
-                <td>
-                  {{ invoice.regular_meal_count }} regular
-                  {% if invoice.vegan_meal_count > 0 %}
-                  <br><small class="text-success">+ {{ invoice.vegan_meal_count }} vegan</small>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if invoice.status == 'draft' %}
-                  <span class="badge bg-secondary">Draft</span>
-                  {% elif invoice.status == 'finalized' %}
-                  <span class="badge bg-success">Finalized</span>
-                  {% elif invoice.status == 'sent' %}
-                  <span class="badge bg-primary">Sent</span>
-                  {% elif invoice.status == 'paid' %}
-                  <span class="badge bg-success">Paid</span>
-                  {% endif %}
-                </td>
-                <td>
-                  <div class="btn-group btn-group-sm">
-                    <a href="/catering/invoices/{{ invoice.id }}/view" class="btn btn-outline-primary">View</a>
-                    <a href="/catering/invoices/{{ invoice.id }}/pdf" class="btn btn-outline-secondary">PDF</a>
-                  </div>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+
       </div>
     </div>
   </div>

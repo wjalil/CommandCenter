@@ -8,11 +8,13 @@ from . import invoice_routes
 from . import services_routes
 from . import html_routes
 from . import catering_weekly_ingredients
+from . import production_routes
 # Create main catering router
 router = APIRouter()
 
 # Include HTML routes (templates) FIRST so specific paths like /create are matched before /{id}
 router.include_router(html_routes.router, tags=["Catering UI"])
+router.include_router(production_routes.router, tags=["Production"])
 
 # Include API sub-routers (JSON endpoints)
 router.include_router(cacfp_routes.router, prefix="/cacfp", tags=["CACFP Reference Data"])

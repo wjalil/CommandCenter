@@ -287,8 +287,8 @@ async def admin_timeclock_entries(
     data = [
         {
             "id": r.id,
-            "clock_in": (r.clock_in.isoformat() if r.clock_in else None),
-            "clock_out": (r.clock_out.isoformat() if r.clock_out else None),
+            "clock_in": (r.clock_in.isoformat() + "Z" if r.clock_in else None),
+            "clock_out": (r.clock_out.isoformat() + "Z" if r.clock_out else None),
             "minutes": r.duration_minutes,
             "hourly_rate": float(r.hourly_rate or 0),
             "gross_pay": float(r.gross_pay or 0),
@@ -296,7 +296,7 @@ async def admin_timeclock_entries(
             "notes": r.notes or "",
             "is_manual": r.is_manual or False,
             "edited_by_name": r.edited_by_name,
-            "edited_at": r.edited_at.isoformat() if r.edited_at else None,
+            "edited_at": (r.edited_at.isoformat() + "Z") if r.edited_at else None,
             "edit_reason": r.edit_reason or "",
         }
         for r in rows

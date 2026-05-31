@@ -1220,21 +1220,31 @@ async def invoices_list(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
 ):
-    """List invoices grouped by program"""
+    """List invoices grouped by program, then by month"""
     tenant_id = request.state.tenant_id
     invoices = await invoice_crud.get_invoices(db, tenant_id)
 
-    # Group invoices by program
-    grouped = defaultdict(list)
+    # Group by program, then by (year, month)
+    by_program: dict = defaultdict(lambda: defaultdict(list))
     for inv in invoices:
-        grouped[inv.program].append(inv)
+        ym = (inv.service_date.year, inv.service_date.month)
+        by_program[inv.program][ym].append(inv)
 
-    # Sort programs alphabetically by name
-    programs_with_invoices = sorted(grouped.items(), key=lambda x: x[0].name)
+    programs_with_months = []
+    for program, months_dict in sorted(by_program.items(), key=lambda x: x[0].name):
+        months = []
+        for (year, month), month_invoices in sorted(months_dict.items(), reverse=True):
+            months.append({
+                "label": date(year, month, 1).strftime("%B %Y"),
+                "month": month,
+                "year": year,
+                "invoices": sorted(month_invoices, key=lambda i: i.service_date),
+            })
+        programs_with_months.append((program, months))
 
     return templates.TemplateResponse("catering/invoices_list.html", {
         "request": request,
-        "programs_with_invoices": programs_with_invoices,
+        "programs_with_months": programs_with_months,
     })
 
 
@@ -1342,21 +1352,29 @@ async def download_invoice_pdf(
         )
 
 
-@router.get("/invoices/program/{program_id}/download-all")
+@router.get("/invoices/program/{program_id}/download-month")
 async def download_program_invoices_zip(
     request: Request,
     program_id: str,
+    month: int,
+    year: int,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
 ):
-    """Download all invoices for a program as a zip file"""
+    """Download invoices for a program for a specific month as a zip file"""
     tenant_id = request.state.tenant_id
 
-    invoices = await invoice_crud.get_invoices(db, tenant_id, program_id=program_id)
+    all_invoices = await invoice_crud.get_invoices(db, tenant_id, program_id=program_id)
+    invoices = [
+        inv for inv in all_invoices
+        if inv.service_date.month == month and inv.service_date.year == year
+    ]
+
     if not invoices:
         return RedirectResponse(url="/catering/invoices", status_code=303)
 
     program_name = invoices[0].program.name
+    month_label = date(year, month, 1).strftime("%B_%Y")
 
     try:
         zip_buffer = io.BytesIO()
@@ -1369,7 +1387,7 @@ async def download_program_invoices_zip(
 
         zip_buffer.seek(0)
         safe_name = program_name.replace(' ', '_').replace('/', '-')
-        zip_filename = f"{safe_name}_invoices.zip"
+        zip_filename = f"{safe_name}_{month_label}_invoices.zip"
 
         return Response(
             content=zip_buffer.getvalue(),

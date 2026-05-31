@@ -5,6 +5,7 @@ from .program import CateringProgram, CateringProgramHoliday
 from .monthly_menu import CateringMonthlyMenu, CateringMenuDay
 from .invoice import CateringInvoice
 from .menu_day_component import MenuDayComponent
+from .production_log import ProductionDailyLog
 
 __all__ = [
     "CACFPAgeGroup",
@@ -19,4 +20,5 @@ __all__ = [
     "CateringMenuDay",
     "CateringInvoice",
     "MenuDayComponent",
+    "ProductionDailyLog",
 ]

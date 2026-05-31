@@ -43,6 +43,7 @@ class CateringProgram(Base):
     holidays = relationship("CateringProgramHoliday", back_populates="program", cascade="all, delete-orphan")
     monthly_menus = relationship("CateringMonthlyMenu", back_populates="program", cascade="all, delete-orphan")
     invoices = relationship("CateringInvoice", back_populates="program")
+    production_logs = relationship("ProductionDailyLog", back_populates="program", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_catering_programs_tenant", "tenant_id"),

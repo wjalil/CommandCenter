@@ -548,6 +548,9 @@
     <a href="/catering" class="nav-item">
       <i data-lucide="utensils"></i>CACFP Menu
     </a>
+    <a href="/catering/production" class="nav-item">
+      <i data-lucide="clipboard-check"></i>Production Sheet
+    </a>
     {% endif %}
     {% if enabled_modules.get("delivery", True) %}
     <a href="/delivery/admin/" class="nav-item">
@@ -674,6 +677,10 @@
         <i data-lucide="utensils"></i>
         <span class="label">Catering</span>
       </a>
+      <a href="/catering/production" class="quick-action-btn">
+        <i data-lucide="clipboard-check"></i>
+        <span class="label">Production</span>
+      </a>
       {% endif %}
       {% if enabled_modules.get("delivery", True) %}
       <a href="/delivery/admin/" class="quick-action-btn">
@@ -766,8 +773,20 @@
               </a>
             </li>
             {% endif %}
-            {% if enabled_modules.get("invoices", True) %}
-            <li><a href="/modules/fridge"><i data-lucide="receipt"></i>Invoices</a></li>
+            {% if enabled_modules.get("catering", True) %}
+            <li>
+              <a href="/catering/invoices">
+                <i data-lucide="receipt"></i>Invoices
+              </a>
+              <div class="link-meta">Generate &amp; view catering invoices</div>
+            </li>
+            <li>
+              <a href="/catering/production">
+                <i data-lucide="clipboard-check"></i>Production Sheet
+                <span class="badge badge-daily">Daily</span>
+              </a>
+              <div class="link-meta">Kitchen prep &amp; supply checks</div>
+            </li>
             {% endif %}
           </ul>
         </div>

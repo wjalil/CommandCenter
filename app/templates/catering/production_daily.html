@@ -1,0 +1,683 @@
+{% extends base_template %}
+{% block title %}Production Sheet — {{ service_date.strftime('%b %d, %Y') }}{% endblock %}
+{% block nav_title %}Production Sheet{% endblock %}
+
+{% block content %}
+{% if user.role != 'worker' %}
+{% set active = 'production' %}
+{% include "catering/_nav.html" %}
+{% endif %}
+
+<!-- Date Navigation -->
+<div class="prod-header mb-4">
+  <div>
+    <div class="prod-date-label">{{ service_date.strftime('%A') }}</div>
+    <div class="prod-date-main">{{ service_date.strftime('%B %d, %Y') }}</div>
+  </div>
+  <div class="prod-date-nav">
+    <a href="/catering/production?date_str={{ prev_date }}" class="prod-nav-btn">&#8592;</a>
+    {% if not is_today %}
+    <a href="/catering/production" class="prod-nav-btn prod-nav-today">Today</a>
+    {% endif %}
+    <a href="/catering/production?date_str={{ next_date }}" class="prod-nav-btn">&#8594;</a>
+  </div>
+</div>
+
+{% if not serving_programs %}
+<div class="prod-empty">
+  <div class="prod-empty-icon">📅</div>
+  <div class="prod-empty-text">No programs scheduled for {{ service_date.strftime('%A, %B %d') }}</div>
+</div>
+
+{% else %}
+
+<!-- Programs Today -->
+<div class="prod-chips mb-4">
+  <span class="prod-chips-label">Serving today</span>
+  {% for p in serving_programs %}
+  <span class="prod-chip">{{ p.name }}</span>
+  {% endfor %}
+</div>
+
+<div class="row g-4">
+
+  <!-- ==================== KITCHEN PREP ==================== -->
+  <div class="col-12 col-lg-6">
+    <div class="prod-card h-100">
+      <div class="prod-card-header">
+        <div class="prod-card-title">
+          <span class="prod-card-icon">🍳</span>
+          Kitchen Prep
+        </div>
+        <span class="prod-count-badge">{{ prep_components|length }} item{{ 's' if prep_components|length != 1 }}</span>
+      </div>
+      <div class="prod-card-body p-0">
+        {% if prep_components %}
+        <ul class="prod-prep-list" id="prep-list">
+          {% for comp in prep_components %}
+          {% set key = 'prep||' + comp.name %}
+          <li class="prod-prep-item prep-item"
+              data-key="{{ key }}"
+              data-check-type="prep"
+              data-reference-key="{{ comp.name }}">
+            <label class="prod-prep-label" for="prep-{{ loop.index }}">
+              <input class="prod-check-input prod-check"
+                     type="checkbox"
+                     id="prep-{{ loop.index }}"
+                     data-check-type="prep"
+                     data-reference-key="{{ comp.name }}">
+              <span class="prod-check-box"></span>
+              <span class="prod-prep-content">
+                <span class="comp-name prod-prep-name">{{ comp.name }}</span>
+                <span class="prod-prep-meta">
+                  {{ comp.total_oz }}oz
+                  {% for lbl in comp.slot_labels %}<span class="prod-slot-badge">{{ lbl }}</span>{% endfor %}
+                </span>
+              </span>
+            </label>
+            <small class="check-time prod-check-time"></small>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="prod-empty-inline">
+          No menu assigned. Assign meals in the calendar to see prep items.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PROGRAM DELIVERIES ==================== -->
+  <div class="col-12 col-lg-6">
+    <div class="d-flex flex-column gap-3">
+      {% for pd in programs_data %}
+      <div class="prod-card">
+        <div class="prod-card-header">
+          <div class="prod-card-title">
+            <span class="prod-card-icon">🚚</span>
+            {{ pd.program.name }}
+            {% if not pd.has_menu %}
+            <span class="prod-warn-badge">No menu</span>
+            {% endif %}
+          </div>
+          <span class="prod-count-badge">{{ pd.total_meals }} meals</span>
+        </div>
+        <div class="prod-card-body">
+          <div class="prod-supply-grid">
+            {% for supply in supply_types %}
+            {% set sc = pd.supply_checks[supply] %}
+            {% set supply_key = supply + '|' + pd.program.id + '|' %}
+            {% if supply == 'produce' %}
+            <div class="prod-supply-card supply-item {% if sc.checked %}is-done{% endif %}"
+                 data-key="{{ supply_key }}"
+                 data-check-type="produce"
+                 data-program-id="{{ pd.program.id }}"
+                 data-program-name="{{ pd.program.name }}"
+                 onclick="openProduceModal(this)">
+              <div class="prod-supply-emoji">&#x1F966;</div>
+              <div class="prod-supply-name">Produce</div>
+              <div class="prod-supply-status">
+                <span class="supply-badge prod-status-pill {% if sc.checked %}done{% else %}pending{% endif %}">
+                  {% if sc.checked %}✓ Done{% else %}Select{% endif %}
+                </span>
+              </div>
+              <div class="supply-items-list prod-supply-items">
+                {% if sc.selected_items %}<span>{{ sc.selected_items | join(', ') }}</span>{% endif %}
+              </div>
+              <div class="supply-check-time prod-supply-time"{% if not sc.checked %} style="display:none"{% endif %}>
+                {{ sc.checked_at.strftime('%H:%M') if sc.checked_at else '' }}
+              </div>
+              <div class="supply-last-date prod-supply-last"{% if sc.checked %} style="display:none"{% endif %}>
+                {% if sc.last_date %}
+                  Last: {{ sc.last_date.strftime('%b %d') }}{% if sc.last_items %}<br><span class="prod-last-items">{{ sc.last_items | join(', ') }}</span>{% endif %}
+                {% else %}
+                  <span class="prod-no-record">No record</span>
+                {% endif %}
+              </div>
+            </div>
+            {% else %}
+            <div class="prod-supply-card supply-item {% if sc.checked %}is-done{% endif %}"
+                 data-key="{{ supply_key }}"
+                 data-check-type="{{ supply }}"
+                 data-program-id="{{ pd.program.id }}"
+                 onclick="toggleSupply(this)">
+              <div class="prod-supply-emoji">
+                {% if supply == 'milk' %}&#x1F95B;
+                {% elif supply == 'juice' %}&#x1F9C3;
+                {% endif %}
+              </div>
+              <div class="prod-supply-name">{{ supply | capitalize }}</div>
+              <div class="prod-supply-status">
+                <span class="supply-badge prod-status-pill {% if sc.checked %}done{% else %}pending{% endif %}">
+                  {% if sc.checked %}✓ Done{% else %}Pending{% endif %}
+                </span>
+              </div>
+              <div class="supply-check-time prod-supply-time"{% if not sc.checked %} style="display:none"{% endif %}>
+                {{ sc.checked_at.strftime('%H:%M') if sc.checked_at else '' }}
+              </div>
+              <div class="supply-last-date prod-supply-last"{% if sc.checked %} style="display:none"{% endif %}>
+                {% if sc.last_date %}
+                  Last: {{ sc.last_date.strftime('%b %d') }}
+                {% else %}
+                  <span class="prod-no-record">No record</span>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endif %}
+
+<!-- Produce Selection Modal -->
+<div class="modal fade" id="produceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" style="font-size:1rem;">&#x1F966; Select Produce — <span id="produceModalProgram"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        {% if produce_items %}
+        <div id="produceCheckList">
+          {% for item in produce_items %}
+          <div class="form-check mb-2">
+            <input class="form-check-input produce-item-check" type="checkbox"
+                   id="produce-item-{{ loop.index }}"
+                   value="{{ item }}">
+            <label class="form-check-label" for="produce-item-{{ loop.index }}">{{ item }}</label>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-muted small">
+          No produce items found. Mark food components as produce in
+          <a href="/catering/food-components">Food Components</a>.
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="saveProduce(true)">Clear</button>
+        <div>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-success btn-sm ms-1" onclick="saveProduce(false)">Mark Delivered</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── Layout ─────────────────────────────────── */
+.prod-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.prod-date-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 0.1rem;
+}
+.prod-date-main {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary, #1e293b);
+}
+.prod-date-nav { display: flex; gap: 0.5rem; align-items: center; }
+.prod-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2rem;
+  height: 2.2rem;
+  padding: 0 0.7rem;
+  border-radius: 10px;
+  border: 1.5px solid rgba(148,163,184,0.35);
+  background: rgba(255,255,255,0.7);
+  color: var(--text-secondary, #64748b);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+  transition: all 0.18s;
+}
+.prod-nav-btn:hover {
+  border-color: var(--accent-purple, #8b5cf6);
+  color: var(--accent-purple, #8b5cf6);
+  background: rgba(139,92,246,0.06);
+}
+.prod-nav-today {
+  background: linear-gradient(135deg, var(--accent-purple, #8b5cf6), var(--accent-blue, #3b82f6));
+  border-color: transparent;
+  color: #fff !important;
+}
+.prod-nav-today:hover { opacity: 0.88; }
+
+/* ── Empty state ─────────────────────────────── */
+.prod-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+.prod-empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.prod-empty-text { color: var(--text-secondary, #64748b); font-size: 0.95rem; }
+
+/* ── Program chips ───────────────────────────── */
+.prod-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.prod-chips-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary, #64748b);
+}
+.prod-chip {
+  display: inline-block;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(139,92,246,0.1);
+  color: var(--accent-purple, #8b5cf6);
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid rgba(139,92,246,0.2);
+}
+
+/* ── Card ────────────────────────────────────── */
+.prod-card {
+  background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(148,163,184,0.2);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+.prod-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.125rem;
+  border-bottom: 1px solid rgba(148,163,184,0.15);
+  background: rgba(248,250,252,0.8);
+}
+.prod-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+}
+.prod-card-icon { font-size: 1.1rem; }
+.prod-card-body { padding: 0.875rem 1.125rem; }
+.prod-count-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(148,163,184,0.12);
+  color: var(--text-secondary, #64748b);
+  border: 1px solid rgba(148,163,184,0.2);
+}
+.prod-warn-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(245,158,11,0.12);
+  color: #d97706;
+  border: 1px solid rgba(245,158,11,0.25);
+}
+
+/* ── Prep list ───────────────────────────────── */
+.prod-prep-list { list-style: none; padding: 0; margin: 0; }
+.prod-prep-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.125rem;
+  border-bottom: 1px solid rgba(148,163,184,0.1);
+  transition: background 0.15s;
+}
+.prod-prep-item:last-child { border-bottom: none; }
+.prod-prep-item:hover { background: rgba(139,92,246,0.03); }
+.prod-prep-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  flex: 1;
+  margin: 0;
+}
+.prod-check-input { display: none; }
+.prod-check-box {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 7px;
+  border: 2px solid rgba(148,163,184,0.4);
+  background: rgba(255,255,255,0.9);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s;
+  position: relative;
+}
+.prod-check-box::after {
+  content: '';
+  width: 0.45rem;
+  height: 0.25rem;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) scale(0);
+  transition: transform 0.15s;
+  margin-top: -0.1rem;
+}
+.prod-check-input:checked + .prod-check-box {
+  background: linear-gradient(135deg, var(--accent-emerald, #10b981), var(--accent-teal, #14b8a6));
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+}
+.prod-check-input:checked + .prod-check-box::after { transform: rotate(-45deg) scale(1); }
+.prod-prep-content { display: flex; flex-direction: column; gap: 0.15rem; }
+.prod-prep-name { font-size: 0.875rem; font-weight: 600; color: var(--text-primary, #1e293b); transition: all 0.18s; }
+.prod-prep-meta { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--text-secondary, #64748b); }
+.prod-slot-badge {
+  display: inline-block;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(148,163,184,0.15);
+  color: var(--text-secondary, #64748b);
+  font-size: 0.68rem;
+  font-weight: 600;
+  border: 1px solid rgba(148,163,184,0.2);
+}
+.prod-check-time {
+  font-size: 0.72rem;
+  color: var(--accent-teal, #14b8a6);
+  white-space: nowrap;
+  font-weight: 500;
+}
+.prod-empty-inline {
+  padding: 1.25rem 1.125rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #64748b);
+}
+
+/* ── Prep done state ─────────────────────────── */
+.prep-item.is-done { background: rgba(16,185,129,0.04); }
+.prep-item.is-done .prod-prep-name {
+  text-decoration: line-through;
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* ── Supply grid ─────────────────────────────── */
+.prod-supply-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.625rem;
+}
+.prod-supply-card {
+  border-radius: 12px;
+  border: 1.5px solid rgba(148,163,184,0.25);
+  background: rgba(255,255,255,0.8);
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+.prod-supply-card:hover {
+  border-color: rgba(139,92,246,0.35);
+  background: rgba(139,92,246,0.04);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139,92,246,0.1);
+}
+.prod-supply-card.is-done {
+  background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(20,184,166,0.06));
+  border-color: rgba(16,185,129,0.35);
+}
+.prod-supply-emoji { font-size: 1.6rem; line-height: 1; }
+.prod-supply-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+  letter-spacing: -0.01em;
+}
+.prod-status-pill {
+  display: inline-block;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.prod-status-pill.done {
+  background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(20,184,166,0.15));
+  color: #059669;
+  border: 1px solid rgba(16,185,129,0.3);
+}
+.prod-status-pill.pending {
+  background: rgba(148,163,184,0.1);
+  color: var(--text-secondary, #64748b);
+  border: 1px solid rgba(148,163,184,0.25);
+}
+.prod-supply-time {
+  font-size: 0.7rem;
+  color: var(--accent-teal, #14b8a6);
+  font-weight: 600;
+}
+.prod-supply-last {
+  font-size: 0.68rem;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.3;
+}
+.prod-supply-items {
+  font-size: 0.68rem;
+  color: #059669;
+  line-height: 1.3;
+  font-weight: 500;
+}
+.prod-last-items { color: var(--text-secondary, #94a3b8); }
+.prod-no-record {
+  color: #d97706;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+@media (max-width: 400px) {
+  .prod-supply-emoji { font-size: 1.25rem; }
+  .prod-supply-card { padding: 0.5rem 0.3rem; }
+}
+</style>
+
+<script>
+// Move modal to <body> so it isn't trapped inside a positioned stacking context (worker_base)
+document.body.appendChild(document.getElementById('produceModal'));
+
+const SERVICE_DATE = "{{ service_date.isoformat() }}";
+const TOGGLE_URL = "/catering/production/toggle";
+const PRODUCE_SAVE_URL = "/catering/production/produce-save";
+
+let produceModal = null;
+let activeProduceCard = null;
+
+// Build initial checked state from server data
+const checkedKeys = {{ checked_keys_json | safe }};
+const checkedMap = {};
+checkedKeys.forEach(item => {
+  const key = item.check_type + '|' + item.program_id + '|' + item.reference_key;
+  checkedMap[key] = item.checked_at;
+});
+
+// Apply initial state on page load
+document.querySelectorAll('.prod-check').forEach(checkbox => {
+  const refKey = checkbox.dataset.referenceKey || '';
+  const key = 'prep||' + refKey;
+  if (checkedMap[key] !== undefined) {
+    checkbox.checked = true;
+    const li = checkbox.closest('.prep-item');
+    li.classList.add('is-done');
+    li.querySelector('.check-time').textContent = checkedMap[key];
+  }
+  checkbox.addEventListener('change', () => togglePrep(checkbox));
+});
+
+// Apply is-done CSS class to already-checked supply cards
+document.querySelectorAll('.supply-item').forEach(card => {
+  const key = card.dataset.key;
+  if (checkedMap[key] !== undefined) {
+    card.classList.add('is-done');
+  }
+});
+
+async function togglePrep(checkbox) {
+  const refKey = checkbox.dataset.referenceKey;
+  const checked = checkbox.checked;
+  const li = checkbox.closest('.prep-item');
+  const timeEl = li.querySelector('.check-time');
+
+  try {
+    const resp = await fetch(TOGGLE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        date: SERVICE_DATE,
+        check_type: 'prep',
+        reference_key: refKey,
+      })
+    });
+    const data = await resp.json();
+    checkbox.checked = data.checked;
+    if (data.checked) {
+      li.classList.add('is-done');
+      timeEl.textContent = data.checked_at;
+    } else {
+      li.classList.remove('is-done');
+      timeEl.textContent = '';
+    }
+  } catch (e) {
+    checkbox.checked = !checked;
+  }
+}
+
+async function toggleSupply(card) {
+  const checkType = card.dataset.checkType;
+  const programId = card.dataset.programId;
+  const key = card.dataset.key;
+  const badge = card.querySelector('.supply-badge');
+  const timeEl = card.querySelector('.supply-check-time');
+  const lastEl = card.querySelector('.supply-last-date');
+
+  try {
+    const resp = await fetch(TOGGLE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        date: SERVICE_DATE,
+        check_type: checkType,
+        program_id: programId,
+      })
+    });
+    const data = await resp.json();
+
+    if (data.checked) {
+      card.classList.add('is-done');
+      badge.className = 'supply-badge prod-status-pill done';
+      badge.textContent = '✓ Done';
+      if (timeEl) { timeEl.textContent = data.checked_at; timeEl.style.display = ''; }
+      if (lastEl) lastEl.style.display = 'none';
+      checkedMap[key] = data.checked_at;
+    } else {
+      card.classList.remove('is-done');
+      badge.className = 'supply-badge prod-status-pill pending';
+      badge.textContent = 'Pending';
+      if (timeEl) { timeEl.textContent = ''; timeEl.style.display = 'none'; }
+      if (lastEl) lastEl.style.display = '';
+      delete checkedMap[key];
+    }
+  } catch (e) {
+    console.error('Toggle failed', e);
+  }
+}
+
+function openProduceModal(card) {
+  activeProduceCard = card;
+  document.getElementById('produceModalProgram').textContent = card.dataset.programName;
+
+  const itemsEl = card.querySelector('.supply-items-list span');
+  const currentItems = itemsEl && itemsEl.textContent.trim()
+    ? itemsEl.textContent.trim().split(', ').map(s => s.trim())
+    : [];
+
+  document.querySelectorAll('.produce-item-check').forEach(cb => {
+    cb.checked = currentItems.includes(cb.value);
+  });
+
+  if (!produceModal) {
+    produceModal = new bootstrap.Modal(document.getElementById('produceModal'));
+  }
+  produceModal.show();
+}
+
+async function saveProduce(clear) {
+  if (!activeProduceCard) return;
+
+  const programId = activeProduceCard.dataset.programId;
+  const items = clear
+    ? []
+    : Array.from(document.querySelectorAll('.produce-item-check:checked')).map(cb => cb.value);
+
+  try {
+    const resp = await fetch(PRODUCE_SAVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ date: SERVICE_DATE, program_id: programId, items })
+    });
+    const data = await resp.json();
+
+    const badge = activeProduceCard.querySelector('.supply-badge');
+    const timeEl = activeProduceCard.querySelector('.supply-check-time');
+    const lastEl = activeProduceCard.querySelector('.supply-last-date');
+    const itemsListEl = activeProduceCard.querySelector('.supply-items-list');
+
+    if (data.checked) {
+      activeProduceCard.classList.add('is-done');
+      badge.className = 'supply-badge prod-status-pill done';
+      badge.textContent = '✓ Done';
+      if (itemsListEl) itemsListEl.innerHTML = '<span>' + data.items.join(', ') + '</span>';
+      if (timeEl) { timeEl.textContent = data.checked_at; timeEl.style.display = ''; }
+      if (lastEl) lastEl.style.display = 'none';
+    } else {
+      activeProduceCard.classList.remove('is-done');
+      badge.className = 'supply-badge prod-status-pill pending';
+      badge.textContent = 'Select';
+      if (itemsListEl) itemsListEl.innerHTML = '';
+      if (timeEl) { timeEl.textContent = ''; timeEl.style.display = 'none'; }
+      if (lastEl) lastEl.style.display = '';
+    }
+
+    produceModal.hide();
+  } catch (e) {
+    console.error('Produce save failed', e);
+  }
+}
+</script>
+
+{% endblock %}
