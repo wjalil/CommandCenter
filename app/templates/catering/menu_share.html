@@ -23,6 +23,10 @@
       --color-lunch-bg: rgba(47, 133, 90, 0.08);
       --color-snack: #6b46c1;
       --color-snack-bg: rgba(107, 70, 193, 0.08);
+      --color-am-snack: #0891b2;
+      --color-am-snack-bg: rgba(8, 145, 178, 0.08);
+      --color-pm-snack: #be185d;
+      --color-pm-snack-bg: rgba(190, 24, 93, 0.08);
       --font-display: 'Playfair Display', Georgia, serif;
       --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 
@@ -182,6 +186,10 @@
       border-bottom: none;
     }
 
+    .calendar tbody tr:nth-child(even) td:not(.empty):not(.closed) {
+      background: #f6f9ff;
+    }
+
     .calendar td.empty {
       background: repeating-linear-gradient(
         45deg,
@@ -232,7 +240,7 @@
     }
 
     .meal-card {
-      padding: 8px 12px;
+      padding: 6px 10px;
       border-radius: 6px;
       border-left: 4px solid;
     }
@@ -252,6 +260,16 @@
       background: var(--color-snack-bg);
     }
 
+    .meal-card.am-snack {
+      border-left-color: var(--color-am-snack);
+      background: var(--color-am-snack-bg);
+    }
+
+    .meal-card.pm-snack {
+      border-left-color: var(--color-pm-snack);
+      background: var(--color-pm-snack-bg);
+    }
+
     .meal-label {
       font-size: 10px;
       font-weight: 700;
@@ -263,6 +281,8 @@
     .meal-card.breakfast .meal-label { color: var(--color-breakfast); }
     .meal-card.lunch .meal-label { color: var(--color-lunch); }
     .meal-card.snack .meal-label { color: var(--color-snack); }
+    .meal-card.am-snack .meal-label { color: var(--color-am-snack); }
+    .meal-card.pm-snack .meal-label { color: var(--color-pm-snack); }
 
     .meal-items {
       font-size: 12px;
@@ -310,6 +330,47 @@
       font-style: italic;
     }
 
+    /* ============ LEGEND ============ */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 11px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .legend-dot.breakfast { background: var(--color-breakfast); }
+    .legend-dot.lunch     { background: var(--color-lunch); }
+    .legend-dot.snack     { background: var(--color-snack); }
+    .legend-dot.am-snack  { background: var(--color-am-snack); }
+    .legend-dot.pm-snack  { background: var(--color-pm-snack); }
+
+    @media print {
+      .legend {
+        margin-bottom: 6px;
+        gap: 8px 14px;
+        font-size: 8px;
+      }
+      .legend-dot {
+        width: 7px;
+        height: 7px;
+      }
+    }
+
     /* ============ HIDE WEEKEND COLUMNS ============ */
     {% if not show_sunday %}
     .col-sunday { display: none; }
@@ -349,8 +410,8 @@
       }
 
       .header {
-        margin-bottom: 8px;
-        padding-bottom: 8px;
+        margin-bottom: 5px;
+        padding-bottom: 4px;
       }
 
       .header::after {
@@ -358,12 +419,12 @@
       }
 
       .menu-title h1 {
-        font-size: 24px;
-        margin-bottom: 2px;
+        font-size: 16px;
+        margin-bottom: 1px;
       }
 
       .menu-title h2 {
-        font-size: 12px;
+        font-size: 9px;
       }
 
       .calendar-wrapper {
@@ -378,7 +439,7 @@
       }
 
       .calendar tbody td {
-        height: 88px;
+        height: 98px;
         padding: 5px;
       }
 
@@ -523,16 +584,16 @@
             {% if (day_index == 0 and not show_sunday) or (day_index == 6 and not show_saturday) %}
               {# Skip this day #}
             {% else %}
-            <td class="{% if not day.in_month %}empty{% elif not day.is_service_day %}closed{% else %}service-day{% endif %} {% if day_index == 0 %}col-sunday{% elif day_index == 6 %}col-saturday{% endif %}">
+            <td class="{% if not day.in_month %}empty{% elif not day.is_service_day or day.is_holiday %}closed{% else %}service-day{% endif %} {% if day_index == 0 %}col-sunday{% elif day_index == 6 %}col-saturday{% endif %}">
               {% if day.in_month %}
               <div class="day-header">
                 <span class="day-number">{{ day.day }}</span>
-                {% if not day.is_service_day %}
-                <span class="closed-badge">Closed</span>
+                {% if not day.is_service_day or day.is_holiday %}
+                <span class="closed-badge">{% if day.is_holiday %}Holiday{% else %}Closed{% endif %}</span>
                 {% endif %}
               </div>
 
-              {% if day.is_service_day %}
+              {% if day.is_service_day and not day.is_holiday %}
                 {% if day.menu_day %}
                   {% set has_meals = day.menu_day.breakfast_item or day.menu_day.lunch_item or day.menu_day.snack_item or day.menu_day.am_snack_item or day.menu_day.pm_snack_item %}
                   {% set has_components = day.component_preview.breakfast or day.component_preview.lunch or day.component_preview.snack or day.component_preview.am_snack or day.component_preview.pm_snack %}
@@ -579,7 +640,7 @@
                     {% endif %}
 
                     {% if 'AM Snack' in meal_types and day.menu_day.am_snack_item %}
-                    <div class="meal-card snack">
+                    <div class="meal-card am-snack">
                       <div class="meal-label">AM Snack</div>
                       <div class="meal-items">
                         {% if day.menu_day.am_snack_item.components %}
@@ -592,7 +653,7 @@
                     {% endif %}
 
                     {% if 'PM Snack' in meal_types and day.menu_day.pm_snack_item %}
-                    <div class="meal-card snack">
+                    <div class="meal-card pm-snack">
                       <div class="meal-label">PM Snack</div>
                       <div class="meal-items">
                         {% if day.menu_day.pm_snack_item.components %}
@@ -627,14 +688,14 @@
                     {% endif %}
 
                     {% if 'AM Snack' in meal_types and day.component_preview.am_snack %}
-                    <div class="meal-card snack">
+                    <div class="meal-card am-snack">
                       <div class="meal-label">AM Snack</div>
                       <div class="meal-items">{{ day.component_preview.am_snack }}</div>
                     </div>
                     {% endif %}
 
                     {% if 'PM Snack' in meal_types and day.component_preview.pm_snack %}
-                    <div class="meal-card snack">
+                    <div class="meal-card pm-snack">
                       <div class="meal-label">PM Snack</div>
                       <div class="meal-items">{{ day.component_preview.pm_snack }}</div>
                     </div>
@@ -651,6 +712,25 @@
           {% endfor %}
         </tbody>
       </table>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      {% if 'Breakfast' in meal_types %}
+      <div class="legend-item"><div class="legend-dot breakfast"></div> Breakfast</div>
+      {% endif %}
+      {% if 'Lunch' in meal_types %}
+      <div class="legend-item"><div class="legend-dot lunch"></div> Lunch</div>
+      {% endif %}
+      {% if 'Snack' in meal_types %}
+      <div class="legend-item"><div class="legend-dot snack"></div> Snack</div>
+      {% endif %}
+      {% if 'AM Snack' in meal_types %}
+      <div class="legend-item"><div class="legend-dot am-snack"></div> AM Snack</div>
+      {% endif %}
+      {% if 'PM Snack' in meal_types %}
+      <div class="legend-item"><div class="legend-dot pm-snack"></div> PM Snack</div>
+      {% endif %}
     </div>
 
     <!-- Footer -->

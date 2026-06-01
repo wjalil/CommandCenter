@@ -973,6 +973,7 @@ async def menu_share_view(
     month_weeks = monthcalendar(monthly_menu.year, monthly_menu.month)
 
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
+    holiday_dates = {h.holiday_date.isoformat() for h in program.holidays} if program.holidays else set()
 
     def get_component_preview(menu_day):
         preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
@@ -997,6 +998,7 @@ async def menu_share_view(
                     'date': '',
                     'in_month': False,
                     'is_service_day': False,
+                    'is_holiday': False,
                     'menu_day': None,
                     'component_preview': {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
                 })
@@ -1012,6 +1014,7 @@ async def menu_share_view(
                     'date': date_str,
                     'in_month': True,
                     'is_service_day': is_service_day,
+                    'is_holiday': date_str in holiday_dates,
                     'menu_day': menu_day,
                     'component_preview': get_component_preview(menu_day)
                 })
@@ -1071,6 +1074,7 @@ async def menu_pdf_download(
     month_weeks = monthcalendar(monthly_menu.year, monthly_menu.month)
 
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
+    holiday_dates = {h.holiday_date.isoformat() for h in program.holidays} if program.holidays else set()
 
     def get_component_preview(menu_day):
         preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
@@ -1095,6 +1099,7 @@ async def menu_pdf_download(
                     'date': '',
                     'in_month': False,
                     'is_service_day': False,
+                    'is_holiday': False,
                     'menu_day': None,
                     'component_preview': {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
                 })
@@ -1110,6 +1115,7 @@ async def menu_pdf_download(
                     'date': date_str,
                     'in_month': True,
                     'is_service_day': is_service_day,
+                    'is_holiday': date_str in holiday_dates,
                     'menu_day': menu_day,
                     'component_preview': get_component_preview(menu_day)
                 })
