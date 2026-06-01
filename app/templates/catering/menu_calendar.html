@@ -17,7 +17,6 @@
       <form method="POST" action="/catering/monthly-menus/{{ monthly_menu.id }}/generate-invoices" style="display: inline;">
         <button type="submit" class="btn btn-info btn-sm">Generate Invoices</button>
       </form>
-      <button type="button" class="btn btn-success btn-sm" onclick="saveAllChanges()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -613,13 +612,57 @@
   opacity: 0.3;
   cursor: not-allowed;
 }
+.save-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.save-toast.success { background: #198754; }
+.save-toast.error   { background: #dc3545; }
 </style>
 
 <script>
-// Store pending changes for pre-built meals mode
+// No longer needed — each day saves immediately
 let pendingChanges = {};
-// Store pending changes for component mode
 let pendingComponentChanges = {};
+
+let recentComponents = []; // most-recent-first, max 10
+
+function showToast(message, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `save-toast ${type}`;
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 300);
+  }, 2200);
+}
+
+function showRecentDropdown(dropdown, recents, slot) {
+  dropdown.innerHTML =
+    '<div style="padding:4px 12px 2px;font-size:0.7em;color:#6c757d;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Recent</div>' +
+    recents.map((c, idx) => `
+      <div class="component-dropdown-item${idx === 0 ? ' highlighted' : ''}"
+           data-id="${c.id}" data-index="${idx}"
+           onclick="selectDropdownItem('${slot}', ${c.id})">
+        <span class="comp-name">${c.name}</span>
+        <span class="comp-type">${c.type || ''}</span>
+      </div>
+    `).join('');
+  dropdown.classList.add('show');
+  highlightedIndex = 0;
+  currentDropdown = dropdown;
+}
 
 // Current menu days from server
 let menuDays = {{ menu_days_json|safe }};
@@ -770,7 +813,6 @@ function removeComponent(slot, componentId) {
 }
 
 function addComponent(slot, componentId) {
-  // Check if already added (convert to int for consistent comparison)
   const idToAdd = parseInt(componentId);
   if (selectedComponents[slot].some(c => parseInt(c.component_id) === idToAdd)) {
     return;
@@ -783,6 +825,12 @@ function addComponent(slot, componentId) {
       name: compData.name,
       type: compData.type
     });
+
+    // Track in recents (most-recent-first, no duplicates, max 10)
+    const existingIdx = recentComponents.findIndex(c => c.id === idToAdd);
+    if (existingIdx !== -1) recentComponents.splice(existingIdx, 1);
+    recentComponents.unshift({ id: idToAdd, name: compData.name, type: compData.type, is_vegan: compData.is_vegan || false });
+    if (recentComponents.length > 10) recentComponents.length = 10;
 
     const container = document.getElementById(`tags-${slot}`);
     if (container) {
@@ -924,12 +972,15 @@ document.addEventListener('DOMContentLoaded', function() {
       if (this.value.length >= 1) {
         const results = filterComponents(this.value, isVegan);
         showDropdown(dropdown, results, slot);
+      } else {
+        const recents = recentComponents.filter(c => !isVegan || c.is_vegan).slice(0, 6);
+        if (recents.length > 0) showRecentDropdown(dropdown, recents, slot);
       }
     });
   });
 });
 
-function saveDayComponents() {
+async function saveDayComponents() {
   const dateStr = document.getElementById('componentEditingDate').value;
   const components = [];
 
@@ -989,23 +1040,28 @@ function saveDayComponents() {
   {% endif %}
   {% endif %}
 
-  // Store in pending component changes
-  pendingComponentChanges[dateStr] = {
-    service_date: dateStr,
-    components: components,
-    replace_existing: true
-  };
-
-  // Update local state for preview
+  // Update local state for preview immediately
   updateMenuDayComponentsLocal(dateStr, components);
-
-  // Update preview
   updateComponentDayPreview(dateStr);
 
-  // Close modal
+  // Close modal immediately — don't wait for server
   bootstrap.Modal.getInstance(document.getElementById('componentEditorModal')).hide();
 
-  alert('Day saved! Click "Save Changes" button to save all changes to server.');
+  try {
+    const response = await fetch('/catering/monthly-menus/{{ monthly_menu.id }}/menu-days/components/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ menu_days: [{ service_date: dateStr, components, replace_existing: true }] })
+    });
+    if (response.ok) {
+      showToast('Saved ✓');
+    } else {
+      const error = await response.json().catch(() => ({}));
+      showToast('Save failed: ' + (error.detail || 'Unknown error'), 'error');
+    }
+  } catch (err) {
+    showToast('Save failed: ' + err.message, 'error');
+  }
 }
 
 function updateMenuDayComponentsLocal(dateStr, components) {
@@ -1129,7 +1185,7 @@ function openPrebuiltMealEditor(dateStr, dayNum) {
   new bootstrap.Modal(document.getElementById('mealEditorModal')).show();
 }
 
-function saveDayMeals() {
+async function saveDayMeals() {
   const dateStr = document.getElementById('editingDate').value;
 
   const dayData = {
@@ -1167,16 +1223,35 @@ function saveDayMeals() {
     notes: document.getElementById('notes').value || null
   };
 
-  // Store in pending changes
-  pendingChanges[dateStr] = dayData;
+  // Update local state so reopening the modal shows current values
+  const existingIdx = menuDays.findIndex(d => d.service_date === dateStr);
+  if (existingIdx >= 0) {
+    menuDays[existingIdx] = { ...menuDays[existingIdx], ...dayData };
+  } else {
+    menuDays.push(dayData);
+  }
 
-  // Update preview
+  // Update preview immediately
   updateDayPreview(dateStr, dayData);
 
-  // Close modal
+  // Close modal immediately — don't wait for server
   bootstrap.Modal.getInstance(document.getElementById('mealEditorModal')).hide();
 
-  alert('Day saved! Click "Save Changes" button to save all changes to server.');
+  try {
+    const response = await fetch('/catering/monthly-menus/{{ monthly_menu.id }}/menu-days/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ menu_days: [dayData] })
+    });
+    if (response.ok) {
+      showToast('Saved ✓');
+    } else {
+      const error = await response.json().catch(() => ({}));
+      showToast('Save failed: ' + (error.detail || 'Unknown error'), 'error');
+    }
+  } catch (err) {
+    showToast('Save failed: ' + err.message, 'error');
+  }
 }
 
 function updateDayPreview(dateStr, dayData) {
