@@ -11,12 +11,13 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import date, datetime, timedelta
+from collections import OrderedDict
 import uuid
 
 from app.db import get_db
 from app.auth.dependencies import get_current_admin_user
 from app.models.user import User
-from app.models.delivery import DeliveryStop, DeliveryRoute, DeliveryRouteStop
+from app.models.delivery import DeliveryStop, DeliveryRoute, DeliveryRouteStop, DeliveryRouteTemplate
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -51,10 +52,19 @@ async def delivery_dashboard(
     )
     routes_count = len(routes_result.scalars().all())
 
+    templates_result = await db.execute(
+        select(DeliveryRouteTemplate).where(
+            DeliveryRouteTemplate.tenant_id == tenant_id,
+            DeliveryRouteTemplate.is_active == True,
+        )
+    )
+    templates_count = len(templates_result.scalars().all())
+
     return templates.TemplateResponse("delivery/dashboard.html", {
         "request": request,
         "stops_count": stops_count,
         "routes_count": routes_count,
+        "templates_count": templates_count,
     })
 
 
@@ -169,34 +179,76 @@ async def delete_stop(
 @router.get("/routes")
 async def routes_list(
     request: Request,
-    filter_date: Optional[str] = None,
+    week_start: Optional[str] = None,   # ISO date — Monday that anchors the 4-week window
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
 ):
-    """List all delivery routes"""
+    """List delivery routes bucketed by week in a 4-week window."""
     tenant_id = request.state.tenant_id
 
-    query = select(DeliveryRoute).where(
-        DeliveryRoute.tenant_id == tenant_id
-    ).options(
-        selectinload(DeliveryRoute.assigned_driver),
-        selectinload(DeliveryRoute.route_stops).selectinload(DeliveryRouteStop.stop)
-    ).order_by(DeliveryRoute.date.desc())
+    today = date.today()
+    current_monday = today - timedelta(days=today.weekday())
 
-    if filter_date:
+    # Default window starts 1 week back so you see last week + this week + 2 upcoming
+    if week_start:
         try:
-            parsed_date = datetime.strptime(filter_date, "%Y-%m-%d").date()
-            query = query.where(DeliveryRoute.date == parsed_date)
+            anchor = datetime.strptime(week_start, "%Y-%m-%d").date()
+            # Snap to the Monday of whatever date was passed
+            window_start = anchor - timedelta(days=anchor.weekday())
         except ValueError:
-            pass
+            window_start = current_monday - timedelta(weeks=1)
+    else:
+        window_start = current_monday - timedelta(weeks=1)
+
+    window_end = window_start + timedelta(weeks=4)   # exclusive
+
+    prev_window = (window_start - timedelta(weeks=4)).isoformat()
+    next_window = (window_start + timedelta(weeks=4)).isoformat()
+
+    query = (
+        select(DeliveryRoute)
+        .where(
+            DeliveryRoute.tenant_id == tenant_id,
+            DeliveryRoute.date >= window_start,
+            DeliveryRoute.date < window_end,
+        )
+        .options(
+            selectinload(DeliveryRoute.assigned_driver),
+            selectinload(DeliveryRoute.route_stops).selectinload(DeliveryRouteStop.stop),
+        )
+        .order_by(DeliveryRoute.date.desc())
+    )
 
     result = await db.execute(query)
     routes = result.scalars().all()
 
+    # Bucket into ordered dict keyed by week label (most recent first)
+    weeks: dict = OrderedDict()
+    for route in routes:
+        monday = route.date - timedelta(days=route.date.weekday())
+        sunday = monday + timedelta(days=6)
+        key = monday.isoformat()
+        if key not in weeks:
+            label = f"{monday.strftime('%b %d')} – {sunday.strftime('%b %d, %Y')}"
+            is_current = (monday == current_monday)
+            is_future = (monday > current_monday)
+            weeks[key] = {
+                "label": label,
+                "monday": monday,
+                "is_current": is_current,
+                "is_future": is_future,
+                "routes": [],
+            }
+        weeks[key]["routes"].append(route)
+
     return templates.TemplateResponse("delivery/routes_list.html", {
         "request": request,
-        "routes": routes,
-        "filter_date": filter_date or "",
+        "weeks": weeks,
+        "window_start": window_start,
+        "window_end": window_end - timedelta(days=1),
+        "prev_window": prev_window,
+        "next_window": next_window,
+        "is_default_window": (window_start == current_monday - timedelta(weeks=1)),
     })
 
 

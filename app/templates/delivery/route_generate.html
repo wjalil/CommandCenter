@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Generate Routes{% endblock %}
+
+{% block content %}
+{% set active = 'templates' %}
+{% include "delivery/_nav.html" %}
+
+<div class="row mb-4 align-items-center">
+  <div class="col">
+    <h2>Generate Routes</h2>
+    <p class="text-muted">Review this week's schedule and generate daily routes from templates.</p>
+  </div>
+  <div class="col-auto">
+    <div class="d-flex align-items-center gap-2">
+      <a href="/delivery/admin/routes/generate?week_date={{ prev_week }}" class="btn btn-outline-secondary btn-sm">‹ Prev</a>
+      <form method="GET" action="/delivery/admin/routes/generate" class="d-flex gap-1">
+        <input type="date" name="week_date" value="{{ week_date }}" class="form-control form-control-sm" style="width:150px;">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Go</button>
+      </form>
+      <a href="/delivery/admin/routes/generate?week_date={{ next_week }}" class="btn btn-outline-secondary btn-sm">Next ›</a>
+    </div>
+  </div>
+</div>
+
+<!-- Week header -->
+<div class="week-header mb-3">
+  <strong>Week of {{ week[0].strftime('%B %d') }} – {{ week[6].strftime('%B %d, %Y') }}</strong>
+</div>
+
+{% if not schedule %}
+<div class="alert alert-info">
+  <h5>No active templates found.</h5>
+  <p>Create a route template first, then come back here to generate routes.</p>
+  <a href="/delivery/admin/templates/create" class="btn btn-primary btn-sm">+ New Template</a>
+</div>
+{% else %}
+
+<form method="POST" action="/delivery/admin/routes/generate">
+  <input type="hidden" name="week_date" value="{{ week_date }}">
+
+  {% for item in schedule %}
+  {% set tmpl = item.template %}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>{{ tmpl.name }}</strong>
+      <small class="text-muted">{{ tmpl.template_stops|length }} stops</small>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-borderless mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:36px;"></th>
+              {% for d in week %}
+              <th class="text-center day-col {% if item.days[loop.index0].template_day %}scheduled{% endif %}">
+                <div class="day-name">{{ d.strftime('%a') }}</div>
+                <div class="day-date">{{ d.strftime('%b %d') }}</div>
+              </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Driver row -->
+            <tr class="driver-row">
+              <td class="row-label text-muted">Driver</td>
+              {% for day_item in item.days %}
+              <td class="text-center">
+                {% if day_item.template_day %}
+                  <small class="fw-semibold">{{ day_item.template_day.driver.name if day_item.template_day.driver else '—' }}</small>
+                {% else %}
+                  <small class="text-muted">—</small>
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+
+            <!-- Generate checkbox row -->
+            <tr class="generate-row">
+              <td class="row-label text-muted">Generate</td>
+              {% for day_item in item.days %}
+              <td class="text-center">
+                {% if day_item.template_day %}
+                  {% if day_item.already_exists %}
+                    <span class="badge bg-success" title="Route already exists">✓ Done</span>
+                  {% else %}
+                    <input type="checkbox"
+                           class="form-check-input generate-cb"
+                           name="generate_{{ tmpl.id }}_{{ day_item.date.isoformat() }}"
+                           id="gen_{{ tmpl.id }}_{{ day_item.date.isoformat() }}"
+                           checked
+                           data-template="{{ tmpl.id }}"
+                           data-date="{{ day_item.date.isoformat() }}">
+                  {% endif %}
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+
+            <!-- Stop rows with per-day checkboxes -->
+            {% for ts in tmpl.template_stops %}
+            <tr class="stop-row">
+              <td class="row-label">
+                <small>{{ loop.index }}. {{ ts.stop.name }}</small>
+              </td>
+              {% for day_item in item.days %}
+              <td class="text-center">
+                {% if day_item.template_day and not day_item.already_exists %}
+                <input type="checkbox"
+                       class="form-check-input stop-cb"
+                       name="stops_{{ tmpl.id }}_{{ day_item.date.isoformat() }}[]"
+                       value="{{ ts.stop.id }}"
+                       data-template="{{ tmpl.id }}"
+                       data-date="{{ day_item.date.isoformat() }}"
+                       checked>
+                {% elif day_item.template_day and day_item.already_exists %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="d-flex gap-2 mt-2 mb-5">
+    <a href="/delivery/admin/templates" class="btn btn-outline-secondary">Cancel</a>
+    <button type="submit" class="btn btn-success px-4">⚡ Generate Selected Routes</button>
+  </div>
+</form>
+{% endif %}
+
+<style>
+  .week-header {
+    font-size: 1rem;
+    color: #334155;
+  }
+  .day-col {
+    min-width: 90px;
+  }
+  .day-col.scheduled {
+    background: rgba(20,184,166,0.05);
+  }
+  .day-name {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #334155;
+  }
+  .day-date {
+    font-size: 0.72rem;
+    color: #94a3b8;
+  }
+  .row-label {
+    font-size: 0.78rem;
+    padding-left: 1rem;
+    white-space: nowrap;
+    min-width: 130px;
+    vertical-align: middle;
+  }
+  .driver-row td, .generate-row td, .stop-row td {
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+  .driver-row {
+    background: #fafafa;
+  }
+  .generate-row {
+    background: #fff9f0;
+  }
+  .stop-row:last-child td {
+    border-bottom: none;
+  }
+</style>
+
+<script>
+  // When a day's generate checkbox is unchecked, uncheck + disable all its stop checkboxes
+  document.querySelectorAll('.generate-cb').forEach(cb => {
+    cb.addEventListener('change', function () {
+      const tmpl = this.dataset.template;
+      const dt = this.dataset.date;
+      document.querySelectorAll(`.stop-cb[data-template="${tmpl}"][data-date="${dt}"]`).forEach(sc => {
+        sc.checked = this.checked;
+        sc.disabled = !this.checked;
+      });
+    });
+  });
+</script>
+{% endblock %}

@@ -17,6 +17,7 @@ from app.db import get_db
 from app.auth.dependencies import get_current_user
 from app.models.timeclock import TimeEntry, TimeStatus
 from app.models.user import User
+from app.models.delivery.route import DeliveryRoute
 from app.utils.timeclock_service import autoclose_stale_entries, get_open_entry
 
 log = logging.getLogger(__name__)
@@ -201,6 +202,36 @@ async def admin_timeclock_view(
 
     per_user = (await db.execute(per_user_q)).all()
 
+    # --- Route pay per driver in the same date range (completed routes only) ---
+    route_pay_q = (
+        select(
+            DeliveryRoute.assigned_driver_id.label("user_id"),
+            func.coalesce(func.sum(DeliveryRoute.driver_pay_rate), 0).label("route_pay"),
+            func.count(DeliveryRoute.id).label("route_count"),
+        )
+        .where(
+            DeliveryRoute.tenant_id == user.tenant_id,
+            DeliveryRoute.date >= s_date,
+            DeliveryRoute.date < e_date,
+            DeliveryRoute.assigned_driver_id.isnot(None),
+            DeliveryRoute.driver_pay_rate.isnot(None),
+            DeliveryRoute.status == "completed",
+        )
+        .group_by(DeliveryRoute.assigned_driver_id)
+    )
+    if q_user:
+        route_pay_q = route_pay_q.where(DeliveryRoute.assigned_driver_id == q_user)
+
+    route_pay_rows = (await db.execute(route_pay_q)).all()
+    route_pay_map = {
+        r.user_id: {"route_pay": float(r.route_pay), "route_count": int(r.route_count)}
+        for r in route_pay_rows
+    }
+
+    # KPI: add route pay into gross total
+    total_route_pay = sum(v["route_pay"] for v in route_pay_map.values())
+    gross_total_combined = gross_total + total_route_pay
+
     # For user filter dropdown
     users_q = select(User.id, User.name).where(User.tenant_id == user.tenant_id).order_by(func.lower(User.name))
     users = (await db.execute(users_q)).all()
@@ -214,11 +245,12 @@ async def admin_timeclock_view(
         "users": users,
 
         "kpi_total_hours": total_hours,
-        "kpi_gross_total": f"{gross_total:,.2f}",
+        "kpi_gross_total": f"{gross_total_combined:,.2f}",
         "kpi_unpaid_total": f"{unpaid_total:,.2f}",
         "kpi_open_count": open_count,
 
         "rows": per_user,
+        "route_pay_map": route_pay_map,
     }
     return templates.TemplateResponse("admin/timeclock.html", ctx)
 

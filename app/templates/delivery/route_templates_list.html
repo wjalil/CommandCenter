@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Route Templates{% endblock %}
+
+{% block content %}
+{% set active = 'templates' %}
+{% include "delivery/_nav.html" %}
+
+<div class="row mb-4">
+  <div class="col-md-6">
+    <h2>Route Templates</h2>
+    <p class="text-muted">Persistent routes that generate daily instances</p>
+  </div>
+  <div class="col-md-6 text-end d-flex gap-2 justify-content-end">
+    <a href="/delivery/admin/routes/generate" class="btn btn-success">⚡ Generate Routes</a>
+    <a href="/delivery/admin/templates/create" class="btn btn-primary">+ New Template</a>
+  </div>
+</div>
+
+{% if route_templates %}
+<div class="row g-3">
+  {% for tmpl in route_templates %}
+  <div class="col-12">
+    <div class="card {% if not tmpl.is_active %}opacity-50{% endif %}">
+      <div class="card-body">
+        <div class="row align-items-start">
+
+          <!-- Name + description -->
+          <div class="col-md-3">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <strong class="fs-6">{{ tmpl.name }}</strong>
+              {% if not tmpl.is_active %}
+              <span class="badge bg-secondary">Inactive</span>
+              {% endif %}
+            </div>
+            {% if tmpl.description %}
+            <small class="text-muted">{{ tmpl.description }}</small>
+            {% endif %}
+            <div class="mt-2">
+              <small class="text-muted">{{ tmpl.template_stops|length }} stop{% if tmpl.template_stops|length != 1 %}s{% endif %}</small>
+            </div>
+          </div>
+
+          <!-- Day schedule grid -->
+          <div class="col-md-6">
+            <div class="d-flex gap-1 flex-wrap">
+              {% set day_map = {} %}
+              {% for td in tmpl.template_days %}
+                {% if day_map.update({td.day_of_week: td}) %}{% endif %}
+              {% endfor %}
+              {% for i in range(7) %}
+              {% set td = day_map.get(i) %}
+              <div class="day-chip {% if td %}active{% endif %}">
+                <div class="day-label">{{ day_names[i][:3] }}</div>
+                {% if td %}
+                <div class="day-driver">{{ td.driver.name if td.driver else '—' }}</div>
+                {% else %}
+                <div class="day-driver text-muted">off</div>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Stops preview -->
+          <div class="col-md-2">
+            <small class="text-muted">
+              {% for ts in tmpl.template_stops[:3] %}
+              <div>{{ loop.index }}. {{ ts.stop.name }}</div>
+              {% endfor %}
+              {% if tmpl.template_stops|length > 3 %}
+              <div class="text-muted">+{{ tmpl.template_stops|length - 3 }} more</div>
+              {% endif %}
+            </small>
+          </div>
+
+          <!-- Actions -->
+          <div class="col-md-1 text-end">
+            <div class="d-flex flex-column gap-1">
+              <a href="/delivery/admin/templates/{{ tmpl.id }}/edit" class="btn btn-sm btn-outline-primary">Edit</a>
+              <form action="/delivery/admin/templates/{{ tmpl.id }}/delete" method="POST"
+                    onsubmit="return confirm('Delete template {{ tmpl.name }}? This will not affect already-generated routes.')">
+                <button class="btn btn-sm btn-outline-danger w-100">Delete</button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="alert alert-info">
+  <h5>No Route Templates Yet</h5>
+  <p>Create a template to define a persistent route with a weekly schedule. Then use <strong>Generate Routes</strong> to create daily instances from it.</p>
+  <a href="/delivery/admin/templates/create" class="btn btn-primary">+ Create First Template</a>
+</div>
+{% endif %}
+
+<style>
+  .day-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 68px;
+    padding: 0.4rem 0.3rem;
+    border-radius: 8px;
+    border: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+    font-size: 0.72rem;
+  }
+  .day-chip.active {
+    border-color: #14b8a6;
+    background: rgba(20,184,166,0.07);
+  }
+  .day-label {
+    font-weight: 700;
+    color: #475569;
+    font-size: 0.75rem;
+    margin-bottom: 2px;
+  }
+  .day-chip.active .day-label {
+    color: #0d9488;
+  }
+  .day-driver {
+    font-size: 0.68rem;
+    color: #64748b;
+    text-align: center;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 64px;
+  }
+  .day-chip.active .day-driver {
+    color: #0f766e;
+    font-weight: 600;
+  }
+</style>
+{% endblock %}

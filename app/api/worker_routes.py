@@ -171,6 +171,7 @@ async def worker_home(
 
     ctx = {
         "request": request,
+        "user": user,
         "worker_name": getattr(user, "name", "Worker"),
         "open_entry": open_entry,
         "pytz": pytz,

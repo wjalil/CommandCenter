@@ -5,129 +5,185 @@
 {% set active = 'routes' %}
 {% include "delivery/_nav.html" %}
 
-<div class="row mb-4">
-  <div class="col-md-6">
-    <h2>Delivery Routes</h2>
-    <p class="text-muted">Manage daily delivery routes</p>
+<div class="row mb-4 align-items-center">
+  <div class="col">
+    <h2>Daily Routes</h2>
+    <p class="text-muted mb-0">
+      {{ window_start.strftime('%b %d') }} – {{ window_end.strftime('%b %d, %Y') }}
+    </p>
   </div>
-  <div class="col-md-6 text-end">
-    <a href="/delivery/admin/routes/create" class="btn btn-primary">+ Create Route</a>
-  </div>
-</div>
-
-<!-- Date Filter -->
-<div class="row mb-3">
-  <div class="col-md-4">
-    <form method="GET" class="d-flex gap-2">
-      <input type="date" name="filter_date" class="form-control" value="{{ filter_date }}">
-      <button type="submit" class="btn btn-outline-secondary">Filter</button>
-      {% if filter_date %}
-      <a href="/delivery/admin/routes" class="btn btn-outline-secondary">Clear</a>
-      {% endif %}
-    </form>
+  <div class="col-auto d-flex gap-2 flex-wrap">
+    <a href="/delivery/admin/routes?week_start={{ prev_window }}" class="btn btn-outline-secondary btn-sm">‹ Prev 4 wks</a>
+    <a href="/delivery/admin/routes?week_start={{ next_window }}" class="btn btn-outline-secondary btn-sm">Next 4 wks ›</a>
+    {% if not is_default_window %}
+    <a href="/delivery/admin/routes" class="btn btn-outline-primary btn-sm">Current</a>
+    {% endif %}
+    <a href="/delivery/admin/routes/create" class="btn btn-primary btn-sm">+ New Route</a>
   </div>
 </div>
 
-{% if routes %}
-<table class="nice-table">
-  <thead>
-    <tr>
-      <th>Date</th>
-      <th>Name</th>
-      <th>Driver</th>
-      <th>Stops</th>
-      <th>Status</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for route in routes %}
-    <tr>
-      <td>
-        <strong>{{ route.date.strftime('%a, %b %d') }}</strong><br>
-        <small class="text-muted">{{ route.date.strftime('%Y') }}</small>
-      </td>
-      <td>{{ route.name }}</td>
-      <td>
-        {% if route.assigned_driver %}
-        {{ route.assigned_driver.name }}
-        {% else %}
-        <span class="text-muted">Unassigned</span>
-        {% endif %}
-      </td>
-      <td>
-        {{ route.route_stops|length }} stop{% if route.route_stops|length != 1 %}s{% endif %}
-        {% if route.route_stops %}
-        <br><small class="text-muted">
-          {% for rs in route.route_stops[:2] %}{{ rs.stop.name }}{% if not loop.last %}, {% endif %}{% endfor %}
-          {% if route.route_stops|length > 2 %}...{% endif %}
-        </small>
-        {% endif %}
-      </td>
-      <td>
-        {% if route.status == 'draft' %}
-        <span class="badge bg-secondary">Draft</span>
-        {% elif route.status == 'assigned' %}
-        <span class="badge bg-info">Assigned</span>
-        {% elif route.status == 'in_progress' %}
-        <span class="badge bg-warning">In Progress</span>
-        {% elif route.status == 'completed' %}
-        <span class="badge bg-success">Completed</span>
-        {% else %}
-        <span class="badge bg-secondary">{{ route.status }}</span>
-        {% endif %}
-      </td>
-      <td>
-        <div class="btn-group btn-group-sm">
-          <a href="/delivery/admin/routes/{{ route.id }}/edit" class="btn btn-outline-primary">Edit</a>
-          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#duplicateModal{{ route.id }}">
-            Duplicate
-          </button>
-          <form action="/delivery/admin/routes/{{ route.id }}/delete" method="POST" style="display:inline;">
-            <button type="submit" class="btn btn-outline-danger btn-sm"
-                    onclick="return confirm('Delete this route?')">Delete</button>
-          </form>
-        </div>
-      </td>
-    </tr>
-
-    <!-- Duplicate Modal -->
-    <div class="modal fade" id="duplicateModal{{ route.id }}" tabindex="-1">
-      <div class="modal-dialog modal-sm">
-        <div class="modal-content">
-          <form action="/delivery/admin/routes/{{ route.id }}/duplicate" method="POST">
-            <div class="modal-header">
-              <h5 class="modal-title">Duplicate Route</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-              <p>Create a copy of <strong>{{ route.name }}</strong> for a new date:</p>
-              <div class="mb-3">
-                <label class="form-label">New Date</label>
-                <input type="date" name="new_date" class="form-control" required>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-primary">Duplicate</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
+{% if not weeks %}
 <div class="alert alert-info">
-  <h5>No Routes Found</h5>
-  {% if filter_date %}
-  <p>No routes found for the selected date.</p>
-  <a href="/delivery/admin/routes" class="btn btn-outline-secondary me-2">Show All</a>
-  {% else %}
-  <p>Create your first delivery route to get started.</p>
-  {% endif %}
-  <a href="/delivery/admin/routes/create" class="btn btn-primary">+ Create Route</a>
+  <h5 class="mb-1">No routes this period</h5>
+  <p class="mb-2">No routes found for {{ window_start.strftime('%b %d') }} – {{ window_end.strftime('%b %d, %Y') }}.</p>
+  <a href="/delivery/admin/templates/generate" class="btn btn-success btn-sm me-2">⚡ Generate from Templates</a>
+  <a href="/delivery/admin/routes/create" class="btn btn-outline-secondary btn-sm">+ Manual Route</a>
 </div>
 {% endif %}
+
+{% for key, week in weeks.items() %}
+<div class="week-section mb-4">
+
+  <!-- Week header -->
+  <div class="week-header d-flex align-items-center justify-content-between mb-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="week-label">{{ week.label }}</span>
+      {% if week.is_current %}
+      <span class="badge bg-primary">This Week</span>
+      {% elif week.is_future %}
+      <span class="badge bg-teal" style="background:#0d9488!important;">Upcoming</span>
+      {% endif %}
+      <span class="badge bg-light text-secondary border">{{ week.routes|length }} route{% if week.routes|length != 1 %}s{% endif %}</span>
+      {% set completed = week.routes|selectattr("status","eq","completed")|list|length %}
+      {% if completed > 0 %}
+      <span class="badge bg-success">{{ completed }} completed</span>
+      {% endif %}
+    </div>
+    <button class="toggle-btn" data-target="week-body-{{ loop.index }}">▲</button>
+  </div>
+
+  <!-- Routes table -->
+  <div id="week-body-{{ loop.index }}" class="week-body">
+    <table class="nice-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Route</th>
+          <th>Driver</th>
+          <th>Stops</th>
+          <th>Status</th>
+          <th style="width:170px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for route in week.routes %}
+        <tr>
+          <td>
+            <strong>{{ route.date.strftime('%a') }}</strong>
+            <span class="text-muted"> {{ route.date.strftime('%b %d') }}</span>
+          </td>
+          <td>
+            {{ route.name }}
+            {% if route.template_id %}
+            <span class="badge bg-light text-muted border ms-1" style="font-size:.65rem;">template</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if route.assigned_driver %}
+              {{ route.assigned_driver.name }}
+              {% if route.driver_pay_rate %}
+              <span class="text-muted small"> · ${{ '%.2f'|format(route.driver_pay_rate|float) }}</span>
+              {% endif %}
+            {% else %}
+              <span class="text-muted">Unassigned</span>
+            {% endif %}
+          </td>
+          <td>
+            {% set total = route.route_stops|length %}
+            {% set done = route.route_stops|selectattr("status","in",["completed","skipped"])|list|length %}
+            {{ total }}
+            {% if total > 0 and route.status == 'in_progress' %}
+            <span class="text-muted small">({{ done }}/{{ total }})</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if route.status == 'draft' %}
+            <span class="badge bg-secondary">Draft</span>
+            {% elif route.status == 'assigned' %}
+            <span class="badge bg-info text-dark">Assigned</span>
+            {% elif route.status == 'in_progress' %}
+            <span class="badge bg-warning text-dark">In Progress</span>
+            {% elif route.status == 'completed' %}
+            <span class="badge bg-success">Completed</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <a href="/delivery/admin/routes/{{ route.id }}/edit" class="btn btn-outline-primary">Edit</a>
+              <button class="btn btn-outline-secondary" data-bs-toggle="modal"
+                      data-bs-target="#dupModal{{ route.id }}">Dup</button>
+              <form action="/delivery/admin/routes/{{ route.id }}/delete" method="POST" style="display:inline;">
+                <button class="btn btn-outline-danger"
+                        onclick="return confirm('Delete this route?')">✕</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- Duplicate modals outside the table -->
+{% for route in week.routes %}
+<div class="modal fade" id="dupModal{{ route.id }}" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <form action="/delivery/admin/routes/{{ route.id }}/duplicate" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title">Duplicate Route</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small">Copy <strong>{{ route.name }}</strong> to:</p>
+          <input type="date" name="new_date" class="form-control" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Duplicate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% endfor %}
+
+<style>
+  .week-header {
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 0.5rem;
+  }
+  .week-label {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #1e293b;
+  }
+  .toggle-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+  .toggle-btn:hover { background: #f1f5f9; }
+  .week-body.collapsed { display: none; }
+  .week-body { margin-top: 0.5rem; }
+</style>
+
+<script>
+  document.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const body = document.getElementById(btn.dataset.target);
+      const collapsed = body.classList.toggle('collapsed');
+      btn.textContent = collapsed ? '▼' : '▲';
+    });
+  });
+</script>
 {% endblock %}

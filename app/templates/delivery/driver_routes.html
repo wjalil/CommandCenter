@@ -1,69 +1,149 @@
 {% extends "worker_base.html" %}
 {% block title %}My Delivery Routes{% endblock %}
-{% block nav_title %}My Routes{% endblock %}
+{% block nav_title %}🚛 My Routes{% endblock %}
+
+{% block extra_css %}
+  .route-card {
+    background: rgba(255,255,255,0.9);
+    border: 1px solid rgba(148,163,184,0.2);
+    border-radius: 16px;
+    padding: 1.1rem 1.25rem;
+    text-decoration: none;
+    display: block;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+  }
+  .route-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--accent-teal);
+  }
+  .route-card.in-progress::before { background: var(--accent-amber); }
+  .route-card.completed::before   { background: var(--accent-emerald); }
+  .route-card.upcoming::before    { background: #cbd5e1; }
+  .route-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.09);
+    color: var(--text-primary);
+  }
+
+  .route-name  { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.2rem; }
+  .route-meta  { font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem; }
+  .route-badge {
+    padding: 0.2rem 0.65rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+  .badge-ready    { background: rgba(20,184,166,0.1);  color: #0d9488;  border: 1px solid rgba(20,184,166,0.25); }
+  .badge-progress { background: rgba(245,158,11,0.1);  color: #b45309;  border: 1px solid rgba(245,158,11,0.25); }
+  .badge-done     { background: rgba(16,185,129,0.1);  color: #059669;  border: 1px solid rgba(16,185,129,0.25); }
+  .badge-upcoming { background: rgba(100,116,139,0.1); color: #64748b;  border: 1px solid rgba(100,116,139,0.2); }
+
+  .mini-progress {
+    height: 3px;
+    background: rgba(148,163,184,0.2);
+    border-radius: 3px;
+    margin-top: 0.55rem;
+    overflow: hidden;
+  }
+  .mini-progress-fill {
+    height: 100%;
+    background: var(--accent-teal);
+    border-radius: 3px;
+  }
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin: 1.5rem 0 0.6rem;
+  }
+  .empty-state {
+    background: rgba(255,255,255,0.6);
+    border: 1px dashed rgba(148,163,184,0.4);
+    border-radius: 14px;
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+  .chevron { color: #cbd5e1; font-size: 1.1rem; }
+{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-  <h2 class="section-title">My Delivery Routes</h2>
-  <p style="color: var(--text-secondary);">{{ today.strftime('%A, %B %d, %Y') }}</p>
-</div>
 
-<!-- Today's Routes -->
-<div class="mb-4">
-  <h5 class="fw-bold mb-3">Today</h5>
-  {% if todays_routes %}
-  <div class="list-group">
-    {% for route in todays_routes %}
-    <a href="/delivery/driver/route/{{ route.id }}" class="list-group-item list-group-item-action">
-      <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <h5 class="mb-1 fw-bold">{{ route.name }}</h5>
-          <small style="color: var(--text-secondary);">{{ route.route_stops|length }} stops</small>
-        </div>
-        <div class="text-end">
-          {% if route.status == 'assigned' %}
-          <span class="badge bg-info">Ready</span>
-          {% elif route.status == 'in_progress' %}
-          <span class="badge bg-warning">In Progress</span>
-          {% elif route.status == 'completed' %}
-          <span class="badge bg-success">Completed</span>
+<!-- Today -->
+<div class="section-label">Today — {{ today.strftime('%A, %B %d') }}</div>
+
+{% if todays_routes %}
+  {% for route in todays_routes %}
+  {% set done  = route.route_stops|selectattr("status","in",["completed","skipped"])|list|length %}
+  {% set total = route.route_stops|length %}
+  <a href="/delivery/driver/route/{{ route.id }}"
+     class="route-card {% if route.status == 'in_progress' %}in-progress{% elif route.status == 'completed' %}completed{% endif %}">
+    <div class="d-flex justify-content-between align-items-start">
+      <div class="flex-grow-1">
+        <div class="route-name">{{ route.name }}</div>
+        <div class="route-meta">
+          <span>{{ total }} stop{% if total != 1 %}s{% endif %}</span>
+          {% if route.status == 'in_progress' %}
+          <span>·</span><span>{{ done }}/{{ total }} done</span>
           {% endif %}
         </div>
-      </div>
-      {% if route.notes %}
-      <small style="color: var(--text-secondary);">{{ route.notes }}</small>
-      {% endif %}
-    </a>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="alert alert-info">
-    <p class="mb-0">No routes assigned for today.</p>
-  </div>
-  {% endif %}
-</div>
-
-<!-- Upcoming Routes -->
-{% if upcoming_routes %}
-<div class="mb-4">
-  <h5 class="fw-bold mb-3">Upcoming</h5>
-  <div class="list-group">
-    {% for route in upcoming_routes %}
-    <a href="/delivery/driver/route/{{ route.id }}" class="list-group-item list-group-item-action">
-      <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <h5 class="mb-1 fw-bold">{{ route.name }}</h5>
-          <small style="color: var(--text-secondary);">
-            {{ route.date.strftime('%a, %b %d') }} - {{ route.route_stops|length }} stops
-          </small>
+        {% if total > 0 and route.status == 'in_progress' %}
+        <div class="mini-progress">
+          <div class="mini-progress-fill" style="width:{{ (done/total*100)|int }}%"></div>
         </div>
-        <div class="text-end">
-          <span class="badge bg-secondary">{{ route.date.strftime('%m/%d') }}</span>
-        </div>
+        {% endif %}
       </div>
-    </a>
-    {% endfor %}
-  </div>
-</div>
+      <div class="d-flex align-items-center gap-2 ms-3 mt-1">
+        {% if route.status == 'assigned' %}
+        <span class="route-badge badge-ready">Ready</span>
+        {% elif route.status == 'in_progress' %}
+        <span class="route-badge badge-progress">In Progress</span>
+        {% elif route.status == 'completed' %}
+        <span class="route-badge badge-done">Done</span>
+        {% endif %}
+        <span class="chevron">›</span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">No routes assigned for today.</div>
 {% endif %}
+
+<!-- Upcoming -->
+{% if upcoming_routes %}
+<div class="section-label">Upcoming</div>
+{% for route in upcoming_routes %}
+{% set total = route.route_stops|length %}
+<a href="/delivery/driver/route/{{ route.id }}" class="route-card upcoming">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="route-name">{{ route.name }}</div>
+      <div class="route-meta">
+        <span>{{ route.date.strftime('%a, %b %d') }}</span>
+        <span>·</span>
+        <span>{{ total }} stop{% if total != 1 %}s{% endif %}</span>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 ms-3 mt-1">
+      <span class="route-badge badge-upcoming">{{ route.date.strftime('%m/%d') }}</span>
+      <span class="chevron">›</span>
+    </div>
+  </div>
+</a>
+{% endfor %}
+{% endif %}
+
 {% endblock %}

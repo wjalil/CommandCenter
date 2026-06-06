@@ -358,9 +358,10 @@
   </div>
 
   {% set em = enabled_modules or {} %}
+  {% set is_driver = user.worker_type == "Driver" %}
   <div class="quick-actions row g-4">
 
-    {% if em.get("taskboard", True) %}
+    {% if not is_driver and em.get("taskboard", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/worker/taskboard" class="text-decoration-none">
         <div class="card card-taskboard h-100">
@@ -376,7 +377,7 @@
     </div>
     {% endif %}
 
-    <!-- View Schedule — always shown (core) -->
+    <!-- View Schedule — always shown -->
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/worker/shifts" class="text-decoration-none">
         <div class="card card-schedule h-100">
@@ -391,7 +392,7 @@
       </a>
     </div>
 
-    {% if em.get("customer_ordering", True) %}
+    {% if not is_driver and em.get("customer_ordering", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/worker/orders" class="text-decoration-none">
         <div class="card card-orders h-100">
@@ -407,7 +408,7 @@
     </div>
     {% endif %}
 
-    {% if em.get("shopping", True) %}
+    {% if not is_driver and em.get("shopping", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/shopping/items" class="text-decoration-none">
         <div class="card card-shopping h-100">
@@ -423,7 +424,8 @@
     </div>
     {% endif %}
 
-    <!-- Recipes / SOPs — always shown (core) -->
+    {% if not is_driver %}
+    <!-- Recipes / SOPs -->
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/documents/worker/documents" class="text-decoration-none">
         <div class="card card-recipes h-100">
@@ -437,6 +439,7 @@
         </div>
       </a>
     </div>
+    {% endif %}
 
     {% if em.get("driver_order", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
@@ -454,7 +457,7 @@
     </div>
     {% endif %}
 
-    <!-- Time Clock History — always shown (core) -->
+    <!-- Time Clock History — always shown -->
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/worker/timeclock" class="text-decoration-none">
         <div class="card card-timeclock h-100">
@@ -469,7 +472,7 @@
       </a>
     </div>
 
-    {% if em.get("catering", True) %}
+    {% if not is_driver and em.get("catering", True) %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/catering/production" class="text-decoration-none">
         <div class="card card-menus h-100">
@@ -514,7 +517,7 @@
     </div>
     {% endif %}
 
-    {% if em.get("auto_shop") %}
+    {% if not is_driver and em.get("auto_shop") %}
     <div class="col-12 col-sm-6 col-lg-4">
       <a href="/auto_shop/worker/jobs" class="text-decoration-none">
         <div class="card h-100" style="--card-accent: #f59e0b;">

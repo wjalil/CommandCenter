@@ -137,7 +137,9 @@
           <th style="width:36px;"><input class="form-check-input" type="checkbox" id="checkAll"/></th>
           <th>Worker</th>
           <th class="text-end">Hours</th>
-          <th class="text-end">Gross ($)</th>
+          <th class="text-end">Hourly ($)</th>
+          <th class="text-end" style="color:#0d9488;">Route Pay ($)</th>
+          <th class="text-end fw-bold">Total ($)</th>
           <th class="text-end text-danger">Unpaid ($)</th>
           <th class="text-center">Entries</th>
           <th>Last Shift (ET)</th>
@@ -148,11 +150,23 @@
         {% for r in rows %}
         {% set mins = r.minutes or 0 %}
         {% set hours = (mins/60) | round(2) %}
+        {% set hourly = (r.gross or 0.0) | float | round(2) %}
+        {% set rp = route_pay_map.get(r.user_id, {}) %}
+        {% set route_pay = rp.get('route_pay', 0) | float | round(2) %}
+        {% set route_count = rp.get('route_count', 0) %}
+        {% set total = (hourly + route_pay) | round(2) %}
         <tr data-user="{{ r.user_id }}">
           <td><input class="form-check-input row-check" type="checkbox"/></td>
-          <td><strong>{{ r.user_name or r.user_id }}</strong></td>
-          <td class="text-end">{{ hours }}</td>
-          <td class="text-end">{{ (r.gross or 0.0) | float | round(2) }}</td>
+          <td>
+            <strong>{{ r.user_name or r.user_id }}</strong>
+            {% if route_count > 0 %}
+            <span class="badge bg-teal ms-1" style="background:#0d9488;font-size:.7rem;">{{ route_count }} route{% if route_count != 1 %}s{% endif %}</span>
+            {% endif %}
+          </td>
+          <td class="text-end text-muted">{{ hours }}h</td>
+          <td class="text-end">{{ '%.2f'|format(hourly) }}</td>
+          <td class="text-end" style="color:#0d9488;">{{ '%.2f'|format(route_pay) if route_pay > 0 else '—' }}</td>
+          <td class="text-end fw-bold">{{ '%.2f'|format(total) }}</td>
           <td class="text-end text-danger">{{ (r.unpaid_gross or 0.0) | float | round(2) }}</td>
           <td class="text-center">{{ r.entries }}</td>
           <td>
@@ -171,7 +185,7 @@
         </tr>
         {% endfor %}
         {% if not rows %}
-        <tr><td colspan="8" class="text-center text-muted py-4">No data for the selected filters.</td></tr>
+        <tr><td colspan="10" class="text-center text-muted py-4">No data for the selected filters.</td></tr>
         {% endif %}
       </tbody>
     </table>

@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}{% if tmpl %}Edit Template{% else %}New Route Template{% endif %}{% endblock %}
+
+{% block content %}
+{% set active = 'templates' %}
+{% include "delivery/_nav.html" %}
+
+<div class="row mb-4">
+  <div class="col">
+    <h2>{% if tmpl %}Edit Template{% else %}New Route Template{% endif %}</h2>
+    <p class="text-muted">Define a reusable route with an ordered stop list and a per-day driver schedule.</p>
+  </div>
+</div>
+
+<form action="{% if tmpl %}/delivery/admin/templates/{{ tmpl.id }}/edit{% else %}/delivery/admin/templates/create{% endif %}" method="POST">
+
+  <div class="row g-4">
+
+    <!-- Left: Details + active toggle -->
+    <div class="col-md-4">
+      <div class="card mb-3">
+        <div class="card-header">Template Details</div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Route Name *</label>
+            <input type="text" name="name" class="form-control"
+                   value="{{ tmpl.name if tmpl else '' }}"
+                   placeholder="e.g. Morning Round" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-control" rows="2"
+                      placeholder="Optional notes about this route">{{ tmpl.description if tmpl else '' }}</textarea>
+          </div>
+          {% if tmpl %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="is_active" id="isActive"
+                   {% if tmpl.is_active %}checked{% endif %}>
+            <label class="form-check-label" for="isActive">Active</label>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Stops -->
+      <div class="card">
+        <div class="card-header">Route Stops <small class="text-muted">(drag to reorder)</small></div>
+        <div class="card-body">
+          <div id="selectedStops" class="mb-3">
+            {% for ts in selected_stops %}
+            <div class="selected-stop d-flex align-items-center p-2 mb-2 bg-light rounded" data-stop-id="{{ ts.stop.id }}">
+              <span class="drag-handle me-2" style="cursor:grab;">&#9776;</span>
+              <span class="flex-grow-1">{{ ts.stop.name }}</span>
+              <input type="hidden" name="stop_ids[]" value="{{ ts.stop.id }}">
+              <button type="button" class="btn btn-sm btn-outline-danger remove-stop">✕</button>
+            </div>
+            {% endfor %}
+          </div>
+          <div>
+            <label class="form-label">Add Stop</label>
+            <select id="addStopSelect" class="form-select">
+              <option value="">— select a stop —</option>
+              {% for stop in stops %}
+              <option value="{{ stop.id }}" data-name="{{ stop.name }}">{{ stop.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Day × Driver schedule grid -->
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header">Weekly Schedule</div>
+        <div class="card-body p-0">
+          <p class="text-muted small px-3 pt-3 mb-2">
+            Check the days this route runs and assign a driver for each. Leave driver blank to assign later.
+          </p>
+          <table class="table table-borderless mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:40px;"></th>
+                <th>Day</th>
+                <th>Driver</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for i in day_range %}
+              {% set td = day_map.get(i) %}
+              <tr class="day-row {% if td %}day-active{% endif %}" id="row_{{ i }}">
+                <td class="text-center align-middle">
+                  <input class="form-check-input day-toggle" type="checkbox"
+                         name="day_{{ i }}_active" id="day_{{ i }}_active"
+                         {% if td %}checked{% endif %}
+                         onchange="toggleRow({{ i }})">
+                </td>
+                <td class="align-middle">
+                  <label for="day_{{ i }}_active" class="fw-semibold mb-0" style="cursor:pointer;">
+                    {{ day_names[i] }}
+                  </label>
+                </td>
+                <td>
+                  <select name="day_{{ i }}_driver_id" class="form-select form-select-sm day-driver-select"
+                          {% if not td %}disabled{% endif %}>
+                    <option value="">— Unassigned —</option>
+                    {% for driver in drivers %}
+                    <option value="{{ driver.id }}"
+                            {% if td and td.driver_id == driver.id %}selected{% endif %}>
+                      {{ driver.name }}
+                      {% if driver.worker_type %} ({{ driver.worker_type }}){% endif %}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pay Rates — shown after day schedule so drivers are known -->
+  <div class="row mt-2">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">Driver Pay Rates <small class="text-muted">(per completed route)</small></div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">Set what each driver earns when they complete this route. Rates are stamped onto generated routes — changing a rate here won't affect already-generated routes.</p>
+          <div id="payRateRows">
+            {% set seen = [] %}
+            {% for i in day_range %}
+              {% set td = day_map.get(i) %}
+              {% if td and td.driver_id and td.driver_id not in seen %}
+                {% if seen.append(td.driver_id) %}{% endif %}
+                <div class="d-flex align-items-center gap-3 mb-2 pay-rate-row" data-driver="{{ td.driver_id }}">
+                  <div style="width:180px; font-weight:600; font-size:.9rem;">{{ td.driver.name if td.driver else td.driver_id }}</div>
+                  <div class="input-group" style="max-width:160px;">
+                    <span class="input-group-text">$</span>
+                    <input type="number" name="pay_rate_{{ td.driver_id }}" class="form-control"
+                           step="0.01" min="0" placeholder="0.00"
+                           value="{{ '%.2f'|format(pay_rate_map.get(td.driver_id, 0)|float) if pay_rate_map.get(td.driver_id) else '' }}">
+                    <span class="input-group-text">/route</span>
+                  </div>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <p class="text-muted small mt-2" id="noDriversMsg" style="{% if day_map %}display:none{% endif %}">
+            Assign drivers to days above to set their pay rates.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4 d-flex gap-2">
+    <a href="/delivery/admin/templates" class="btn btn-outline-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary">
+      {% if tmpl %}Save Changes{% else %}Create Template{% endif %}
+    </button>
+  </div>
+
+</form>
+
+<style>
+  .selected-stop {
+    border: 1px solid #dee2e6;
+  }
+  .selected-stop:hover {
+    background-color: #e9ecef !important;
+  }
+  .drag-handle {
+    font-size: 1.2rem;
+    color: #6c757d;
+  }
+  .sortable-ghost {
+    opacity: 0.4;
+    background-color: #ffc107 !important;
+  }
+  .day-row td {
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .day-active {
+    background: rgba(20,184,166,0.05);
+  }
+  .day-driver-select:disabled {
+    opacity: 0.35;
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+  // Sortable stops
+  new Sortable(document.getElementById('selectedStops'), {
+    animation: 150,
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost',
+  });
+
+  // Add stop from dropdown
+  document.getElementById('addStopSelect').addEventListener('change', function () {
+    const stopId = this.value;
+    const stopName = this.options[this.selectedIndex].dataset.name;
+    if (!stopId) return;
+
+    const container = document.getElementById('selectedStops');
+    if (container.querySelector(`[data-stop-id="${stopId}"]`)) {
+      alert('That stop is already in the list.');
+      this.value = '';
+      return;
+    }
+
+    const div = document.createElement('div');
+    div.className = 'selected-stop d-flex align-items-center p-2 mb-2 bg-light rounded';
+    div.dataset.stopId = stopId;
+    div.innerHTML = `
+      <span class="drag-handle me-2" style="cursor:grab;">&#9776;</span>
+      <span class="flex-grow-1">${stopName}</span>
+      <input type="hidden" name="stop_ids[]" value="${stopId}">
+      <button type="button" class="btn btn-sm btn-outline-danger remove-stop">✕</button>
+    `;
+    container.appendChild(div);
+    this.value = '';
+  });
+
+  // Remove stop
+  document.getElementById('selectedStops').addEventListener('click', function (e) {
+    if (e.target.classList.contains('remove-stop')) {
+      e.target.closest('.selected-stop').remove();
+    }
+  });
+
+  // Driver name lookup
+  const driverNames = {
+    {% for d in drivers %}"{{ d.id }}": "{{ d.name }}"{% if not loop.last %},{% endif %}{% endfor %}
+  };
+
+  // Existing pay rates (from server)
+  const existingRates = {{ pay_rate_map | tojson }};
+
+  // Toggle day row active state + refresh pay rate section
+  function toggleRow(i) {
+    const row = document.getElementById('row_' + i);
+    const checkbox = document.getElementById('day_' + i + '_active');
+    const select = row.querySelector('.day-driver-select');
+    if (checkbox.checked) {
+      row.classList.add('day-active');
+      select.disabled = false;
+    } else {
+      row.classList.remove('day-active');
+      select.disabled = true;
+      select.value = '';
+    }
+    refreshPayRates();
+  }
+
+  // Also refresh when driver dropdown changes
+  document.querySelectorAll('.day-driver-select').forEach(sel => {
+    sel.addEventListener('change', refreshPayRates);
+  });
+
+  function refreshPayRates() {
+    const seen = new Set();
+    for (let i = 0; i < 7; i++) {
+      const cb = document.getElementById('day_' + i + '_active');
+      const sel = document.querySelector(`select[name="day_${i}_driver_id"]`);
+      if (cb && cb.checked && sel && sel.value) seen.add(sel.value);
+    }
+
+    const container = document.getElementById('payRateRows');
+    const noMsg = document.getElementById('noDriversMsg');
+
+    // Remove rows for drivers no longer assigned
+    container.querySelectorAll('.pay-rate-row').forEach(row => {
+      if (!seen.has(row.dataset.driver)) row.remove();
+    });
+
+    // Add rows for new drivers
+    seen.forEach(driverId => {
+      if (container.querySelector(`[data-driver="${driverId}"]`)) return;
+      const existingVal = existingRates[driverId] ? existingRates[driverId].toFixed(2) : '';
+      const div = document.createElement('div');
+      div.className = 'pay-rate-row d-flex align-items-center gap-3 mb-2';
+      div.dataset.driver = driverId;
+      div.innerHTML = `
+        <div style="width:180px;font-weight:600;font-size:.9rem;">${driverNames[driverId] || driverId}</div>
+        <div class="input-group" style="max-width:160px;">
+          <span class="input-group-text">$</span>
+          <input type="number" name="pay_rate_${driverId}" class="form-control"
+                 step="0.01" min="0" placeholder="0.00" value="${existingVal}">
+          <span class="input-group-text">/route</span>
+        </div>
+      `;
+      container.appendChild(div);
+    });
+
+    noMsg.style.display = seen.size === 0 ? '' : 'none';
+  }
+</script>
+{% endblock %}

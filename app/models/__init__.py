@@ -33,6 +33,10 @@ from .delivery import (
     DeliveryStop,
     DeliveryRoute,
     DeliveryRouteStop,
+    DeliveryRouteTemplate,
+    DeliveryRouteTemplateStop,
+    DeliveryRouteTemplateDay,
+    DeliveryRoutePayRate,
 )
 from .auto_shop import (
     RepairOrder,

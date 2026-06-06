@@ -2,184 +2,339 @@
 {% block title %}{{ route.name }}{% endblock %}
 {% block nav_title %}Route Details{% endblock %}
 
+{% block extra_css %}
+  /* Status pills */
+  .status-pill {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .pill-assigned  { background: rgba(20,184,166,0.1);  color: #0d9488; border: 1px solid rgba(20,184,166,0.25); }
+  .pill-progress  { background: rgba(245,158,11,0.1);  color: #b45309; border: 1px solid rgba(245,158,11,0.25); }
+  .pill-completed { background: rgba(16,185,129,0.1);  color: #059669; border: 1px solid rgba(16,185,129,0.25); }
+
+  /* Progress card */
+  .prog-card {
+    background: rgba(255,255,255,0.9);
+    border: 1px solid rgba(148,163,184,0.2);
+    border-radius: 16px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    margin-bottom: 1rem;
+  }
+  .prog-bar { height: 7px; background: #e2e8f0; border-radius: 7px; overflow: hidden; }
+  .prog-fill { height: 100%; background: var(--accent-teal); border-radius: 7px; transition: width 0.4s; }
+  .prog-labels { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 0.5rem; }
+  .prog-labels .label { font-weight: 600; color: var(--text-secondary); }
+  .prog-labels .count { font-weight: 700; color: var(--accent-teal); }
+
+  /* Start / notes */
+  .start-btn {
+    display: block;
+    width: 100%;
+    padding: 0.8rem;
+    background: var(--accent-purple);
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 16px rgba(139,92,246,0.25);
+  }
+
+  .notes-card {
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+  }
+  .notes-card .notes-label {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em;
+    text-transform: uppercase; color: #b45309; margin-bottom: 0.3rem;
+  }
+
+  /* Stop cards */
+  .stop-card {
+    background: rgba(255,255,255,0.9);
+    border: 1px solid rgba(148,163,184,0.2);
+    border-radius: 14px;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .stop-card.done { border-color: rgba(16,185,129,0.3); background: rgba(240,253,244,0.9); }
+  .stop-card.skip { border-color: rgba(148,163,184,0.2); background: rgba(248,250,252,0.8); opacity: 0.7; }
+
+  .stop-card-inner { padding: 0.9rem 1rem; }
+
+  .stop-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 7px;
+    background: #f1f5f9; border: 1px solid #e2e8f0;
+    font-size: 0.75rem; font-weight: 700; color: #64748b; flex-shrink: 0;
+  }
+  .stop-card.done .stop-num { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.2); color: #059669; }
+
+  .stop-name { font-size: 0.975rem; font-weight: 700; color: var(--text-primary); }
+  .stop-card.done .stop-name { color: #047857; }
+  .stop-card.skip .stop-name { color: var(--text-secondary); }
+  .stop-detail { font-size: 0.775rem; color: var(--text-secondary); margin-top: 2px; }
+  .stop-detail a { color: var(--accent-teal); text-decoration: none; }
+  .stop-detail a:hover { text-decoration: underline; }
+
+  .stop-status-line { font-size: 0.75rem; font-weight: 600; margin-top: 0.4rem; }
+  .stop-status-line.done { color: #059669; }
+  .stop-status-line.skip { color: var(--text-secondary); }
+  .stop-status-line.live { color: var(--accent-blue); }
+
+  .delivery-photo {
+    width: 68px; height: 50px; object-fit: cover;
+    border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 0.5rem;
+  }
+
+  /* Stop action buttons */
+  .stop-actions {
+    display: flex; gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    border-top: 1px solid #f1f5f9;
+    background: #fafbfc;
+  }
+  .action-btn {
+    flex: 1; padding: 0.55rem 0.4rem;
+    border-radius: 9px; border: 1px solid;
+    font-size: 0.8rem; font-weight: 700;
+    cursor: pointer; transition: all 0.15s;
+    background: transparent;
+  }
+  .btn-arrive   { border-color: rgba(59,130,246,0.3);  color: var(--accent-blue);    background: rgba(59,130,246,0.06); }
+  .btn-complete { border-color: rgba(16,185,129,0.3);  color: #059669;               background: rgba(16,185,129,0.07); }
+  .btn-skip     { border-color: rgba(148,163,184,0.3); color: var(--text-secondary); background: transparent; }
+  .action-btn:hover { filter: brightness(0.95); transform: translateY(-1px); }
+
+  /* Complete route sticky bar */
+  .complete-route-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 0.9rem 1rem;
+    background: rgba(248,250,252,0.95);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(148,163,184,0.2);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+  }
+  .complete-route-btn {
+    width: 100%; padding: 0.8rem;
+    background: linear-gradient(135deg, var(--accent-emerald), var(--accent-teal));
+    border: none; border-radius: 12px; color: #fff;
+    font-size: 0.95rem; font-weight: 700; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(16,185,129,0.25);
+  }
+{% endblock %}
+
 {% block content %}
-<div class="mb-3">
-  <a href="/delivery/driver/" class="btn btn-outline-secondary btn-sm mb-3">&larr; Back to Routes</a>
-  <h2 class="section-title">{{ route.name }}</h2>
-  <p style="color: var(--text-secondary);">
-    {{ route.date.strftime('%A, %B %d, %Y') }}
-    <br>
-    <span class="badge {% if route.status == 'in_progress' %}bg-warning{% elif route.status == 'completed' %}bg-success{% else %}bg-info{% endif %} mt-1">
-      {{ route.status|replace('_', ' ')|title }}
-    </span>
-  </p>
+
+<!-- Back link -->
+<a href="/delivery/driver/" class="btn btn-outline-secondary btn-sm mb-3">‹ My Routes</a>
+
+<!-- Route header -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="fw-bold mb-1" style="color:var(--text-primary);">{{ route.name }}</h4>
+    <small style="color:var(--text-secondary);">{{ route.date.strftime('%A, %B %d, %Y') }}</small>
+  </div>
+  {% if route.status == 'assigned' %}
+  <span class="status-pill pill-assigned">Ready</span>
+  {% elif route.status == 'in_progress' %}
+  <span class="status-pill pill-progress">In Progress</span>
+  {% elif route.status == 'completed' %}
+  <span class="status-pill pill-completed">Completed</span>
+  {% endif %}
 </div>
 
-<!-- Progress Bar -->
-<div class="glass-card p-3 mb-4">
-  <div class="d-flex justify-content-between mb-2">
-    <small class="fw-bold">Progress</small>
-    <small class="fw-bold">{{ completed_count }} / {{ total_count }}</small>
+<!-- Progress card -->
+<div class="prog-card">
+  <div class="prog-labels">
+    <span class="label">Stops completed</span>
+    <span class="count">{{ completed_count }} / {{ total_count }}</span>
   </div>
-  <div class="progress" style="height: 10px;">
-    <div class="progress-bar bg-success" role="progressbar"
-         style="width: {{ (completed_count / total_count * 100) if total_count > 0 else 0 }}%"></div>
+  <div class="prog-bar">
+    <div class="prog-fill" style="width:{{ (completed_count/total_count*100)|int if total_count > 0 else 0 }}%"></div>
   </div>
 </div>
 
-<!-- Start Route Button -->
+{% if route.notes %}
+<div class="notes-card">
+  <div class="notes-label">Route Notes</div>
+  {{ route.notes }}
+</div>
+{% endif %}
+
 {% if route.status in ['draft', 'assigned'] %}
-<form action="/delivery/driver/route/{{ route.id }}/start" method="POST" class="mb-4">
-  <button type="submit" class="btn btn-primary btn-lg w-100">Start Route</button>
+<form action="/delivery/driver/route/{{ route.id }}/start" method="POST">
+  <button type="submit" class="start-btn">▶ Start Route</button>
 </form>
 {% endif %}
 
-<!-- Stops List -->
-<div class="list-group mb-4">
-  {% for rs in route_stops %}
-  <div class="list-group-item {% if rs.status == 'completed' %}list-group-item-success{% elif rs.status == 'skipped' %}list-group-item-secondary{% endif %}">
-    <div class="d-flex justify-content-between align-items-start">
+<!-- Stop list -->
+{% for rs in route_stops %}
+<div class="stop-card {% if rs.status == 'completed' %}done{% elif rs.status == 'skipped' %}skip{% endif %}">
+  <div class="stop-card-inner">
+    <div class="d-flex align-items-start gap-2">
+      <div class="stop-num">{{ rs.stop_order }}</div>
       <div class="flex-grow-1">
-        <div class="d-flex align-items-center mb-1">
-          <span class="badge bg-dark me-2">{{ rs.stop_order }}</span>
-          <h5 class="mb-0 fw-bold">{{ rs.stop.name }}</h5>
-        </div>
-
+        <div class="stop-name">{{ rs.stop.name }}</div>
         {% if rs.stop.address %}
-        <p class="mb-1 small" style="color: var(--text-secondary);">{{ rs.stop.address }}</p>
-        {% endif %}
-
-        {% if rs.stop.contact_name or rs.stop.contact_phone %}
-        <p class="mb-1 small">
-          {% if rs.stop.contact_name %}{{ rs.stop.contact_name }}{% endif %}
-          {% if rs.stop.contact_phone %} - {{ rs.stop.contact_phone }}{% endif %}
-        </p>
-        {% endif %}
-
-        {% if rs.stop.notes %}
-        <p class="mb-1 small fst-italic" style="color: var(--text-secondary);">{{ rs.stop.notes }}</p>
-        {% endif %}
-
-        <!-- Status info -->
-        {% if rs.status == 'completed' %}
-        <small style="color: var(--accent-emerald);">
-          Completed {{ rs.completed_at.strftime('%I:%M %p') if rs.completed_at else '' }}
-          {% if rs.notes %} - {{ rs.notes }}{% endif %}
-        </small>
-        {% elif rs.status == 'skipped' %}
-        <small style="color: var(--text-secondary);">
-          Skipped {% if rs.notes %} - {{ rs.notes }}{% endif %}
-        </small>
-        {% elif rs.arrival_time %}
-        <small style="color: var(--accent-blue);">
-          Arrived {{ rs.arrival_time.strftime('%I:%M %p') }}
-        </small>
-        {% endif %}
-
-        {% if rs.photo_filename %}
-        <div class="mt-2">
-          <a href="/static/uploads/delivery/{{ rs.photo_filename }}" target="_blank">
-            <img src="/static/uploads/delivery/{{ rs.photo_filename }}"
-                 alt="Delivery photo" style="max-width: 100px; max-height: 60px; border-radius: 10px;">
+        <div class="stop-detail">
+          <a href="https://maps.google.com/?q={{ rs.stop.address|urlencode }}" target="_blank">
+            📍 {{ rs.stop.address }}
           </a>
         </div>
         {% endif %}
-      </div>
-
-      <!-- Action Buttons -->
-      <div class="ms-3">
-        {% if rs.status == 'pending' and route.status == 'in_progress' %}
-          {% if not rs.arrival_time %}
-          <form action="/delivery/driver/stop/{{ rs.id }}/arrive" method="POST" class="mb-2">
-            <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Arrive</button>
-          </form>
+        {% if rs.stop.contact_name or rs.stop.contact_phone %}
+        <div class="stop-detail">
+          {% if rs.stop.contact_name %}{{ rs.stop.contact_name }}{% endif %}
+          {% if rs.stop.contact_phone %}
+          · <a href="tel:{{ rs.stop.contact_phone }}">{{ rs.stop.contact_phone }}</a>
           {% endif %}
+        </div>
+        {% endif %}
+        {% if rs.stop.notes %}
+        <div class="stop-detail" style="font-style:italic;">{{ rs.stop.notes }}</div>
+        {% endif %}
 
-          <button type="button" class="btn btn-success btn-sm w-100 mb-1"
-                  data-bs-toggle="modal" data-bs-target="#completeModal{{ rs.id }}">
-            Complete
-          </button>
-          <button type="button" class="btn btn-outline-secondary btn-sm w-100"
-                  data-bs-toggle="modal" data-bs-target="#skipModal{{ rs.id }}">
-            Skip
-          </button>
-        {% elif rs.status == 'completed' %}
-          <span class="badge bg-success">Done</span>
+        {% if rs.status == 'completed' %}
+        <div class="stop-status-line done">
+          ✓ Completed {{ rs.completed_at.strftime('%I:%M %p') if rs.completed_at else '' }}
+          {% if rs.notes %} · {{ rs.notes }}{% endif %}
+        </div>
         {% elif rs.status == 'skipped' %}
-          <span class="badge bg-secondary">Skipped</span>
+        <div class="stop-status-line skip">
+          ✕ Skipped{% if rs.notes %} · {{ rs.notes }}{% endif %}
+        </div>
+        {% elif rs.arrival_time %}
+        <div class="stop-status-line live">
+          🕐 Arrived {{ rs.arrival_time.strftime('%I:%M %p') }}
+        </div>
+        {% endif %}
+
+        {% if rs.photo_filename %}
+        <a href="/static/uploads/delivery/{{ rs.photo_filename }}" target="_blank">
+          <img src="/static/uploads/delivery/{{ rs.photo_filename }}" class="delivery-photo" alt="Delivery photo">
+        </a>
         {% endif %}
       </div>
     </div>
   </div>
 
-  <!-- Complete Modal -->
-  <div class="modal fade" id="completeModal{{ rs.id }}" tabindex="-1">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <form action="/delivery/driver/stop/{{ rs.id }}/complete" method="POST" enctype="multipart/form-data">
-          <div class="modal-header">
-            <h5 class="modal-title fw-bold">Complete Stop: {{ rs.stop.name }}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label fw-bold">Notes (optional)</label>
-              <textarea name="notes" class="form-control" rows="2" placeholder="Any notes about this delivery..."></textarea>
-            </div>
-            <div class="mb-3">
-              <label class="form-label fw-bold">Photo (optional)</label>
-              <input type="file" name="photo" class="form-control" accept="image/*" capture="environment">
-              <small style="color: var(--text-secondary);">Take a photo as proof of delivery</small>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-success">Mark Complete</button>
-          </div>
-        </form>
-      </div>
-    </div>
+  {% if rs.status == 'pending' and route.status == 'in_progress' %}
+  <div class="stop-actions">
+    {% if not rs.arrival_time %}
+    <form action="/delivery/driver/stop/{{ rs.id }}/arrive" method="POST" style="flex:1;">
+      <button type="submit" class="action-btn btn-arrive w-100">Arrived</button>
+    </form>
+    {% endif %}
+    <button type="button" class="action-btn btn-complete"
+            onclick="openComplete('{{ rs.id }}', '{{ rs.stop.name|replace("'","\\'")|e }}')">
+      ✓ Complete
+    </button>
+    <button type="button" class="action-btn btn-skip"
+            onclick="openSkip('{{ rs.id }}', '{{ rs.stop.name|replace("'","\\'")|e }}')">
+      Skip
+    </button>
   </div>
-
-  <!-- Skip Modal -->
-  <div class="modal fade" id="skipModal{{ rs.id }}" tabindex="-1">
-    <div class="modal-dialog modal-sm">
-      <div class="modal-content">
-        <form action="/delivery/driver/stop/{{ rs.id }}/skip" method="POST">
-          <div class="modal-header">
-            <h5 class="modal-title fw-bold">Skip Stop</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label fw-bold">Reason *</label>
-              <input type="text" name="reason" class="form-control" placeholder="e.g., Closed, No access" required>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-danger">Skip Stop</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-  {% endfor %}
+  {% endif %}
 </div>
+{% endfor %}
 
-<!-- Complete Route Button -->
 {% if route.status == 'in_progress' and completed_count == total_count and total_count > 0 %}
-<form action="/delivery/driver/route/{{ route.id }}/complete" method="POST" class="mb-4">
-  <button type="submit" class="btn btn-success btn-lg w-100">Complete Route</button>
-</form>
-{% endif %}
-
-{% if route.notes %}
-<div class="card mb-4">
-  <div class="card-header fw-bold">Route Notes</div>
-  <div class="card-body">
-    <p class="mb-0">{{ route.notes }}</p>
-  </div>
+<div style="height:5rem;"></div>
+<div class="complete-route-bar">
+  <form action="/delivery/driver/route/{{ route.id }}/complete" method="POST">
+    <button type="submit" class="complete-route-btn">🎉 Complete Route</button>
+  </form>
 </div>
 {% endif %}
+
+<!-- Complete Stop Modal -->
+<div class="modal fade" id="completeModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form id="completeForm" method="POST" enctype="multipart/form-data">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold">Complete Stop</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p id="completeStopName" class="fw-semibold mb-3" style="color:var(--accent-teal);"></p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(optional)</span></label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Any notes about this delivery…"></textarea>
+          </div>
+          <div>
+            <label class="form-label fw-semibold">Photo <span class="text-muted fw-normal">(optional)</span></label>
+            <input type="file" name="photo" class="form-control" accept="image/*" capture="environment">
+          </div>
+        </div>
+        <div class="modal-footer gap-2">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">✓ Mark Complete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Skip Stop Modal -->
+<div class="modal fade" id="skipModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form id="skipForm" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold">Skip Stop</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p id="skipStopName" class="fw-semibold mb-3 text-muted"></p>
+          <div>
+            <label class="form-label fw-semibold">Reason *</label>
+            <input type="text" name="reason" class="form-control" placeholder="e.g. Closed, No access" required>
+          </div>
+        </div>
+        <div class="modal-footer gap-2">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger">Skip Stop</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const completeModal = new bootstrap.Modal(document.getElementById('completeModal'));
+  const skipModal     = new bootstrap.Modal(document.getElementById('skipModal'));
+
+  function openComplete(stopId, stopName) {
+    document.getElementById('completeForm').action = `/delivery/driver/stop/${stopId}/complete`;
+    document.getElementById('completeStopName').textContent = stopName;
+    document.getElementById('completeModal').querySelector('textarea').value = '';
+    document.getElementById('completeModal').querySelector('input[type=file]').value = '';
+    completeModal.show();
+  }
+  function openSkip(stopId, stopName) {
+    document.getElementById('skipForm').action = `/delivery/driver/stop/${stopId}/skip`;
+    document.getElementById('skipStopName').textContent = stopName;
+    document.getElementById('skipModal').querySelector('input[type=text]').value = '';
+    skipModal.show();
+  }
+</script>
 {% endblock %}

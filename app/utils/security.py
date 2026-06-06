@@ -11,11 +11,21 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png"]
 
+import logging as _logging
+_sec_logger = _logging.getLogger(__name__)
+
+_INSECURE_ENC_DEFAULT = "default-insecure-key-change-in-production"
+
 # Encryption for sensitive API keys (RESEND, etc.)
-# Master key should be set in environment variable: ENCRYPTION_MASTER_KEY
+# Master key must be set in environment variable: ENCRYPTION_MASTER_KEY
 def _get_encryption_key() -> bytes:
     """Derive encryption key from master key in environment"""
-    master_key = os.getenv("ENCRYPTION_MASTER_KEY", "default-insecure-key-change-in-production")
+    master_key = os.getenv("ENCRYPTION_MASTER_KEY", _INSECURE_ENC_DEFAULT)
+    if master_key == _INSECURE_ENC_DEFAULT:
+        _sec_logger.warning(
+            "⚠️  ENCRYPTION_MASTER_KEY is using the insecure hardcoded default. "
+            "Set the ENCRYPTION_MASTER_KEY environment variable in production!"
+        )
 
     # Derive a 32-byte key using PBKDF2HMAC
     kdf = PBKDF2HMAC(

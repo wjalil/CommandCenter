@@ -130,10 +130,20 @@ app.include_router(
     tags=["auth"]
 )
 
-# ✅ Allow frontend dev (CORS)
+# CORS — set ALLOWED_ORIGINS in env as a comma-separated list of domains
+# e.g. ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()] or ["*"]
+if "*" in allowed_origins and os.getenv("ENVIRONMENT") == "production":
+    import logging as _log
+    _log.getLogger(__name__).warning(
+        "⚠️  CORS is open to all origins (ALLOWED_ORIGINS not set). "
+        "Set ALLOWED_ORIGINS to your domain(s) in production!"
+    )
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In prod, restrict this!
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
