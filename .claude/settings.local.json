@@ -9,7 +9,8 @@
       "Bash(mkdir -p /mnt/c/Users/wjali/OneDrive/Desktop/cookieops-backend/app/api/auto_shop)",
       "Bash(mkdir -p /mnt/c/Users/wjali/OneDrive/Desktop/cookieops-backend/app/templates/auto_shop)",
       "Bash(git add *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(grep -r \"production_log\\\\|production\" /mnt/c/Users/wjali/OneDrive/Desktop/cookieops-backend/app --include=\"*.py\" ! -path \"*/.venv/*\" -l)"
     ]
   }
 }

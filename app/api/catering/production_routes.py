@@ -130,8 +130,8 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
                 program_menu_days[program.id] = menu_day
 
     # Aggregate components across all programs
-    # {component_name: {total_oz, slots (set), programs (list)}}
-    component_agg: dict = defaultdict(lambda: {"total_oz": 0.0, "slots": set(), "programs": []})
+    # program_breakdown is a dict {program_name: {count, oz}} during aggregation
+    component_agg: dict = defaultdict(lambda: {"total_oz": 0.0, "total_count": 0, "slots": set(), "program_breakdown": {}})
 
     for program in serving_programs:
         menu_day = program_menu_days.get(program.id)
@@ -166,9 +166,11 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
                 meal_count = counts.get(slot, program.total_children) or 0
                 name = comp.food_component.name
                 component_agg[name]["total_oz"] += qty_oz * meal_count
+                component_agg[name]["total_count"] += meal_count
                 component_agg[name]["slots"].add(slot)
-                if program.name not in component_agg[name]["programs"]:
-                    component_agg[name]["programs"].append(program.name)
+                pb = component_agg[name]["program_breakdown"].setdefault(program.name, {"count": 0, "oz": 0.0})
+                pb["count"] += meal_count
+                pb["oz"] += qty_oz * meal_count
         else:
             slot_items = {
                 "breakfast": menu_day.breakfast_item,
@@ -185,10 +187,13 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
                     if not mc.food_component:
                         continue
                     name = mc.food_component.name
-                    component_agg[name]["total_oz"] += float(mc.portion_oz or 0) * meal_count
+                    item_oz = float(mc.portion_oz or 0)
+                    component_agg[name]["total_oz"] += item_oz * meal_count
+                    component_agg[name]["total_count"] += meal_count
                     component_agg[name]["slots"].add(slot)
-                    if program.name not in component_agg[name]["programs"]:
-                        component_agg[name]["programs"].append(program.name)
+                    pb = component_agg[name]["program_breakdown"].setdefault(program.name, {"count": 0, "oz": 0.0})
+                    pb["count"] += meal_count
+                    pb["oz"] += item_oz * meal_count
 
     # Sort components and convert sets to sorted label lists
     slot_order = list(SLOT_LABELS.keys())
@@ -198,8 +203,13 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
         prep_components.append({
             "name": name,
             "total_oz": round(data["total_oz"], 1),
+            "total_count": data["total_count"],
             "slot_labels": [SLOT_LABELS.get(s, s) for s in slots_sorted],
-            "programs": data["programs"],
+            "primary_slot": slots_sorted[0] if slots_sorted else "other",
+            "program_breakdown": [
+                {"name": pname, "count": vals["count"], "oz": round(vals["oz"], 1)}
+                for pname, vals in sorted(data["program_breakdown"].items())
+            ],
         })
 
     # Load produce items: food components whose CACFP type contains "fruit"
@@ -331,31 +341,106 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
     }
 
 
+SLOT_ORDER = list(SLOT_LABELS.keys())
+SLOT_DISPLAY = {
+    "breakfast": "Breakfast",
+    "lunch": "Lunch",
+    "snack": "Snack",
+    "am_snack": "AM Snack",
+    "pm_snack": "PM Snack",
+    "other": "Other",
+}
+
+
+def _sort_key_for_comp(comp):
+    slot = comp.get("primary_slot", "other")
+    try:
+        return (SLOT_ORDER.index(slot), comp["name"])
+    except ValueError:
+        return (99, comp["name"])
+
+
+def _group_comps_by_slot(comps: list) -> list:
+    """Return [{slot, slot_label, items}] in meal-type order."""
+    grouped: dict = {}
+    for comp in sorted(comps, key=_sort_key_for_comp):
+        slot = comp.get("primary_slot", "other")
+        grouped.setdefault(slot, []).append(comp)
+    result = []
+    for slot in SLOT_ORDER + ["other"]:
+        if slot in grouped:
+            result.append({"slot": slot, "slot_label": SLOT_DISPLAY.get(slot, slot.title()), "items": grouped[slot]})
+    return result
+
+
 @router.get("/production")
 async def production_daily_view(
     request: Request,
     date_str: Optional[str] = None,
+    selected: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_or_worker),
 ):
     """Daily production sheet — viewable by admin and worker."""
     tenant_id = request.state.tenant_id
+    today = date.today()
 
-    if date_str:
-        try:
-            service_date = date.fromisoformat(date_str)
-        except ValueError:
-            service_date = date.today()
+    # anchor_date drives which week is displayed
+    try:
+        anchor_date = date.fromisoformat(date_str) if date_str else today
+    except ValueError:
+        anchor_date = today
+
+    # Parse comma-separated selected dates; default to anchor_date
+    selected_dates: list[date] = []
+    if selected:
+        for s in selected.split(","):
+            try:
+                selected_dates.append(date.fromisoformat(s.strip()))
+            except ValueError:
+                pass
+    selected_dates = sorted(set(selected_dates)) or [anchor_date]
+
+    # Primary date (earliest selected) drives delivery tracking
+    primary_date = selected_dates[0]
+
+    # Week view: Mon–Sun of the week containing anchor_date
+    week_start = anchor_date - timedelta(days=anchor_date.weekday())
+    week_dates = [week_start + timedelta(days=i) for i in range(7)]
+    prev_week_anchor = (week_start - timedelta(days=7)).isoformat()
+    next_week_anchor = (week_start + timedelta(days=7)).isoformat()
+    selected_iso = [d.isoformat() for d in selected_dates]
+
+    # Build production data for primary date (delivery + checked states)
+    data = await _build_production_data(db, tenant_id, primary_date)
+
+    # Aggregate prep components across all selected dates
+    if len(selected_dates) > 1:
+        merged: dict = {comp["name"]: {**comp} for comp in data["prep_components"]}
+        for d in selected_dates[1:]:
+            extra = await _build_production_data(db, tenant_id, d)
+            for comp in extra["prep_components"]:
+                if comp["name"] in merged:
+                    m = merged[comp["name"]]
+                    m["total_oz"] = round(m["total_oz"] + comp["total_oz"], 1)
+                    m["total_count"] += comp["total_count"]
+                    for lbl in comp["slot_labels"]:
+                        if lbl not in m["slot_labels"]:
+                            m["slot_labels"].append(lbl)
+                    bd = {p["name"]: {**p} for p in m["program_breakdown"]}
+                    for p in comp["program_breakdown"]:
+                        if p["name"] in bd:
+                            bd[p["name"]]["count"] += p["count"]
+                            bd[p["name"]]["oz"] = round(bd[p["name"]]["oz"] + p["oz"], 1)
+                        else:
+                            bd[p["name"]] = {**p}
+                    m["program_breakdown"] = sorted(bd.values(), key=lambda x: x["name"])
+                else:
+                    merged[comp["name"]] = {**comp, "program_breakdown": [{**p} for p in comp["program_breakdown"]]}
+        data["prep_components"] = sorted(merged.values(), key=_sort_key_for_comp)
     else:
-        service_date = date.today()
+        data["prep_components"] = sorted(data["prep_components"], key=_sort_key_for_comp)
 
-    data = await _build_production_data(db, tenant_id, service_date)
-
-    prev_date = service_date - timedelta(days=1)
-    next_date = service_date + timedelta(days=1)
-
-    # Checked-item lookup key helper used in template
-    # Pass as JSON so JS can also use it for optimistic UI updates
     checked_keys = [
         {
             "check_type": k[0],
@@ -374,12 +459,17 @@ async def production_daily_view(
             "request": request,
             "user": user,
             "base_template": base_template,
-            "service_date": service_date,
-            "prev_date": prev_date.isoformat(),
-            "next_date": next_date.isoformat(),
-            "is_today": service_date == date.today(),
+            "anchor_date": anchor_date,
+            "primary_date": primary_date,
+            "selected_dates": selected_dates,
+            "selected_iso": selected_iso,
+            "week_dates": week_dates,
+            "prev_week_anchor": prev_week_anchor,
+            "next_week_anchor": next_week_anchor,
+            "is_current_week": week_start == (today - timedelta(days=today.weekday())),
             "serving_programs": data["serving_programs"],
             "prep_components": data["prep_components"],
+            "prep_by_slot": _group_comps_by_slot(data["prep_components"]),
             "programs_data": data["programs_data"],
             "checked_keys_json": json.dumps(checked_keys),
             "supply_types": SUPPLY_TYPES,

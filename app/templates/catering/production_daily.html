@@ -1,5 +1,5 @@
 {% extends base_template %}
-{% block title %}Production Sheet — {{ service_date.strftime('%b %d, %Y') }}{% endblock %}
+{% block title %}Production Sheet{% endblock %}
 {% block nav_title %}Production Sheet{% endblock %}
 
 {% block content %}
@@ -8,32 +8,46 @@
 {% include "catering/_nav.html" %}
 {% endif %}
 
-<!-- Date Navigation -->
-<div class="prod-header mb-4">
+<!-- Week Header -->
+<div class="prod-header mb-3">
   <div>
-    <div class="prod-date-label">{{ service_date.strftime('%A') }}</div>
-    <div class="prod-date-main">{{ service_date.strftime('%B %d, %Y') }}</div>
+    <div class="prod-date-label">Production Sheet</div>
+    <div class="prod-date-main">Week of {{ week_dates[0].strftime('%b') }} {{ week_dates[0].day }}</div>
   </div>
   <div class="prod-date-nav">
-    <a href="/catering/production?date_str={{ prev_date }}" class="prod-nav-btn">&#8592;</a>
-    {% if not is_today %}
-    <a href="/catering/production" class="prod-nav-btn prod-nav-today">Today</a>
+    <a href="/catering/production?date_str={{ prev_week_anchor }}" class="prod-nav-btn">&#8592;</a>
+    {% if not is_current_week %}
+    <a href="/catering/production" class="prod-nav-btn prod-nav-today">This Week</a>
     {% endif %}
-    <a href="/catering/production?date_str={{ next_date }}" class="prod-nav-btn">&#8594;</a>
+    <a href="/catering/production?date_str={{ next_week_anchor }}" class="prod-nav-btn">&#8594;</a>
   </div>
+</div>
+
+<!-- Day Chips -->
+<div class="prod-week-row mb-4" id="weekRow">
+  {% for d in week_dates %}
+  {% set d_iso = d.isoformat() %}
+  {% set is_sel = d_iso in selected_iso %}
+  <button class="prod-day-chip {% if is_sel %}active{% endif %}"
+          data-date="{{ d_iso }}"
+          onclick="toggleDay('{{ d_iso }}')">
+    <span class="prod-day-name">{{ d.strftime('%a') }}</span>
+    <span class="prod-day-num">{{ d.day }}</span>
+  </button>
+  {% endfor %}
 </div>
 
 {% if not serving_programs %}
 <div class="prod-empty">
   <div class="prod-empty-icon">📅</div>
-  <div class="prod-empty-text">No programs scheduled for {{ service_date.strftime('%A, %B %d') }}</div>
+  <div class="prod-empty-text">No programs scheduled for {{ primary_date.strftime('%A, %B') }} {{ primary_date.day }}</div>
 </div>
 
 {% else %}
 
-<!-- Programs Today -->
+<!-- Programs serving on primary date -->
 <div class="prod-chips mb-4">
-  <span class="prod-chips-label">Serving today</span>
+  <span class="prod-chips-label">Serving {{ primary_date.strftime('%a') }} {{ primary_date.day }}</span>
   {% for p in serving_programs %}
   <span class="prod-chip">{{ p.name }}</span>
   {% endfor %}
@@ -49,36 +63,75 @@
           <span class="prod-card-icon">🍳</span>
           Kitchen Prep
         </div>
-        <span class="prod-count-badge">{{ prep_components|length }} item{{ 's' if prep_components|length != 1 }}</span>
+        {% set total_items = prep_components | length %}
+        {% set num_sel = selected_dates | length %}
+        <span class="prod-count-badge">{{ total_items }} item{{ 's' if total_items != 1 }}{% if num_sel > 1 %} · {{ num_sel }} days{% endif %}</span>
       </div>
       <div class="prod-card-body p-0">
-        {% if prep_components %}
-        <ul class="prod-prep-list" id="prep-list">
-          {% for comp in prep_components %}
-          {% set key = 'prep||' + comp.name %}
-          <li class="prod-prep-item prep-item"
-              data-key="{{ key }}"
-              data-check-type="prep"
-              data-reference-key="{{ comp.name }}">
-            <label class="prod-prep-label" for="prep-{{ loop.index }}">
-              <input class="prod-check-input prod-check"
-                     type="checkbox"
-                     id="prep-{{ loop.index }}"
-                     data-check-type="prep"
-                     data-reference-key="{{ comp.name }}">
-              <span class="prod-check-box"></span>
-              <span class="prod-prep-content">
-                <span class="comp-name prod-prep-name">{{ comp.name }}</span>
-                <span class="prod-prep-meta">
-                  {{ comp.total_oz }}oz
-                  {% for lbl in comp.slot_labels %}<span class="prod-slot-badge">{{ lbl }}</span>{% endfor %}
-                </span>
-              </span>
-            </label>
-            <small class="check-time prod-check-time"></small>
-          </li>
-          {% endfor %}
-        </ul>
+        {% if prep_by_slot %}
+        {% set slot_icons = {
+          "breakfast": "🥞",
+          "lunch": "🥪",
+          "snack": "🍎",
+          "am_snack": "☀️",
+          "pm_snack": "🌙",
+          "other": "🍽️"
+        } %}
+        {% set ns = namespace(item_index=0) %}
+        {% for group in prep_by_slot %}
+        <div class="prod-slot-section">
+          <div class="prod-slot-group-header">
+            <span>{{ slot_icons.get(group.slot, '🍽️') }} {{ group.slot_label }}</span>
+            <span class="prod-slot-count">{{ group['items'] | length }}</span>
+          </div>
+          <ul class="prod-prep-list">
+            {% for comp in group['items'] %}
+            {% set ns.item_index = ns.item_index + 1 %}
+            {% set key = 'prep||' + comp.name %}
+            <li class="prod-prep-item prep-item"
+                data-key="{{ key }}"
+                data-check-type="prep"
+                data-reference-key="{{ comp.name }}">
+              <div class="prod-prep-row">
+                <label class="prod-prep-label" for="prep-{{ ns.item_index }}">
+                  <input class="prod-check-input prod-check"
+                         type="checkbox"
+                         id="prep-{{ ns.item_index }}"
+                         data-check-type="prep"
+                         data-reference-key="{{ comp.name }}">
+                  <span class="prod-check-box"></span>
+                  <span class="prod-prep-content">
+                    <span class="comp-name prod-prep-name">{{ comp.name }}</span>
+                    <span class="prod-prep-meta">
+                      <span class="prod-measure">{{ comp.total_oz }} oz</span>
+                      <span class="prod-measure-sep">·</span>
+                      <button class="prod-breakdown-btn" type="button"
+                              onclick="toggleBreakdown(this)" aria-expanded="false">
+                        {{ comp.total_count }} servings
+                        <span class="prod-breakdown-caret">▾</span>
+                      </button>
+                      {% for lbl in comp.slot_labels %}<span class="prod-slot-badge">{{ lbl }}</span>{% endfor %}
+                    </span>
+                  </span>
+                </label>
+                <small class="check-time prod-check-time"></small>
+              </div>
+              {% if comp.program_breakdown | length > 0 %}
+              <div class="prod-breakdown-panel" hidden>
+                {% for pb in comp.program_breakdown %}
+                <div class="prod-breakdown-row">
+                  <span class="prod-bd-name">{{ pb.name }}</span>
+                  <span class="prod-bd-count">{{ pb.count }} svgs</span>
+                  <span class="prod-bd-oz">{{ pb.oz }} oz</span>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
         {% else %}
         <div class="prod-empty-inline">
           No menu assigned. Assign meals in the calendar to see prep items.
@@ -275,6 +328,78 @@
 .prod-empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
 .prod-empty-text { color: var(--text-secondary, #64748b); font-size: 0.95rem; }
 
+/* ── Week day chips ──────────────────────────── */
+.prod-week-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.prod-day-chip {
+  flex: 1;
+  min-width: 2.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 0.25rem;
+  border-radius: 12px;
+  border: 1.5px solid rgba(148,163,184,0.3);
+  background: rgba(255,255,255,0.75);
+  color: var(--text-secondary, #64748b);
+  font-size: 0.72rem;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s;
+  backdrop-filter: blur(8px);
+}
+.prod-day-chip:hover {
+  border-color: var(--accent-purple, #8b5cf6);
+  color: var(--accent-purple, #8b5cf6);
+  background: rgba(139,92,246,0.07);
+}
+.prod-day-chip.active {
+  background: linear-gradient(135deg, var(--accent-purple, #8b5cf6), var(--accent-blue, #3b82f6));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(139,92,246,0.3);
+}
+.prod-day-name {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.prod-day-num {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Slot group headers ──────────────────────── */
+.prod-slot-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 1.125rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary, #64748b);
+  background: rgba(248,250,252,0.9);
+  border-bottom: 1px solid rgba(148,163,184,0.1);
+  border-top: 1px solid rgba(148,163,184,0.1);
+}
+.prod-slot-section:first-child .prod-slot-group-header { border-top: none; }
+.prod-slot-count {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(148,163,184,0.15);
+  color: var(--text-secondary, #64748b);
+}
+
 /* ── Program chips ───────────────────────────── */
 .prod-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .prod-chips-label {
@@ -345,11 +470,15 @@
 .prod-prep-list { list-style: none; padding: 0; margin: 0; }
 .prod-prep-item {
   display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid rgba(148,163,184,0.1);
+  transition: background 0.15s;
+}
+.prod-prep-row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.7rem 1.125rem;
-  border-bottom: 1px solid rgba(148,163,184,0.1);
-  transition: background 0.15s;
 }
 .prod-prep-item:last-child { border-bottom: none; }
 .prod-prep-item:hover { background: rgba(139,92,246,0.03); }
@@ -393,7 +522,66 @@
 .prod-check-input:checked + .prod-check-box::after { transform: rotate(-45deg) scale(1); }
 .prod-prep-content { display: flex; flex-direction: column; gap: 0.15rem; }
 .prod-prep-name { font-size: 0.875rem; font-weight: 600; color: var(--text-primary, #1e293b); transition: all 0.18s; }
-.prod-prep-meta { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--text-secondary, #64748b); }
+.prod-prep-meta { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--text-secondary, #64748b); flex-wrap: wrap; }
+.prod-measure { font-weight: 600; color: var(--text-primary, #1e293b); }
+.prod-measure-sep { color: rgba(148,163,184,0.5); }
+
+/* ── Breakdown panel ─────────────────────────── */
+.prod-breakdown-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-purple, #8b5cf6);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  transition: color 0.15s;
+}
+.prod-breakdown-btn:hover { color: var(--accent-blue, #3b82f6); }
+.prod-breakdown-caret {
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+.prod-breakdown-btn[aria-expanded="true"] .prod-breakdown-caret { transform: rotate(-180deg); }
+.prod-breakdown-panel {
+  border-top: 1px solid rgba(148,163,184,0.12);
+  background: rgba(139,92,246,0.03);
+  padding: 0.4rem 1.125rem 0.4rem 3.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.prod-breakdown-panel[hidden] { display: none; }
+.prod-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+.prod-bd-name {
+  flex: 1;
+  color: var(--text-primary, #1e293b);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prod-bd-count {
+  font-weight: 700;
+  color: var(--accent-purple, #8b5cf6);
+  white-space: nowrap;
+}
+.prod-bd-oz {
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  white-space: nowrap;
+  min-width: 4rem;
+  text-align: right;
+}
 .prod-slot-badge {
   display: inline-block;
   padding: 0.05rem 0.35rem;
@@ -511,7 +699,30 @@
 // Move modal to <body> so it isn't trapped inside a positioned stacking context (worker_base)
 document.body.appendChild(document.getElementById('produceModal'));
 
-const SERVICE_DATE = "{{ service_date.isoformat() }}";
+const SERVICE_DATE = "{{ primary_date.isoformat() }}";
+const ANCHOR_DATE = "{{ anchor_date.isoformat() }}";
+const SELECTED_DATES = new Set({{ selected_iso | tojson }});
+
+function toggleBreakdown(btn) {
+  const li = btn.closest('.prep-item');
+  const panel = li.querySelector('.prod-breakdown-panel');
+  if (!panel) return;
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  panel.hidden = open;
+}
+
+function toggleDay(dateStr) {
+  if (SELECTED_DATES.has(dateStr)) {
+    if (SELECTED_DATES.size === 1) return; // keep at least one selected
+    SELECTED_DATES.delete(dateStr);
+  } else {
+    SELECTED_DATES.add(dateStr);
+  }
+  const sorted = Array.from(SELECTED_DATES).sort();
+  const params = new URLSearchParams({ date_str: ANCHOR_DATE, selected: sorted.join(',') });
+  window.location.href = '/catering/production?' + params.toString();
+}
 const TOGGLE_URL = "/catering/production/toggle";
 const PRODUCE_SAVE_URL = "/catering/production/produce-save";
 
