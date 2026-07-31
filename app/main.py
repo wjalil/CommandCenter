@@ -40,6 +40,7 @@ from app.api import taskboard_routes
 from app.api.catering import router as catering_router
 from app.api.delivery import router as delivery_router
 from app.api.auto_shop import router as auto_shop_router
+from app.api.catering_inquiry_routes import router as catering_inquiry_router
 
 load_dotenv()
 
@@ -357,3 +358,4 @@ app.include_router(taskboard_routes.router)
 app.include_router(catering_router, prefix="/catering")
 app.include_router(delivery_router, prefix="/delivery")
 app.include_router(auto_shop_router, prefix="/auto_shop")
+app.include_router(catering_inquiry_router)
