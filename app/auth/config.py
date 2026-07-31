@@ -8,7 +8,7 @@ _INSECURE_JWT_DEFAULT = "cookieops-super-secret-key"
 
 class AuthConfig(BaseSettings):
     secret: str = _INSECURE_JWT_DEFAULT
-    jwt_lifetime_seconds: int = 3600
+    jwt_lifetime_seconds: int = 60 * 60 * 24 * 365  # 1 year — tokens persist until explicit logout
     jwt_algorithm: str = "HS256"
     jwt_audience: str = "fastapi-users:auth"
 

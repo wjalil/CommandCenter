@@ -73,7 +73,7 @@ if not SESSION_SECRET:
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
-    max_age=3600,  # 1 hour session timeout
+    max_age=60 * 60 * 24 * 365,  # 1 year — sessions persist until explicit logout
     same_site="lax",  # CSRF protection (strict would break OAuth flows)
     https_only=True,  # Only send over HTTPS in production
     # Note: httponly=True is the default in Starlette (cannot be disabled - good security!)
