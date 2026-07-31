@@ -137,6 +137,38 @@
           No menu assigned. Assign meals in the calendar to see prep items.
         </div>
         {% endif %}
+        {% if vegan_total > 0 %}
+        <div class="prod-slot-section">
+          <div class="prod-slot-group-header">
+            <span>🌱 Vegan</span>
+            <span class="prod-slot-count">{{ vegan_total }}</span>
+          </div>
+          <ul class="prod-prep-list">
+            <li class="prod-prep-item prep-item">
+              <div class="prod-prep-row">
+                <span class="prod-prep-content">
+                  <span class="comp-name prod-prep-name">Vegan meals</span>
+                  <span class="prod-prep-meta">
+                    <button class="prod-breakdown-btn" type="button"
+                            onclick="toggleBreakdown(this)" aria-expanded="false">
+                      {{ vegan_total }} total
+                      <span class="prod-breakdown-caret">▾</span>
+                    </button>
+                  </span>
+                </span>
+              </div>
+              <div class="prod-breakdown-panel" hidden>
+                {% for vb in vegan_breakdown %}
+                <div class="prod-breakdown-row">
+                  <span class="prod-bd-name">{{ vb.name }}</span>
+                  <span class="prod-bd-count">{{ vb.count }} vegan</span>
+                </div>
+                {% endfor %}
+              </div>
+            </li>
+          </ul>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>

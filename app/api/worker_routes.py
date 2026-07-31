@@ -358,10 +358,10 @@ async def worker_menu_view(
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
 
     def get_component_preview(menu_day):
-        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
         if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
             return preview
-        for slot in ['breakfast', 'lunch', 'snack']:
+        for slot in ['breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack']:
             slot_components = sorted(
                 [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
                 key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
@@ -378,7 +378,7 @@ async def worker_menu_view(
                 week_data.append({
                     'day': '', 'date': '', 'in_month': False,
                     'is_service_day': False, 'menu_day': None,
-                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
                 })
             else:
                 date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)
@@ -446,10 +446,10 @@ async def worker_menu_pdf(
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
 
     def get_component_preview(menu_day):
-        preview = {'breakfast': '', 'lunch': '', 'snack': ''}
+        preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
         if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
             return preview
-        for slot in ['breakfast', 'lunch', 'snack']:
+        for slot in ['breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack']:
             slot_components = sorted(
                 [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
                 key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
@@ -466,7 +466,7 @@ async def worker_menu_pdf(
                 week_data.append({
                     'day': '', 'date': '', 'in_month': False,
                     'is_service_day': False, 'menu_day': None,
-                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': ''}
+                    'component_preview': {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
                 })
             else:
                 date_obj = dt_date(monthly_menu.year, monthly_menu.month, day_num)

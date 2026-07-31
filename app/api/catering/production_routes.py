@@ -153,47 +153,51 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             "pm_snack": program.pm_snack_count if program.pm_snack_count is not None else program.total_children,
         }
 
-        has_components = bool(menu_day.components)
+        slots_with_components = {
+            comp.meal_slot for comp in menu_day.components
+            if not comp.is_vegan and comp.food_component
+        }
+        slot_items = {
+            "breakfast": menu_day.breakfast_item,
+            "lunch": menu_day.lunch_item,
+            "snack": menu_day.snack_item,
+            "am_snack": menu_day.am_snack_item,
+            "pm_snack": menu_day.pm_snack_item,
+        }
 
-        if has_components:
-            for comp in menu_day.components:
-                if comp.is_vegan or not comp.food_component:
+        for comp in menu_day.components:
+            if comp.is_vegan or not comp.food_component:
+                continue
+            slot = comp.meal_slot
+            if slot not in meal_types_lower:
+                continue
+            qty_oz = float(comp.quantity or comp.food_component.default_portion_oz or 0)
+            meal_count = counts.get(slot, program.total_children) or 0
+            name = comp.food_component.name
+            component_agg[name]["total_oz"] += qty_oz * meal_count
+            component_agg[name]["total_count"] += meal_count
+            component_agg[name]["slots"].add(slot)
+            pb = component_agg[name]["program_breakdown"].setdefault(program.name, {"count": 0, "oz": 0.0})
+            pb["count"] += meal_count
+            pb["oz"] += qty_oz * meal_count
+
+        for slot, meal_item in slot_items.items():
+            if slot in slots_with_components:
+                continue
+            if slot not in meal_types_lower or not meal_item or not meal_item.components:
+                continue
+            meal_count = counts.get(slot, program.total_children) or 0
+            for mc in meal_item.components:
+                if not mc.food_component:
                     continue
-                slot = comp.meal_slot
-                if slot not in meal_types_lower:
-                    continue
-                qty_oz = float(comp.quantity or comp.food_component.default_portion_oz or 0)
-                meal_count = counts.get(slot, program.total_children) or 0
-                name = comp.food_component.name
-                component_agg[name]["total_oz"] += qty_oz * meal_count
+                name = mc.food_component.name
+                item_oz = float(mc.portion_oz or 0)
+                component_agg[name]["total_oz"] += item_oz * meal_count
                 component_agg[name]["total_count"] += meal_count
                 component_agg[name]["slots"].add(slot)
                 pb = component_agg[name]["program_breakdown"].setdefault(program.name, {"count": 0, "oz": 0.0})
                 pb["count"] += meal_count
-                pb["oz"] += qty_oz * meal_count
-        else:
-            slot_items = {
-                "breakfast": menu_day.breakfast_item,
-                "lunch": menu_day.lunch_item,
-                "snack": menu_day.snack_item,
-                "am_snack": menu_day.am_snack_item,
-                "pm_snack": menu_day.pm_snack_item,
-            }
-            for slot, meal_item in slot_items.items():
-                if slot not in meal_types_lower or not meal_item or not meal_item.components:
-                    continue
-                meal_count = counts.get(slot, program.total_children) or 0
-                for mc in meal_item.components:
-                    if not mc.food_component:
-                        continue
-                    name = mc.food_component.name
-                    item_oz = float(mc.portion_oz or 0)
-                    component_agg[name]["total_oz"] += item_oz * meal_count
-                    component_agg[name]["total_count"] += meal_count
-                    component_agg[name]["slots"].add(slot)
-                    pb = component_agg[name]["program_breakdown"].setdefault(program.name, {"count": 0, "oz": 0.0})
-                    pb["count"] += meal_count
-                    pb["oz"] += item_oz * meal_count
+                pb["oz"] += item_oz * meal_count
 
     # Sort components and convert sets to sorted label lists
     slot_order = list(SLOT_LABELS.keys())
@@ -332,12 +336,22 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             "supply_checks": supply_checks,
         })
 
+    # Vegan headcount, broken down by program (program.vegan_count is filled in per-program)
+    vegan_breakdown = [
+        {"name": program.name, "count": program.vegan_count}
+        for program in serving_programs
+        if program.vegan_count
+    ]
+    vegan_total = sum(vb["count"] for vb in vegan_breakdown)
+
     return {
         "serving_programs": serving_programs,
         "prep_components": prep_components,
         "checked_items": checked_items,
         "programs_data": programs_data,
         "produce_items": produce_items,
+        "vegan_total": vegan_total,
+        "vegan_breakdown": vegan_breakdown,
     }
 
 
@@ -474,6 +488,8 @@ async def production_daily_view(
             "checked_keys_json": json.dumps(checked_keys),
             "supply_types": SUPPLY_TYPES,
             "produce_items": data["produce_items"],
+            "vegan_total": data["vegan_total"],
+            "vegan_breakdown": data["vegan_breakdown"],
         },
     )
 
