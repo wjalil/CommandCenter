@@ -155,6 +155,7 @@ async def program_create(
     start_date_str = form.get("start_date")
     end_date_str = form.get("end_date")
     is_active = "is_active" in form
+    cacfp_eligible = "cacfp_eligible" in form
 
     # Parse optional meal counts (handle empty strings)
     breakfast_count = parse_optional_int(form.get("breakfast_count"))
@@ -200,6 +201,7 @@ async def program_create(
         start_date=parsed_start_date,
         end_date=parsed_end_date,
         is_active=is_active,
+        cacfp_eligible=cacfp_eligible,
         tenant_id=tenant_id,
         holidays=[]
     )
@@ -250,6 +252,7 @@ async def program_edit_form(
         "start_date": program.start_date,
         "end_date": program.end_date,
         "is_active": program.is_active,
+        "cacfp_eligible": program.cacfp_eligible,
         "service_days": service_days,
         "meal_types_required": meal_types_required,
     }
@@ -285,6 +288,7 @@ async def program_update(
     start_date_str = form.get("start_date")
     end_date_str = form.get("end_date")
     is_active = "is_active" in form
+    cacfp_eligible = "cacfp_eligible" in form
 
     # Parse optional meal counts (handle empty strings)
     breakfast_count = parse_optional_int(form.get("breakfast_count"))
@@ -330,6 +334,7 @@ async def program_update(
         start_date=parsed_start_date,
         end_date=parsed_end_date,
         is_active=is_active,
+        cacfp_eligible=cacfp_eligible,
     )
 
     await program_crud.update_program(db, program_id, tenant_id, program_data)
@@ -1188,11 +1193,11 @@ async def _get_menu_day_for_invoice(db: AsyncSession, menu_day_id: str):
         select(CateringMenuDay)
         .where(CateringMenuDay.id == menu_day_id)
         .options(
-            selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component),
-            selectinload(CateringMenuDay.breakfast_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.breakfast_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.lunch_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
+            selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component).selectinload(FoodComponent.component_type),
+            selectinload(CateringMenuDay.breakfast_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component).selectinload(FoodComponent.component_type),
+            selectinload(CateringMenuDay.breakfast_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component).selectinload(FoodComponent.component_type),
+            selectinload(CateringMenuDay.lunch_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component).selectinload(FoodComponent.component_type),
+            selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component).selectinload(FoodComponent.component_type),
             selectinload(CateringMenuDay.snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
             selectinload(CateringMenuDay.snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
             selectinload(CateringMenuDay.am_snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
@@ -1204,14 +1209,65 @@ async def _get_menu_day_for_invoice(db: AsyncSession, menu_day_id: str):
     return result.scalar_one_or_none()
 
 
+def _slot_already_has_milk(components) -> bool:
+    """True if any component in this meal slot is already categorized as Milk (avoids double-adding)."""
+    for comp in components or []:
+        food_comp = getattr(comp, "food_component", None)
+        comp_type = getattr(food_comp, "component_type", None) if food_comp else None
+        if comp_type and comp_type.name == "Milk":
+            return True
+    return False
+
+
+async def _build_milk_notes(db: AsyncSession, program, menu_day) -> dict:
+    """
+    For CACFP-eligible programs, figure out which Breakfast/Lunch (regular + vegan) rows
+    on an invoice should get an auto "Milk Xoz" line, without requiring it to be manually
+    added to the menu. Skips a slot that already has a manually-added Milk component.
+    """
+    if not program or not program.cacfp_eligible or not menu_day:
+        return {}
+
+    milk_portions = await cacfp_rules.get_milk_portions(db, program.age_group_id)
+    if not milk_portions:
+        return {}
+
+    has_components = bool(menu_day.components)
+    notes = {}
+
+    for slot in ("breakfast", "lunch"):
+        oz = milk_portions.get(slot)
+        if not oz:
+            continue
+
+        for suffix, is_vegan in (("", False), ("_vegan", True)):
+            if has_components:
+                slot_comps = [
+                    c for c in menu_day.components
+                    if c.meal_slot == slot and c.is_vegan == is_vegan
+                ]
+                if not slot_comps or _slot_already_has_milk(slot_comps):
+                    continue
+            else:
+                item = getattr(menu_day, f"{slot}{suffix}_item", None)
+                if not item or _slot_already_has_milk(item.components):
+                    continue
+
+            notes[f"{slot}{suffix}"] = f"Milk {oz}oz"
+
+    return notes
+
+
 async def _generate_invoice_pdf_bytes(request: Request, db: AsyncSession, invoice) -> bytes:
     """Generate PDF bytes for a single invoice using xhtml2pdf."""
     from xhtml2pdf import pisa
     menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
+    milk_notes = await _build_milk_notes(db, invoice.program, menu_day)
     html_content = templates.TemplateResponse("catering/invoice_pdf.html", {
         "request": request,
         "invoice": invoice,
         "menu_day": menu_day,
+        "milk_notes": milk_notes,
     }).body.decode('utf-8')
     pdf_buffer = io.BytesIO()
     pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
@@ -1307,11 +1363,13 @@ async def view_invoice(
         return RedirectResponse(url="/catering/invoices", status_code=303)
 
     menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
+    milk_notes = await _build_milk_notes(db, invoice.program, menu_day)
 
     return templates.TemplateResponse("catering/invoice_view.html", {
         "request": request,
         "invoice": invoice,
         "menu_day": menu_day,
+        "milk_notes": milk_notes,
     })
 
 

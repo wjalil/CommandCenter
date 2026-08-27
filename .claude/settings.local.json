@@ -11,7 +11,10 @@
       "Bash(git add *)",
       "Bash(git push *)",
       "Bash(grep -r \"production_log\\\\|production\" /mnt/c/Users/wjali/OneDrive/Desktop/cookieops-backend/app --include=\"*.py\" ! -path \"*/.venv/*\" -l)",
-      "Bash(grep -viE '\\\\.\\(png|jpg|jpeg|gif|ico|svg|lock\\)$')"
+      "Bash(grep -viE '\\\\.\\(png|jpg|jpeg|gif|ico|svg|lock\\)$')",
+      "Bash(python -c ' *)",
+      "Bash(python -)",
+      "Bash(pip3 show *)"
     ]
   }
 }

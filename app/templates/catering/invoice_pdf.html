@@ -231,6 +231,7 @@
                   {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
                   {%- if not loop.last %}, {% endif -%}
                 {%- endfor -%}
+                {%- if milk_notes.breakfast %}, {{ milk_notes.breakfast }}{% endif -%}
               </span>
             </td>
           </tr>
@@ -247,6 +248,7 @@
                   {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
                   {%- if not loop.last %}, {% endif -%}
                 {%- endfor -%}
+                {%- if milk_notes.breakfast_vegan %}, {{ milk_notes.breakfast_vegan }}{% endif -%}
               </span>
             </td>
           </tr>
@@ -263,6 +265,7 @@
                   {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
                   {%- if not loop.last %}, {% endif -%}
                 {%- endfor -%}
+                {%- if milk_notes.lunch %}, {{ milk_notes.lunch }}{% endif -%}
               </span>
             </td>
           </tr>
@@ -279,6 +282,7 @@
                   {{ comp.food_component.name }} {{ (comp.quantity or comp.food_component.default_portion_oz)|float }}oz
                   {%- if not loop.last %}, {% endif -%}
                 {%- endfor -%}
+                {%- if milk_notes.lunch_vegan %}, {{ milk_notes.lunch_vegan }}{% endif -%}
               </span>
             </td>
           </tr>
@@ -364,6 +368,7 @@
                 {%- else -%}
                   {{ menu_day.breakfast_item.name }}
                 {%- endif -%}
+                {%- if milk_notes.breakfast %}, {{ milk_notes.breakfast }}{% endif -%}
               </span>
             </td>
           </tr>
@@ -382,6 +387,7 @@
                 {%- else -%}
                   {{ menu_day.lunch_item.name }}
                 {%- endif -%}
+                {%- if milk_notes.lunch %}, {{ milk_notes.lunch }}{% endif -%}
               </span>
             </td>
           </tr>
@@ -400,6 +406,7 @@
                 {%- else -%}
                   {{ menu_day.lunch_vegan_item.name }}
                 {%- endif -%}
+                {%- if milk_notes.lunch_vegan %}, {{ milk_notes.lunch_vegan }}{% endif -%}
               </span>
             </td>
           </tr>

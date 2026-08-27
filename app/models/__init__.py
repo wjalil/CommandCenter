@@ -28,6 +28,8 @@ from .catering import (
     CateringMonthlyMenu,
     CateringMenuDay,
     CateringInvoice,
+    CateringClientAccount,
+    ClientPortalRequest,
 )
 from .delivery import (
     DeliveryStop,

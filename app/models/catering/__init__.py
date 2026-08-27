@@ -6,6 +6,8 @@ from .monthly_menu import CateringMonthlyMenu, CateringMenuDay
 from .invoice import CateringInvoice
 from .menu_day_component import MenuDayComponent
 from .production_log import ProductionDailyLog
+from .client_account import CateringClientAccount
+from .portal_request import ClientPortalRequest
 
 __all__ = [
     "CACFPAgeGroup",
@@ -21,4 +23,6 @@ __all__ = [
     "CateringInvoice",
     "MenuDayComponent",
     "ProductionDailyLog",
+    "CateringClientAccount",
+    "ClientPortalRequest",
 ]

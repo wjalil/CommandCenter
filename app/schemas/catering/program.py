@@ -47,6 +47,7 @@ class CateringProgramBase(BaseModel):
     start_date: date
     end_date: Optional[date] = None
     is_active: bool = True
+    cacfp_eligible: bool = False  # auto-adds milk to breakfast/lunch on invoices + menu share note
 
 
 class CateringProgramCreate(CateringProgramBase):
@@ -79,6 +80,7 @@ class CateringProgramUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     is_active: Optional[bool] = None
+    cacfp_eligible: Optional[bool] = None
     holidays: Optional[List[ProgramHolidayCreate]] = None
 
 

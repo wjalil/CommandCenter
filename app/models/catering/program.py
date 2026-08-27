@@ -27,6 +27,7 @@ class CateringProgram(Base):
     am_snack_count = Column(Integer, nullable=True)
     pm_snack_count = Column(Integer, nullable=True)
 
+    cacfp_eligible = Column(Boolean, default=False, nullable=False)  # auto-add milk to breakfast/lunch on invoices + menu share note
     invoice_prefix = Column(String, nullable=False)  # BC, LC, etc.
     last_invoice_number = Column(Integer, default=0, nullable=False)
     service_days = Column(String, nullable=False)  # JSON: ["Monday", "Tuesday", ...]
@@ -44,6 +45,8 @@ class CateringProgram(Base):
     monthly_menus = relationship("CateringMonthlyMenu", back_populates="program", cascade="all, delete-orphan")
     invoices = relationship("CateringInvoice", back_populates="program")
     production_logs = relationship("ProductionDailyLog", back_populates="program", cascade="all, delete-orphan")
+    client_account = relationship("CateringClientAccount", back_populates="program", uselist=False, cascade="all, delete-orphan")
+    portal_requests = relationship("ClientPortalRequest", back_populates="program", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_catering_programs_tenant", "tenant_id"),
