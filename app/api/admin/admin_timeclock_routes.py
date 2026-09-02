@@ -3,6 +3,7 @@
 from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import List, Optional
+from types import SimpleNamespace
 from uuid import uuid4
 import logging
 from zoneinfo import ZoneInfo
@@ -236,6 +237,26 @@ async def admin_timeclock_view(
     users_q = select(User.id, User.name).where(User.tenant_id == user.tenant_id).order_by(func.lower(User.name))
     users = (await db.execute(users_q)).all()
 
+    # Drivers who are paid purely per-route (no clock in/out in this range) have no
+    # TimeEntry row, so they'd never appear in per_user even though they have route pay.
+    # Synthesize a zero-hours row for them so their route pay still shows up.
+    user_name_map = {u.id: u.name for u in users}
+    existing_user_ids = {r.user_id for r in per_user}
+    extra_rows = [
+        SimpleNamespace(
+            user_id=uid,
+            user_name=user_name_map.get(uid, uid),
+            minutes=0,
+            gross=0.0,
+            unpaid_gross=0.0,
+            entries=0,
+            last_clock_in=None,
+        )
+        for uid in route_pay_map
+        if uid not in existing_user_ids
+    ]
+    all_rows = sorted(list(per_user) + extra_rows, key=lambda r: (r.user_name or "").lower())
+
     ctx = {
         "request": request,
         "start": s_date.isoformat(),
@@ -249,7 +270,7 @@ async def admin_timeclock_view(
         "kpi_unpaid_total": f"{unpaid_total:,.2f}",
         "kpi_open_count": open_count,
 
-        "rows": per_user,
+        "rows": all_rows,
         "route_pay_map": route_pay_map,
     }
     return templates.TemplateResponse("admin/timeclock.html", ctx)

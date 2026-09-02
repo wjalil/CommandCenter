@@ -19,6 +19,10 @@
         <a class="nav-link {% if active == 'financials' %}fw-bold text-primary{% endif %}"
            href="/auto_shop/admin/financials">Financials</a>
       </li>
+      <li class="nav-item">
+        <a class="nav-link {% if active == 'archive' %}fw-bold text-primary{% endif %}"
+           href="/auto_shop/admin/archive">📦 Archive</a>
+      </li>
       {% if request.session.get("role") == "office_admin" %}
       <li class="nav-item ms-2">
         <a class="nav-link fw-semibold text-success" href="/worker/home">⏱ My Portal</a>

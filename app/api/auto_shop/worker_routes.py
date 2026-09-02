@@ -70,6 +70,7 @@ async def worker_jobs_list(
             RepairOrder.tenant_id == user.tenant_id,
             RepairOrder.assigned_tech_id == user.id,
             RepairOrder.status.notin_(["complete"]),
+            RepairOrder.archived == False,
         )
         .options(selectinload(RepairOrder.assigned_tech))
         .order_by(RepairOrder.intake_date.asc())
@@ -83,6 +84,7 @@ async def worker_jobs_list(
             .where(
                 RepairOrder.tenant_id == user.tenant_id,
                 RepairOrder.status.notin_(["complete"]),
+            RepairOrder.archived == False,
             )
             .options(selectinload(RepairOrder.assigned_tech))
             .order_by(RepairOrder.intake_date.asc())

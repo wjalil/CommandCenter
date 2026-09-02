@@ -222,6 +222,14 @@ async def routes_list(
     result = await db.execute(query)
     routes = result.scalars().all()
 
+    drivers_result = await db.execute(
+        select(User).where(
+            User.tenant_id == tenant_id,
+            User.is_active == True
+        ).order_by(User.name)
+    )
+    drivers = drivers_result.scalars().all()
+
     # Bucket into ordered dict keyed by week label (most recent first)
     weeks: dict = OrderedDict()
     for route in routes:
@@ -244,6 +252,7 @@ async def routes_list(
     return templates.TemplateResponse("delivery/routes_list.html", {
         "request": request,
         "weeks": weeks,
+        "drivers": drivers,
         "window_start": window_start,
         "window_end": window_end - timedelta(days=1),
         "prev_window": prev_window,
@@ -305,6 +314,9 @@ async def route_create(
     driver_id = form.get("assigned_driver_id") or None
     status = "assigned" if driver_id else "draft"
 
+    pay_rate_raw = form.get("driver_pay_rate")
+    driver_pay_rate = float(pay_rate_raw) if pay_rate_raw else None
+
     # Create route
     route = DeliveryRoute(
         id=str(uuid.uuid4()),
@@ -312,6 +324,7 @@ async def route_create(
         date=route_date,
         assigned_driver_id=driver_id,
         status=status,
+        driver_pay_rate=driver_pay_rate,
         notes=form.get("notes") or None,
         tenant_id=tenant_id
     )
@@ -421,6 +434,9 @@ async def route_update(
     route.assigned_driver_id = form.get("assigned_driver_id") or None
     route.notes = form.get("notes") or None
 
+    pay_rate_raw = form.get("driver_pay_rate")
+    route.driver_pay_rate = float(pay_rate_raw) if pay_rate_raw else None
+
     # Update status based on driver assignment (only if still draft/assigned)
     if route.status in ["draft", "assigned"]:
         route.status = "assigned" if route.assigned_driver_id else "draft"
@@ -445,6 +461,36 @@ async def route_update(
     await db.commit()
 
     return RedirectResponse(url="/delivery/admin/routes", status_code=303)
+
+
+@router.post("/routes/{route_id}/assign")
+async def route_assign_driver(
+    request: Request,
+    route_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Quick-assign (or unassign) a driver from the routes list"""
+    tenant_id = request.state.tenant_id
+    form = await request.form()
+
+    result = await db.execute(
+        select(DeliveryRoute).where(
+            DeliveryRoute.id == route_id,
+            DeliveryRoute.tenant_id == tenant_id
+        )
+    )
+    route = result.scalar_one_or_none()
+
+    if route:
+        route.assigned_driver_id = form.get("assigned_driver_id") or None
+        if route.status in ["draft", "assigned"]:
+            route.status = "assigned" if route.assigned_driver_id else "draft"
+        await db.commit()
+
+    week_start = form.get("week_start")
+    redirect_url = f"/delivery/admin/routes?week_start={week_start}" if week_start else "/delivery/admin/routes"
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post("/routes/{route_id}/delete")

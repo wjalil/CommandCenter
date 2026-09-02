@@ -91,12 +91,13 @@ async def dashboard(
     tenant_id = user.tenant_id
     today = date.today()
 
-    # All open jobs
+    # All open jobs (not archived)
     result = await db.execute(
         select(RepairOrder)
         .where(
             RepairOrder.tenant_id == tenant_id,
             RepairOrder.status.notin_(["complete"]),
+            RepairOrder.archived == False,
         )
         .options(selectinload(RepairOrder.assigned_tech))
         .order_by(RepairOrder.intake_date.asc())
@@ -149,7 +150,7 @@ async def jobs_list(
 
     query = (
         select(RepairOrder)
-        .where(RepairOrder.tenant_id == tenant_id)
+        .where(RepairOrder.tenant_id == tenant_id, RepairOrder.archived == False)
         .options(selectinload(RepairOrder.assigned_tech))
         .order_by(RepairOrder.created_at.desc())
     )
@@ -163,6 +164,98 @@ async def jobs_list(
         "auto_shop/jobs_list.html",
         _template_ctx(request, jobs=jobs, status_filter=status_filter or ""),
     )
+
+
+# ── archive ───────────────────────────────────────────────────────────────────
+
+@router.get("/archive")
+async def archive_list(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    tenant_id = user.tenant_id
+
+    result = await db.execute(
+        select(RepairOrder)
+        .where(RepairOrder.tenant_id == tenant_id, RepairOrder.archived == True)
+        .options(selectinload(RepairOrder.assigned_tech))
+        .order_by(RepairOrder.archived_at.desc())
+    )
+    jobs = result.scalars().all()
+
+    return templates.TemplateResponse(
+        "auto_shop/archive.html",
+        _template_ctx(request, jobs=jobs),
+    )
+
+
+@router.post("/jobs/{job_id}/archive")
+async def job_archive(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    tenant_id = user.tenant_id
+
+    result = await db.execute(
+        select(RepairOrder).where(RepairOrder.id == job_id, RepairOrder.tenant_id == tenant_id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        return RedirectResponse(url="/auto_shop/admin/jobs", status_code=303)
+
+    job.archived = True
+    job.archived_at = datetime.utcnow()
+    job.updated_at = datetime.utcnow()
+
+    log = RepairOrderStatusLog(
+        id=str(uuid.uuid4()),
+        repair_order_id=job.id,
+        old_status=job.status,
+        new_status=job.status,
+        notes="Archived",
+        changed_by_id=user.id,
+        tenant_id=tenant_id,
+    )
+    db.add(log)
+    await db.commit()
+
+    return RedirectResponse(url="/auto_shop/admin/jobs", status_code=303)
+
+
+@router.post("/jobs/{job_id}/unarchive")
+async def job_unarchive(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    tenant_id = user.tenant_id
+
+    result = await db.execute(
+        select(RepairOrder).where(RepairOrder.id == job_id, RepairOrder.tenant_id == tenant_id)
+    )
+    job = result.scalar_one_or_none()
+    if not job:
+        return RedirectResponse(url="/auto_shop/admin/archive", status_code=303)
+
+    job.archived = False
+    job.archived_at = None
+    job.updated_at = datetime.utcnow()
+
+    log = RepairOrderStatusLog(
+        id=str(uuid.uuid4()),
+        repair_order_id=job.id,
+        old_status=job.status,
+        new_status=job.status,
+        notes="Restored from archive",
+        changed_by_id=user.id,
+        tenant_id=tenant_id,
+    )
+    db.add(log)
+    await db.commit()
+
+    return RedirectResponse(url=f"/auto_shop/admin/jobs/{job_id}", status_code=303)
 
 
 # ── create job ────────────────────────────────────────────────────────────────

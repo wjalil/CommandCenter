@@ -19,6 +19,7 @@ from app.models.timeclock import TimeEntry, TimeStatus
 from app.utils.timeclock_service import clock_in as svc_clock_in, clock_out as svc_clock_out
 from app.models.customer.customer_order import CustomerOrder, OrderItem
 from app.models.catering import CateringProgram, CateringMonthlyMenu
+from app.models.delivery import DeliveryRoute
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -547,6 +548,37 @@ async def worker_timeclock_history(
     s_date = datetime.fromisoformat(start).date() if isinstance(start, str) else start
     e_date = datetime.fromisoformat(end).date() if isinstance(end, str) else end
 
+    is_driver = getattr(user, "worker_type", None) == "Driver"
+
+    if is_driver:
+        # Drivers are paid per completed route, not by clock in/out time
+        result = await db.execute(
+            select(DeliveryRoute)
+            .where(
+                DeliveryRoute.tenant_id == user.tenant_id,
+                DeliveryRoute.assigned_driver_id == user.id,
+                DeliveryRoute.status == "completed",
+                DeliveryRoute.date >= s_date,
+                DeliveryRoute.date < e_date,
+            )
+            .options(selectinload(DeliveryRoute.route_stops))
+            .order_by(DeliveryRoute.date.desc())
+        )
+        completed_routes = result.scalars().all()
+        total_gross = sum(float(r.driver_pay_rate or 0) for r in completed_routes)
+
+        return templates.TemplateResponse("worker_timeclock.html", {
+            "request": request,
+            "is_driver": True,
+            "completed_routes": completed_routes,
+            "start": start,
+            "end": end,
+            "total_routes": len(completed_routes),
+            "total_gross": round(total_gross, 2),
+            "worker_name": getattr(user, "name", "Worker"),
+            "pytz": pytz,
+        })
+
     # Fetch entries for this worker in the date range
     result = await db.execute(
         select(TimeEntry)
@@ -567,6 +599,7 @@ async def worker_timeclock_history(
 
     return templates.TemplateResponse("worker_timeclock.html", {
         "request": request,
+        "is_driver": False,
         "entries": entries,
         "start": start,
         "end": end,

@@ -3,15 +3,119 @@
 {% block nav_title %}🚛 My Routes{% endblock %}
 
 {% block extra_css %}
+  /* ---------- Header ---------- */
+  .routes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    margin-bottom: 1.1rem;
+  }
+  .page-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+    margin-bottom: 0.15rem;
+  }
+  .page-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .stat-pills { display: flex; gap: 0.6rem; }
+  .stat-pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.85rem;
+    text-align: center;
+    min-width: 62px;
+    box-shadow: var(--shadow-sm);
+  }
+  .stat-pill .stat-num { font-size: 1.15rem; font-weight: 800; color: var(--text-primary); line-height: 1.1; }
+  .stat-pill .stat-label { font-size: 0.63rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-top: 1px; }
+  .stat-pill.stat-pill-available { border-color: rgba(16,185,129,0.35); background: rgba(16,185,129,0.07); }
+  .stat-pill.stat-pill-available .stat-num { color: #059669; }
+
+  /* ---------- Quick nav ---------- */
+  .quick-nav {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.3rem;
+    margin-bottom: 1.6rem;
+    scrollbar-width: none;
+  }
+  .quick-nav::-webkit-scrollbar { display: none; }
+  .quick-nav-pill {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-decoration: none;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+  }
+  .quick-nav-pill:hover { background: var(--bg); color: var(--text-primary); border-color: #cbd5e1; }
+  .quick-nav-pill .count { background: rgba(148,163,184,0.18); border-radius: 999px; padding: 0.05rem 0.45rem; font-size: 0.7rem; }
+  .quick-nav-pill.today { border-color: rgba(139,92,246,0.35); color: #7c3aed; }
+  .quick-nav-pill.today .count { background: rgba(139,92,246,0.14); }
+  .quick-nav-pill.available { border-color: rgba(16,185,129,0.4); color: #059669; }
+  .quick-nav-pill.available .count { background: rgba(16,185,129,0.16); }
+
+  /* ---------- Section framing ---------- */
+  .routes-section { margin-bottom: 2rem; scroll-margin-top: 1rem; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.7rem;
+  }
+  .section-icon { font-size: 1.05rem; line-height: 1; }
+  .section-title-text {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .section-count {
+    background: rgba(100,116,139,0.12);
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 0.08rem 0.5rem;
+    margin-left: 0.1rem;
+  }
+  .routes-section.today .section-title-text { color: #7c3aed; }
+  .routes-section.available-section .section-title-text { color: #059669; }
+  .routes-section.available-section .section-count { background: rgba(16,185,129,0.15); color: #059669; }
+  .section-hint {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin: -0.35rem 0 0.85rem;
+  }
+
+  /* ---------- Route cards ---------- */
   .route-card {
-    background: rgba(255,255,255,0.9);
-    border: 1px solid rgba(148,163,184,0.2);
-    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     padding: 1.1rem 1.25rem;
     text-decoration: none;
     display: block;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-    transition: all 0.2s ease;
+    box-shadow: var(--shadow);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
     position: relative;
     overflow: hidden;
     margin-bottom: 0.75rem;
@@ -22,34 +126,60 @@
     position: absolute;
     left: 0; top: 0; bottom: 0;
     width: 4px;
-    background: var(--accent-teal);
+    background: var(--accent-purple);
   }
   .route-card.in-progress::before { background: var(--accent-amber); }
   .route-card.completed::before   { background: var(--accent-emerald); }
-  .route-card.upcoming::before    { background: #cbd5e1; }
+  .route-card.upcoming::before    { background: #94a3b8; }
+  .route-card.available {
+    border-style: dashed;
+    border-color: rgba(16,185,129,0.4);
+    background: rgba(16,185,129,0.035);
+  }
+  .route-card.available::before { background: var(--accent-emerald); border-style: solid; }
   .route-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(0,0,0,0.09);
+    border-color: #cbd5e1;
+    box-shadow: var(--shadow-md);
     color: var(--text-primary);
   }
+  .route-card.available:hover { border-color: rgba(16,185,129,0.5); box-shadow: 0 4px 16px rgba(16,185,129,0.12); }
 
-  .route-name  { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.2rem; }
-  .route-meta  { font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem; }
+  .route-card-link { display: block; color: inherit; text-decoration: none; }
+  .quick-complete-inline { margin-top: 0.75rem; padding-top: 0.7rem; border-top: 1px dashed var(--border); }
+  .quick-complete-inline-btn {
+    width: 100%;
+    padding: 0.45rem;
+    background: rgba(16,185,129,0.08);
+    border: 1.5px solid rgba(16,185,129,0.3);
+    border-radius: 8px;
+    color: #059669;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .quick-complete-inline-btn:hover { background: rgba(16,185,129,0.14); }
+
+  .route-name  { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; }
+  .route-meta  { font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
+  .route-meta .dot { color: #cbd5e1; }
   .route-badge {
-    padding: 0.2rem 0.65rem;
+    padding: 0.22rem 0.7rem;
     border-radius: 20px;
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.03em;
+    white-space: nowrap;
   }
   .badge-ready    { background: rgba(20,184,166,0.1);  color: #0d9488;  border: 1px solid rgba(20,184,166,0.25); }
   .badge-progress { background: rgba(245,158,11,0.1);  color: #b45309;  border: 1px solid rgba(245,158,11,0.25); }
   .badge-done     { background: rgba(16,185,129,0.1);  color: #059669;  border: 1px solid rgba(16,185,129,0.25); }
   .badge-upcoming { background: rgba(100,116,139,0.1); color: #64748b;  border: 1px solid rgba(100,116,139,0.2); }
+  .badge-pay      { background: rgba(16,185,129,0.14); color: #047857;  border: 1px solid rgba(16,185,129,0.35); font-size: 0.75rem; }
 
   .mini-progress {
     height: 3px;
-    background: rgba(148,163,184,0.2);
+    background: var(--border);
     border-radius: 3px;
     margin-top: 0.55rem;
     overflow: hidden;
@@ -59,91 +189,191 @@
     background: var(--accent-teal);
     border-radius: 3px;
   }
-  .section-label {
-    font-size: 0.7rem;
+
+  .claim-hint {
+    font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-    margin: 1.5rem 0 0.6rem;
+    color: #059669;
+    margin-top: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
   }
+
   .empty-state {
-    background: rgba(255,255,255,0.6);
-    border: 1px dashed rgba(148,163,184,0.4);
-    border-radius: 14px;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
     padding: 1.5rem;
     text-align: center;
     color: var(--text-secondary);
     font-size: 0.875rem;
   }
   .chevron { color: #cbd5e1; font-size: 1.1rem; }
+  .route-card.available .chevron { color: rgba(16,185,129,0.5); }
 {% endblock %}
 
 {% block content %}
 
-<!-- Today -->
-<div class="section-label">Today — {{ today.strftime('%A, %B %d') }}</div>
+<!-- Header -->
+<div class="routes-header">
+  <div>
+    <div class="page-title">My Routes</div>
+    <div class="page-subtitle">{{ today.strftime('%A, %B %d') }}</div>
+  </div>
+  <div class="stat-pills">
+    <div class="stat-pill">
+      <div class="stat-num">{{ todays_routes|length }}</div>
+      <div class="stat-label">Today</div>
+    </div>
+    <div class="stat-pill">
+      <div class="stat-num">{{ upcoming_routes|length }}</div>
+      <div class="stat-label">Upcoming</div>
+    </div>
+    {% if available_routes %}
+    <div class="stat-pill stat-pill-available">
+      <div class="stat-num">{{ available_routes|length }}</div>
+      <div class="stat-label">Available</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
 
-{% if todays_routes %}
-  {% for route in todays_routes %}
-  {% set done  = route.route_stops|selectattr("status","in",["completed","skipped"])|list|length %}
+<!-- Quick nav -->
+<div class="quick-nav">
+  <a href="#section-today" class="quick-nav-pill today">📅 Today <span class="count">{{ todays_routes|length }}</span></a>
+  {% if upcoming_routes %}
+  <a href="#section-upcoming" class="quick-nav-pill">🗓️ Upcoming <span class="count">{{ upcoming_routes|length }}</span></a>
+  {% endif %}
+  {% if available_routes %}
+  <a href="#section-available" class="quick-nav-pill available">📦 Available <span class="count">{{ available_routes|length }}</span></a>
+  {% endif %}
+</div>
+
+<!-- Today -->
+<div class="routes-section today" id="section-today">
+  <div class="section-header">
+    <span class="section-icon">📅</span>
+    <span class="section-title-text">Today</span>
+    <span class="section-count">{{ todays_routes|length }}</span>
+  </div>
+
+  {% if todays_routes %}
+    {% for route in todays_routes %}
+    {% set done  = route.route_stops|selectattr("status","in",["completed","skipped"])|list|length %}
+    {% set total = route.route_stops|length %}
+    <div class="route-card {% if route.status == 'in_progress' %}in-progress{% elif route.status == 'completed' %}completed{% endif %}">
+      <a href="/delivery/driver/route/{{ route.id }}" class="route-card-link">
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="flex-grow-1">
+            <div class="route-name">{{ route.name }}</div>
+            <div class="route-meta">
+              <span>📍 {{ total }} stop{% if total != 1 %}s{% endif %}</span>
+              {% if route.status == 'in_progress' %}
+              <span class="dot">·</span><span>{{ done }}/{{ total }} done</span>
+              {% endif %}
+              {% if route.driver_pay_rate %}
+              <span class="dot">·</span><span>💵 ${{ '%.2f'|format(route.driver_pay_rate|float) }}</span>
+              {% endif %}
+            </div>
+            {% if total > 0 and route.status == 'in_progress' %}
+            <div class="mini-progress">
+              <div class="mini-progress-fill" style="width:{{ (done/total*100)|int }}%"></div>
+            </div>
+            {% endif %}
+          </div>
+          <div class="d-flex align-items-center gap-2 ms-3 mt-1">
+            {% if route.status == 'assigned' %}
+            <span class="route-badge badge-ready">Ready</span>
+            {% elif route.status == 'in_progress' %}
+            <span class="route-badge badge-progress">In Progress</span>
+            {% elif route.status == 'completed' %}
+            <span class="route-badge badge-done">Done</span>
+            {% endif %}
+            <span class="chevron">›</span>
+          </div>
+        </div>
+      </a>
+      {% if route.status in ['assigned', 'in_progress'] %}
+      <form action="/delivery/driver/route/{{ route.id }}/quick-complete" method="POST" class="quick-complete-inline"
+            onsubmit="return confirm('Mark this entire route as completed? Any remaining stops will be marked delivered without going through each one.');">
+        <button type="submit" class="quick-complete-inline-btn">✓ Quick Complete</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">No routes assigned for today.</div>
+  {% endif %}
+</div>
+
+<!-- Upcoming -->
+{% if upcoming_routes %}
+<div class="routes-section upcoming" id="section-upcoming">
+  <div class="section-header">
+    <span class="section-icon">🗓️</span>
+    <span class="section-title-text">Upcoming</span>
+    <span class="section-count">{{ upcoming_routes|length }}</span>
+  </div>
+  {% for route in upcoming_routes %}
   {% set total = route.route_stops|length %}
-  <a href="/delivery/driver/route/{{ route.id }}"
-     class="route-card {% if route.status == 'in_progress' %}in-progress{% elif route.status == 'completed' %}completed{% endif %}">
+  <a href="/delivery/driver/route/{{ route.id }}" class="route-card upcoming">
     <div class="d-flex justify-content-between align-items-start">
-      <div class="flex-grow-1">
+      <div>
         <div class="route-name">{{ route.name }}</div>
         <div class="route-meta">
-          <span>{{ total }} stop{% if total != 1 %}s{% endif %}</span>
-          {% if route.status == 'in_progress' %}
-          <span>·</span><span>{{ done }}/{{ total }} done</span>
+          <span>{{ route.date.strftime('%a, %b %d') }}</span>
+          <span class="dot">·</span>
+          <span>📍 {{ total }} stop{% if total != 1 %}s{% endif %}</span>
+          {% if route.driver_pay_rate %}
+          <span class="dot">·</span><span>💵 ${{ '%.2f'|format(route.driver_pay_rate|float) }}</span>
           {% endif %}
         </div>
-        {% if total > 0 and route.status == 'in_progress' %}
-        <div class="mini-progress">
-          <div class="mini-progress-fill" style="width:{{ (done/total*100)|int }}%"></div>
-        </div>
-        {% endif %}
       </div>
       <div class="d-flex align-items-center gap-2 ms-3 mt-1">
-        {% if route.status == 'assigned' %}
-        <span class="route-badge badge-ready">Ready</span>
-        {% elif route.status == 'in_progress' %}
-        <span class="route-badge badge-progress">In Progress</span>
-        {% elif route.status == 'completed' %}
-        <span class="route-badge badge-done">Done</span>
+        <span class="route-badge badge-upcoming">{{ route.date.strftime('%m/%d') }}</span>
+        <span class="chevron">›</span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Available -->
+{% if available_routes %}
+<div class="routes-section available-section" id="section-available">
+  <div class="section-header">
+    <span class="section-icon">📦</span>
+    <span class="section-title-text">Available to Pick Up</span>
+    <span class="section-count">{{ available_routes|length }}</span>
+  </div>
+  <p class="section-hint">Open routes any driver can claim. Tap one to view details, then pick it up.</p>
+  {% for route in available_routes %}
+  {% set total = route.route_stops|length %}
+  <a href="/delivery/driver/route/{{ route.id }}" class="route-card available">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div class="route-name">{{ route.name }}</div>
+        <div class="route-meta">
+          <span>{{ route.date.strftime('%a, %b %d') }}</span>
+          <span class="dot">·</span>
+          <span>📍 {{ total }} stop{% if total != 1 %}s{% endif %}</span>
+        </div>
+        <div class="claim-hint">✋ Tap to view &amp; claim</div>
+      </div>
+      <div class="d-flex align-items-center gap-2 ms-3 mt-1">
+        {% if route.driver_pay_rate %}
+        <span class="route-badge badge-pay">${{ '%.2f'|format(route.driver_pay_rate|float) }}</span>
+        {% else %}
+        <span class="route-badge badge-upcoming">Open</span>
         {% endif %}
         <span class="chevron">›</span>
       </div>
     </div>
   </a>
   {% endfor %}
-{% else %}
-  <div class="empty-state">No routes assigned for today.</div>
-{% endif %}
-
-<!-- Upcoming -->
-{% if upcoming_routes %}
-<div class="section-label">Upcoming</div>
-{% for route in upcoming_routes %}
-{% set total = route.route_stops|length %}
-<a href="/delivery/driver/route/{{ route.id }}" class="route-card upcoming">
-  <div class="d-flex justify-content-between align-items-start">
-    <div>
-      <div class="route-name">{{ route.name }}</div>
-      <div class="route-meta">
-        <span>{{ route.date.strftime('%a, %b %d') }}</span>
-        <span>·</span>
-        <span>{{ total }} stop{% if total != 1 %}s{% endif %}</span>
-      </div>
-    </div>
-    <div class="d-flex align-items-center gap-2 ms-3 mt-1">
-      <span class="route-badge badge-upcoming">{{ route.date.strftime('%m/%d') }}</span>
-      <span class="chevron">›</span>
-    </div>
-  </div>
-</a>
-{% endfor %}
+</div>
 {% endif %}
 
 {% endblock %}

@@ -13,6 +13,9 @@
       <span class="badge bg-{{ status_badge_colors.get(job.status, 'secondary') }} fs-6 align-middle ms-2">
         {{ status_labels.get(job.status, job.status) }}
       </span>
+      {% if job.archived %}
+      <span class="badge bg-dark fs-6 align-middle ms-1">📦 Archived</span>
+      {% endif %}
     </h2>
     <p class="text-muted mb-0">
       {{ job.customer_name }}
@@ -20,7 +23,16 @@
       {% if job.customer_email %} · {{ job.customer_email }}{% endif %}
     </p>
   </div>
-  <div class="col-auto">
+  <div class="col-auto d-flex gap-2">
+    {% if job.archived %}
+    <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/unarchive">
+      <button class="btn btn-sm btn-outline-secondary">Restore to Active</button>
+    </form>
+    {% else %}
+    <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/archive">
+      <button class="btn btn-sm btn-outline-success">📦 Archive Job</button>
+    </form>
+    {% endif %}
     <form method="POST" action="/auto_shop/admin/jobs/{{ job.id }}/delete"
           onsubmit="return confirm('Delete this job? This cannot be undone.')">
       <button class="btn btn-sm btn-outline-danger">Delete Job</button>
@@ -61,6 +73,7 @@
             <p class="mb-1">Intake: {{ job.intake_date.strftime('%B %d, %Y') if job.intake_date else '—' }}</p>
             <p class="mb-1">Est. Completion: {{ job.estimated_completion.strftime('%B %d, %Y') if job.estimated_completion else '—' }}</p>
             {% if job.completed_at %}<p class="mb-1">Completed: {{ job.completed_at.strftime('%B %d, %Y') }}</p>{% endif %}
+            {% if job.archived_at %}<p class="mb-1">Archived: {{ job.archived_at.strftime('%B %d, %Y') }}</p>{% endif %}
             <small class="text-muted text-uppercase fw-semibold mt-2 d-block">Technician</small>
             <p class="mb-0">{{ job.assigned_tech.name if job.assigned_tech else '—' }}</p>
           </div>

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Request, UploadFile, File, Form, HTTPExc
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import Optional
@@ -55,10 +56,23 @@ async def driver_routes_list(
     todays_routes = [r for r in routes if r.date == today]
     upcoming_routes = [r for r in routes if r.date > today]
 
+    # Unassigned routes any driver can pick up
+    available_result = await db.execute(
+        select(DeliveryRoute).where(
+            DeliveryRoute.tenant_id == tenant_id,
+            DeliveryRoute.assigned_driver_id.is_(None),
+            DeliveryRoute.date >= today
+        ).options(
+            selectinload(DeliveryRoute.route_stops).selectinload(DeliveryRouteStop.stop)
+        ).order_by(DeliveryRoute.date)
+    )
+    available_routes = available_result.scalars().all()
+
     return templates.TemplateResponse("delivery/driver_routes.html", {
         "request": request,
         "todays_routes": todays_routes,
         "upcoming_routes": upcoming_routes,
+        "available_routes": available_routes,
         "today": today,
     })
 
@@ -77,7 +91,10 @@ async def driver_route_view(
         select(DeliveryRoute).where(
             DeliveryRoute.id == route_id,
             DeliveryRoute.tenant_id == tenant_id,
-            DeliveryRoute.assigned_driver_id == user.id
+            or_(
+                DeliveryRoute.assigned_driver_id == user.id,
+                DeliveryRoute.assigned_driver_id.is_(None)
+            )
         ).options(
             selectinload(DeliveryRoute.route_stops).selectinload(DeliveryRouteStop.stop)
         )
@@ -152,6 +169,94 @@ async def complete_route(
 
     if route:
         route.status = "completed"
+        await db.commit()
+
+    return RedirectResponse(url="/delivery/driver/", status_code=303)
+
+
+@router.post("/route/{route_id}/quick-complete")
+async def quick_complete_route(
+    request: Request,
+    route_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Mark the route and every pending stop as completed in one action, skipping the per-stop flow"""
+    tenant_id = request.state.tenant_id
+
+    result = await db.execute(
+        select(DeliveryRoute).where(
+            DeliveryRoute.id == route_id,
+            DeliveryRoute.tenant_id == tenant_id,
+            DeliveryRoute.assigned_driver_id == user.id
+        ).options(
+            selectinload(DeliveryRoute.route_stops)
+        )
+    )
+    route = result.scalar_one_or_none()
+
+    if route and route.status in ["draft", "assigned", "in_progress"]:
+        now = datetime.utcnow()
+        for rs in route.route_stops:
+            if rs.status == "pending":
+                rs.status = "completed"
+                rs.completed_at = now
+                rs.departure_time = now
+        route.status = "completed"
+        await db.commit()
+
+    return RedirectResponse(url="/delivery/driver/", status_code=303)
+
+
+@router.post("/route/{route_id}/pickup")
+async def pickup_route(
+    request: Request,
+    route_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Claim an unassigned route"""
+    tenant_id = request.state.tenant_id
+
+    result = await db.execute(
+        select(DeliveryRoute).where(
+            DeliveryRoute.id == route_id,
+            DeliveryRoute.tenant_id == tenant_id,
+            DeliveryRoute.assigned_driver_id.is_(None)
+        )
+    )
+    route = result.scalar_one_or_none()
+
+    if route:
+        route.assigned_driver_id = user.id
+        route.status = "assigned"
+        await db.commit()
+
+    return RedirectResponse(url=f"/delivery/driver/route/{route_id}", status_code=303)
+
+
+@router.post("/route/{route_id}/drop")
+async def drop_route(
+    request: Request,
+    route_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Release a claimed route back to the available pool (only before it's started)"""
+    tenant_id = request.state.tenant_id
+
+    result = await db.execute(
+        select(DeliveryRoute).where(
+            DeliveryRoute.id == route_id,
+            DeliveryRoute.tenant_id == tenant_id,
+            DeliveryRoute.assigned_driver_id == user.id
+        )
+    )
+    route = result.scalar_one_or_none()
+
+    if route and route.status == "assigned":
+        route.assigned_driver_id = None
+        route.status = "draft"
         await db.commit()
 
     return RedirectResponse(url="/delivery/driver/", status_code=303)

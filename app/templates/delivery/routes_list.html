@@ -18,6 +18,7 @@
     {% if not is_default_window %}
     <a href="/delivery/admin/routes" class="btn btn-outline-primary btn-sm">Current</a>
     {% endif %}
+    <a href="/delivery/admin/routes/generate" class="btn btn-success btn-sm">⚡ Generate from Templates</a>
     <a href="/delivery/admin/routes/create" class="btn btn-primary btn-sm">+ New Route</a>
   </div>
 </div>
@@ -26,7 +27,7 @@
 <div class="alert alert-info">
   <h5 class="mb-1">No routes this period</h5>
   <p class="mb-2">No routes found for {{ window_start.strftime('%b %d') }} – {{ window_end.strftime('%b %d, %Y') }}.</p>
-  <a href="/delivery/admin/templates/generate" class="btn btn-success btn-sm me-2">⚡ Generate from Templates</a>
+  <a href="/delivery/admin/routes/generate" class="btn btn-success btn-sm me-2">⚡ Generate from Templates</a>
   <a href="/delivery/admin/routes/create" class="btn btn-outline-secondary btn-sm">+ Manual Route</a>
 </div>
 {% endif %}
@@ -79,14 +80,25 @@
             {% endif %}
           </td>
           <td>
-            {% if route.assigned_driver %}
-              {{ route.assigned_driver.name }}
+            <form action="/delivery/admin/routes/{{ route.id }}/assign" method="POST" class="d-flex align-items-center gap-1">
+              <input type="hidden" name="week_start" value="{{ window_start.isoformat() }}">
+              <select name="assigned_driver_id" class="form-select form-select-sm quick-assign-select"
+                      style="width:auto; max-width:160px;"
+                      onchange="this.form.requestSubmit()">
+                <option value="">Unassigned</option>
+                {% for driver in drivers %}
+                <option value="{{ driver.id }}" {% if route.assigned_driver_id == driver.id %}selected{% endif %}>
+                  {{ driver.name }}
+                </option>
+                {% endfor %}
+              </select>
               {% if route.driver_pay_rate %}
-              <span class="text-muted small"> · ${{ '%.2f'|format(route.driver_pay_rate|float) }}</span>
+              <span class="text-muted small">${{ '%.2f'|format(route.driver_pay_rate|float) }}</span>
               {% endif %}
-            {% else %}
-              <span class="text-muted">Unassigned</span>
-            {% endif %}
+              {% if not route.assigned_driver and route.driver_pay_rate %}
+              <span class="badge bg-light text-success border" style="font-size:.65rem;">Open for pickup</span>
+              {% endif %}
+            </form>
           </td>
           <td>
             {% set total = route.route_stops|length %}

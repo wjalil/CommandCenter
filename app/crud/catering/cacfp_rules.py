@@ -49,3 +49,22 @@ async def get_milk_portions(db: AsyncSession, age_group_id: int) -> dict:
         )
     )
     return {meal_type.lower(): oz for meal_type, oz in result.all()}
+
+
+async def get_fruit_portions(db: AsyncSession, age_group_id: int) -> dict:
+    """
+    Required fruit portion (cup) for Lunch for an age group, from CACFP rules.
+
+    Returns e.g. {"lunch": Decimal("0.25")} — empty dict if the age group has no
+    standalone Fruit rule for lunch (some age groups combine fruit/vegetable).
+    """
+    result = await db.execute(
+        select(CACFPPortionRule.meal_type, CACFPPortionRule.min_portion_oz)
+        .join(CACFPComponentType, CACFPPortionRule.component_type_id == CACFPComponentType.id)
+        .where(
+            CACFPPortionRule.age_group_id == age_group_id,
+            CACFPComponentType.name == "Fruit",
+            CACFPPortionRule.meal_type == "Lunch",
+        )
+    )
+    return {meal_type.lower(): oz for meal_type, oz in result.all()}

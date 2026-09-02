@@ -58,7 +58,8 @@
           </div>
           <div>
             <label class="form-label">Add Stop</label>
-            <select id="addStopSelect" class="form-select">
+            <input type="text" id="stopSearch" class="form-control mb-1" placeholder="Search stops...">
+            <select id="addStopSelect" class="form-select" size="6">
               <option value="">— select a stop —</option>
               {% for stop in stops %}
               <option value="{{ stop.id }}" data-name="{{ stop.name }}">{{ stop.name }}</option>
@@ -202,8 +203,19 @@
     ghostClass: 'sortable-ghost',
   });
 
+  // Filter the stop list as the user types
+  const addStopSelect = document.getElementById('addStopSelect');
+  const stopSearch = document.getElementById('stopSearch');
+  stopSearch.addEventListener('input', function () {
+    const query = this.value.trim().toLowerCase();
+    Array.from(addStopSelect.options).forEach(opt => {
+      if (!opt.value) return;
+      opt.hidden = query.length > 0 && !opt.dataset.name.toLowerCase().includes(query);
+    });
+  });
+
   // Add stop from dropdown
-  document.getElementById('addStopSelect').addEventListener('change', function () {
+  addStopSelect.addEventListener('change', function () {
     const stopId = this.value;
     const stopName = this.options[this.selectedIndex].dataset.name;
     if (!stopId) return;
@@ -226,6 +238,8 @@
     `;
     container.appendChild(div);
     this.value = '';
+    stopSearch.value = '';
+    Array.from(addStopSelect.options).forEach(opt => opt.hidden = false);
   });
 
   // Remove stop

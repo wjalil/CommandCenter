@@ -48,6 +48,16 @@
             </select>
           </div>
           <div class="mb-3">
+            <label class="form-label">Pay Rate <small class="text-muted">(per completed route)</small></label>
+            <div class="input-group" style="max-width:180px;">
+              <span class="input-group-text">$</span>
+              <input type="number" name="driver_pay_rate" class="form-control" step="0.01" min="0"
+                     placeholder="0.00"
+                     value="{{ '%.2f'|format(route.driver_pay_rate|float) if route and route.driver_pay_rate else '' }}">
+            </div>
+            <small class="text-muted">Set a price to list this route as open for pickup by any driver when unassigned.</small>
+          </div>
+          <div class="mb-3">
             <label class="form-label">Notes</label>
             <textarea name="notes" class="form-control" rows="2">{{ route.notes if route else '' }}</textarea>
           </div>
@@ -76,7 +86,8 @@
           <!-- Available Stops Dropdown -->
           <div class="mb-3">
             <label class="form-label">Add Stop</label>
-            <select id="addStopSelect" class="form-select">
+            <input type="text" id="stopSearch" class="form-control mb-1" placeholder="Search stops...">
+            <select id="addStopSelect" class="form-select" size="6">
               <option value="">-- Select a stop to add --</option>
               {% for stop in stops %}
               <option value="{{ stop.id }}" data-name="{{ stop.name }}">{{ stop.name }}</option>
@@ -120,6 +131,16 @@
 document.addEventListener('DOMContentLoaded', function() {
   const selectedStopsContainer = document.getElementById('selectedStops');
   const addStopSelect = document.getElementById('addStopSelect');
+  const stopSearch = document.getElementById('stopSearch');
+
+  // Filter the stop list as the user types
+  stopSearch.addEventListener('input', function() {
+    const query = this.value.trim().toLowerCase();
+    Array.from(addStopSelect.options).forEach(opt => {
+      if (!opt.value) return; // keep placeholder
+      opt.hidden = query.length > 0 && !opt.dataset.name.toLowerCase().includes(query);
+    });
+  });
 
   // Initialize Sortable for drag-and-drop reordering
   new Sortable(selectedStopsContainer, {
@@ -154,8 +175,10 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     selectedStopsContainer.appendChild(stopDiv);
 
-    // Reset dropdown
+    // Reset dropdown + search
     this.value = '';
+    stopSearch.value = '';
+    Array.from(addStopSelect.options).forEach(opt => opt.hidden = false);
   });
 
   // Remove stop (event delegation)

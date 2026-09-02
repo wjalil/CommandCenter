@@ -1,11 +1,13 @@
 {% extends "worker_base.html" %}
-{% block title %}My Time Clock{% endblock %}
-{% block nav_title %}Time Clock{% endblock %}
+{% block title %}{% if is_driver %}My Pay{% else %}My Time Clock{% endif %}{% endblock %}
+{% block nav_title %}{% if is_driver %}My Pay{% else %}Time Clock{% endif %}{% endblock %}
 
 {% block content %}
 <div class="mb-4">
-  <h2 class="section-title">My Time Clock</h2>
-  <p style="color: var(--text-secondary);">View your clock in/out history</p>
+  <h2 class="section-title">{% if is_driver %}My Pay{% else %}My Time Clock{% endif %}</h2>
+  <p style="color: var(--text-secondary);">
+    {% if is_driver %}Pay earned from completed delivery routes{% else %}View your clock in/out history{% endif %}
+  </p>
 </div>
 
 <!-- Date Range Filter -->
@@ -33,8 +35,10 @@
 <div class="row g-3 mb-4">
   <div class="col-6">
     <div class="glass-card p-3 text-center">
-      <div style="color: var(--text-secondary); font-size: 0.85rem;" class="fw-bold">Total Hours</div>
-      <div class="fw-bold" style="font-size: 1.8rem;">{{ total_hours }}</div>
+      <div style="color: var(--text-secondary); font-size: 0.85rem;" class="fw-bold">
+        {% if is_driver %}Routes Completed{% else %}Total Hours{% endif %}
+      </div>
+      <div class="fw-bold" style="font-size: 1.8rem;">{% if is_driver %}{{ total_routes }}{% else %}{{ total_hours }}{% endif %}</div>
     </div>
   </div>
   <div class="col-6">
@@ -45,6 +49,43 @@
   </div>
 </div>
 
+{% if is_driver %}
+<!-- Completed Routes List -->
+{% if completed_routes %}
+<div class="list-group">
+  {% for route in completed_routes %}
+  <div class="list-group-item">
+    <div class="d-flex justify-content-between align-items-start">
+      <div class="flex-grow-1">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="fw-bold">{{ route.date.strftime('%b %d, %Y') }}</span>
+          <span class="badge bg-success">Completed</span>
+        </div>
+        <div class="d-flex flex-wrap gap-3" style="font-size: 0.9rem;">
+          <div>
+            <span style="color: var(--text-secondary);">Route:</span>
+            <span class="fw-bold">{{ route.name }}</span>
+          </div>
+          <div>
+            <span style="color: var(--text-secondary);">Stops:</span>
+            <span class="fw-bold">{{ route.route_stops|length }}</span>
+          </div>
+        </div>
+      </div>
+      {% if route.driver_pay_rate %}
+      <div class="fw-bold" style="color: var(--accent-emerald); font-size: 1.1rem;">${{ "%.2f"|format(route.driver_pay_rate|float) }}</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+  <p class="mb-0">No completed routes found for this period.</p>
+</div>
+{% endif %}
+
+{% else %}
 <!-- Entries List -->
 {% if entries %}
 <div class="list-group">
@@ -108,6 +149,7 @@
 <div class="alert alert-info">
   <p class="mb-0">No time entries found for this period.</p>
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}
 

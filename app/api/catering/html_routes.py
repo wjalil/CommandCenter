@@ -944,6 +944,30 @@ async def menu_calendar_view(
     })
 
 
+def _build_component_preview(menu_day, fruit_portions: dict = None) -> dict:
+    """
+    Per-day, per-slot component name strings for the shareable menu calendar.
+
+    When `fruit_portions` has a "lunch" entry (i.e. program is CACFP-eligible), appends a
+    "Seasonal Fruit" item to that day's lunch card unless a Fruit-type component was
+    already manually added.
+    """
+    fruit_portions = fruit_portions or {}
+    preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
+    if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
+        return preview
+    for slot in ['breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack']:
+        slot_components = sorted(
+            [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
+            key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
+        )
+        names = [comp.food_component.name for comp in slot_components]
+        if slot == 'lunch' and names and fruit_portions.get('lunch') and not _slot_has_component_type(slot_components, "Fruit"):
+            names.append('Seasonal Fruit')
+        preview[slot] = ', '.join(names)
+    return preview
+
+
 # ==================== SHAREABLE MENU ====================
 
 @router.get("/monthly-menus/{menu_id}/share")
@@ -980,18 +1004,7 @@ async def menu_share_view(
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
     holiday_dates = {h.holiday_date.isoformat() for h in program.holidays} if program.holidays else set()
 
-    def get_component_preview(menu_day):
-        preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
-        if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
-            return preview
-        for slot in ['breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack']:
-            slot_components = sorted(
-                [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
-                key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
-            )
-            names = [comp.food_component.name for comp in slot_components]
-            preview[slot] = ', '.join(names)
-        return preview
+    fruit_portions = await cacfp_rules.get_fruit_portions(db, program.age_group_id) if program.cacfp_eligible else {}
 
     calendar_weeks = []
     for week in month_weeks:
@@ -1021,7 +1034,7 @@ async def menu_share_view(
                     'is_service_day': is_service_day,
                     'is_holiday': date_str in holiday_dates,
                     'menu_day': menu_day,
-                    'component_preview': get_component_preview(menu_day)
+                    'component_preview': _build_component_preview(menu_day, fruit_portions)
                 })
         calendar_weeks.append(week_data)
 
@@ -1081,18 +1094,7 @@ async def menu_pdf_download(
     menu_days_dict = {day.service_date.isoformat(): day for day in monthly_menu.menu_days}
     holiday_dates = {h.holiday_date.isoformat() for h in program.holidays} if program.holidays else set()
 
-    def get_component_preview(menu_day):
-        preview = {'breakfast': '', 'lunch': '', 'snack': '', 'am_snack': '', 'pm_snack': ''}
-        if not menu_day or not hasattr(menu_day, 'components') or not menu_day.components:
-            return preview
-        for slot in ['breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack']:
-            slot_components = sorted(
-                [comp for comp in menu_day.components if comp.meal_slot == slot and not comp.is_vegan and comp.food_component],
-                key=lambda c: c.sort_order if hasattr(c, 'sort_order') and c.sort_order else 0
-            )
-            names = [comp.food_component.name for comp in slot_components]
-            preview[slot] = ', '.join(names)
-        return preview
+    fruit_portions = await cacfp_rules.get_fruit_portions(db, program.age_group_id) if program.cacfp_eligible else {}
 
     calendar_weeks = []
     for week in month_weeks:
@@ -1122,7 +1124,7 @@ async def menu_pdf_download(
                     'is_service_day': is_service_day,
                     'is_holiday': date_str in holiday_dates,
                     'menu_day': menu_day,
-                    'component_preview': get_component_preview(menu_day)
+                    'component_preview': _build_component_preview(menu_day, fruit_portions)
                 })
         calendar_weeks.append(week_data)
 
@@ -1209,14 +1211,18 @@ async def _get_menu_day_for_invoice(db: AsyncSession, menu_day_id: str):
     return result.scalar_one_or_none()
 
 
-def _slot_already_has_milk(components) -> bool:
-    """True if any component in this meal slot is already categorized as Milk (avoids double-adding)."""
+def _slot_has_component_type(components, type_name: str) -> bool:
+    """True if any component in this meal slot is already categorized as `type_name` (avoids double-adding)."""
     for comp in components or []:
         food_comp = getattr(comp, "food_component", None)
         comp_type = getattr(food_comp, "component_type", None) if food_comp else None
-        if comp_type and comp_type.name == "Milk":
+        if comp_type and comp_type.name == type_name:
             return True
     return False
+
+
+def _slot_already_has_milk(components) -> bool:
+    return _slot_has_component_type(components, "Milk")
 
 
 async def _build_milk_notes(db: AsyncSession, program, menu_day) -> dict:
@@ -1258,16 +1264,53 @@ async def _build_milk_notes(db: AsyncSession, program, menu_day) -> dict:
     return notes
 
 
+async def _build_fruit_notes(db: AsyncSession, program, menu_day) -> dict:
+    """
+    For CACFP-eligible programs, auto-add a "Seasonal Fruit" line to Lunch (regular + vegan)
+    on invoices, mirroring _build_milk_notes. Skips a slot that already has a manually-added
+    Fruit component.
+    """
+    if not program or not program.cacfp_eligible or not menu_day:
+        return {}
+
+    fruit_portions = await cacfp_rules.get_fruit_portions(db, program.age_group_id)
+    oz = fruit_portions.get("lunch")
+    if not oz:
+        return {}
+
+    has_components = bool(menu_day.components)
+    notes = {}
+
+    for suffix, is_vegan in (("", False), ("_vegan", True)):
+        if has_components:
+            slot_comps = [
+                c for c in menu_day.components
+                if c.meal_slot == "lunch" and c.is_vegan == is_vegan
+            ]
+            if not slot_comps or _slot_has_component_type(slot_comps, "Fruit"):
+                continue
+        else:
+            item = getattr(menu_day, f"lunch{suffix}_item", None)
+            if not item or _slot_has_component_type(item.components, "Fruit"):
+                continue
+
+        notes[f"lunch{suffix}"] = f"Seasonal Fruit {oz} cup"
+
+    return notes
+
+
 async def _generate_invoice_pdf_bytes(request: Request, db: AsyncSession, invoice) -> bytes:
     """Generate PDF bytes for a single invoice using xhtml2pdf."""
     from xhtml2pdf import pisa
     menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
     milk_notes = await _build_milk_notes(db, invoice.program, menu_day)
+    fruit_notes = await _build_fruit_notes(db, invoice.program, menu_day)
     html_content = templates.TemplateResponse("catering/invoice_pdf.html", {
         "request": request,
         "invoice": invoice,
         "menu_day": menu_day,
         "milk_notes": milk_notes,
+        "fruit_notes": fruit_notes,
     }).body.decode('utf-8')
     pdf_buffer = io.BytesIO()
     pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
@@ -1364,12 +1407,14 @@ async def view_invoice(
 
     menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
     milk_notes = await _build_milk_notes(db, invoice.program, menu_day)
+    fruit_notes = await _build_fruit_notes(db, invoice.program, menu_day)
 
     return templates.TemplateResponse("catering/invoice_view.html", {
         "request": request,
         "invoice": invoice,
         "menu_day": menu_day,
         "milk_notes": milk_notes,
+        "fruit_notes": fruit_notes,
     })
 
 

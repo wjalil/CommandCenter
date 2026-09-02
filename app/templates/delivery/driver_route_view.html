@@ -18,35 +18,51 @@
 
   /* Progress card */
   .prog-card {
-    background: rgba(255,255,255,0.9);
-    border: 1px solid rgba(148,163,184,0.2);
-    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     padding: 1.1rem 1.25rem;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    box-shadow: var(--shadow);
     margin-bottom: 1rem;
   }
-  .prog-bar { height: 7px; background: #e2e8f0; border-radius: 7px; overflow: hidden; }
-  .prog-fill { height: 100%; background: var(--accent-teal); border-radius: 7px; transition: width 0.4s; }
+  .prog-bar { height: 7px; background: var(--border); border-radius: 7px; overflow: hidden; }
+  .prog-fill { height: 100%; background: var(--accent); border-radius: 7px; transition: width 0.4s; }
   .prog-labels { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 0.5rem; }
   .prog-labels .label { font-weight: 600; color: var(--text-secondary); }
-  .prog-labels .count { font-weight: 700; color: var(--accent-teal); }
+  .prog-labels .count { font-weight: 700; color: var(--accent); }
 
   /* Start / notes */
   .start-btn {
     display: block;
     width: 100%;
     padding: 0.8rem;
-    background: var(--accent-purple);
-    background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+    background: var(--accent);
     border: none;
-    border-radius: 12px;
+    border-radius: var(--radius);
     color: #fff;
     font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
     margin-bottom: 1rem;
-    box-shadow: 0 4px 16px rgba(139,92,246,0.25);
+    transition: background 0.15s ease;
   }
+  .start-btn:hover { background: var(--accent-hover); }
+  .start-btn.pickup-btn { background: #10b981; }
+  .start-btn.pickup-btn:hover { background: #0d9668; }
+
+  .quick-complete-btn {
+    display: block;
+    padding: 0.6rem;
+    background: rgba(16,185,129,0.08);
+    border: 1.5px solid rgba(16,185,129,0.35);
+    border-radius: var(--radius);
+    color: #059669;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .quick-complete-btn:hover { background: rgba(16,185,129,0.14); }
 
   .notes-card {
     background: rgba(245,158,11,0.06);
@@ -64,15 +80,15 @@
 
   /* Stop cards */
   .stop-card {
-    background: rgba(255,255,255,0.9);
-    border: 1px solid rgba(148,163,184,0.2);
-    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     margin-bottom: 0.75rem;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    box-shadow: var(--shadow);
   }
   .stop-card.done { border-color: rgba(16,185,129,0.3); background: rgba(240,253,244,0.9); }
-  .stop-card.skip { border-color: rgba(148,163,184,0.2); background: rgba(248,250,252,0.8); opacity: 0.7; }
+  .stop-card.skip { border-color: var(--border); background: #fafbfc; opacity: 0.7; }
 
   .stop-card-inner { padding: 0.9rem 1rem; }
 
@@ -88,7 +104,7 @@
   .stop-card.done .stop-name { color: #047857; }
   .stop-card.skip .stop-name { color: var(--text-secondary); }
   .stop-detail { font-size: 0.775rem; color: var(--text-secondary); margin-top: 2px; }
-  .stop-detail a { color: var(--accent-teal); text-decoration: none; }
+  .stop-detail a { color: var(--accent); text-decoration: none; }
   .stop-detail a:hover { text-decoration: underline; }
 
   .stop-status-line { font-size: 0.75rem; font-weight: 600; margin-top: 0.4rem; }
@@ -117,25 +133,25 @@
   }
   .btn-arrive   { border-color: rgba(59,130,246,0.3);  color: var(--accent-blue);    background: rgba(59,130,246,0.06); }
   .btn-complete { border-color: rgba(16,185,129,0.3);  color: #059669;               background: rgba(16,185,129,0.07); }
-  .btn-skip     { border-color: rgba(148,163,184,0.3); color: var(--text-secondary); background: transparent; }
-  .action-btn:hover { filter: brightness(0.95); transform: translateY(-1px); }
+  .btn-skip     { border-color: var(--border);         color: var(--text-secondary); background: transparent; }
+  .action-btn:hover { filter: brightness(0.96); }
 
   /* Complete route sticky bar */
   .complete-route-bar {
     position: fixed; bottom: 0; left: 0; right: 0;
     padding: 0.9rem 1rem;
-    background: rgba(248,250,252,0.95);
-    backdrop-filter: blur(12px);
-    border-top: 1px solid rgba(148,163,184,0.2);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
     box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
   }
   .complete-route-btn {
     width: 100%; padding: 0.8rem;
-    background: linear-gradient(135deg, var(--accent-emerald), var(--accent-teal));
-    border: none; border-radius: 12px; color: #fff;
+    background: #10b981;
+    border: none; border-radius: var(--radius); color: #fff;
     font-size: 0.95rem; font-weight: 700; cursor: pointer;
-    box-shadow: 0 4px 16px rgba(16,185,129,0.25);
+    transition: background 0.15s ease;
   }
+  .complete-route-btn:hover { background: #0d9668; }
 {% endblock %}
 
 {% block content %}
@@ -158,6 +174,14 @@
   {% endif %}
 </div>
 
+{% if route.driver_pay_rate %}
+<div class="mb-3">
+  <span class="status-pill" style="background: rgba(16,185,129,0.1); color:#059669; border:1px solid rgba(16,185,129,0.25);">
+    💵 ${{ '%.2f'|format(route.driver_pay_rate|float) }}
+  </span>
+</div>
+{% endif %}
+
 <!-- Progress card -->
 <div class="prog-card">
   <div class="prog-labels">
@@ -176,9 +200,32 @@
 </div>
 {% endif %}
 
-{% if route.status in ['draft', 'assigned'] %}
-<form action="/delivery/driver/route/{{ route.id }}/start" method="POST">
-  <button type="submit" class="start-btn">▶ Start Route</button>
+{% if not route.assigned_driver_id %}
+<div class="notes-card" style="background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.2);">
+  <div class="notes-label" style="color:#059669;">Open Route</div>
+  This route hasn't been claimed yet. Pick it up to add it to your routes.
+</div>
+<form action="/delivery/driver/route/{{ route.id }}/pickup" method="POST">
+  <button type="submit" class="start-btn pickup-btn">✋ Pick Up This Route</button>
+</form>
+{% elif route.status in ['draft', 'assigned'] %}
+<form action="/delivery/driver/route/{{ route.id }}/start" method="POST" class="mb-2">
+  <button type="submit" class="start-btn mb-0">▶ Start Route</button>
+</form>
+<form action="/delivery/driver/route/{{ route.id }}/quick-complete" method="POST" class="mb-2"
+      onsubmit="return confirm('Mark this entire route as completed? All stops will be marked delivered without going through each one.');">
+  <button type="submit" class="quick-complete-btn w-100">✓ Quick Complete Route</button>
+</form>
+<form action="/delivery/driver/route/{{ route.id }}/drop" method="POST" class="mb-3">
+  <button type="submit" class="btn btn-outline-secondary btn-sm w-100"
+          onclick="return confirm('Drop this route? It will go back to the available pool for other drivers.')">
+    Drop This Route
+  </button>
+</form>
+{% elif route.status == 'in_progress' %}
+<form action="/delivery/driver/route/{{ route.id }}/quick-complete" method="POST" class="mb-3"
+      onsubmit="return confirm('Mark this entire route as completed? Any remaining stops will be marked delivered without going through each one.');">
+  <button type="submit" class="quick-complete-btn w-100">✓ Quick Complete Route</button>
 </form>
 {% endif %}
 
@@ -272,7 +319,7 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p id="completeStopName" class="fw-semibold mb-3" style="color:var(--accent-teal);"></p>
+          <p id="completeStopName" class="fw-semibold mb-3" style="color:var(--accent);"></p>
           <div class="mb-3">
             <label class="form-label fw-semibold">Notes <span class="text-muted fw-normal">(optional)</span></label>
             <textarea name="notes" class="form-control" rows="2" placeholder="Any notes about this delivery…"></textarea>

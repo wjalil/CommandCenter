@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, Text, Index, Date, DateTime, Numeric
+from sqlalchemy import Column, String, Integer, ForeignKey, Text, Index, Date, DateTime, Numeric, Boolean
 from sqlalchemy.orm import relationship
 from app.models.base import Base
 from datetime import date, datetime
@@ -98,6 +98,10 @@ class RepairOrder(Base):
     # Status
     status = Column(String, nullable=False, default="new_arrival")
 
+    # Archive — jobs that are done and picked up leave the active board
+    archived = Column(Boolean, nullable=False, default=False)
+    archived_at = Column(DateTime, nullable=True)
+
     # Assignment
     assigned_tech_id = Column(String, ForeignKey("users.id"), nullable=True)
 
@@ -139,4 +143,5 @@ class RepairOrder(Base):
         Index("idx_repair_orders_tenant", "tenant_id"),
         Index("idx_repair_orders_status", "tenant_id", "status"),
         Index("idx_repair_orders_intake", "tenant_id", "intake_date"),
+        Index("idx_repair_orders_archived", "tenant_id", "archived"),
     )

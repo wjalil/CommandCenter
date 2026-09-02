@@ -266,6 +266,7 @@
                   {%- if not loop.last %}, {% endif -%}
                 {%- endfor -%}
                 {%- if milk_notes.lunch %}, {{ milk_notes.lunch }}{% endif -%}
+                {%- if fruit_notes.lunch %}, {{ fruit_notes.lunch }}{% endif -%}
               </span>
             </td>
           </tr>
@@ -283,6 +284,7 @@
                   {%- if not loop.last %}, {% endif -%}
                 {%- endfor -%}
                 {%- if milk_notes.lunch_vegan %}, {{ milk_notes.lunch_vegan }}{% endif -%}
+                {%- if fruit_notes.lunch_vegan %}, {{ fruit_notes.lunch_vegan }}{% endif -%}
               </span>
             </td>
           </tr>
@@ -388,6 +390,7 @@
                   {{ menu_day.lunch_item.name }}
                 {%- endif -%}
                 {%- if milk_notes.lunch %}, {{ milk_notes.lunch }}{% endif -%}
+                {%- if fruit_notes.lunch %}, {{ fruit_notes.lunch }}{% endif -%}
               </span>
             </td>
           </tr>
@@ -407,6 +410,7 @@
                   {{ menu_day.lunch_vegan_item.name }}
                 {%- endif -%}
                 {%- if milk_notes.lunch_vegan %}, {{ milk_notes.lunch_vegan }}{% endif -%}
+                {%- if fruit_notes.lunch_vegan %}, {{ fruit_notes.lunch_vegan }}{% endif -%}
               </span>
             </td>
           </tr>
