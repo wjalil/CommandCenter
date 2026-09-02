@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Production Sheet — {{ month_label }}</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 0.6in 0.7in 0.7in 0.7in;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 9pt;
+      color: #111;
+      margin: 0;
+      padding: 0;
+    }
+
+    .day-page {
+      page-break-after: always;
+    }
+    .day-page:last-child {
+      page-break-after: auto;
+    }
+
+    .month-label {
+      font-size: 7.5pt;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
+
+    .day-header {
+      border-bottom: 3px solid #111;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+    }
+
+    .day-name {
+      font-size: 18pt;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.1;
+    }
+
+    .day-date {
+      font-size: 10pt;
+      color: #555;
+      margin-top: 1px;
+    }
+
+    .program-strip {
+      margin: 0 0 12px;
+    }
+
+    .program-chip {
+      display: inline-block;
+      border: 1.25px solid #111;
+      border-radius: 5px;
+      padding: 3px 9px;
+      margin: 0 5px 5px 0;
+      font-size: 8.5pt;
+      font-weight: 700;
+    }
+
+    .slot-block {
+      margin-bottom: 12px;
+    }
+
+    .slot-title {
+      font-size: 11pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      border-bottom: 1.5px solid #111;
+      padding-bottom: 3px;
+      margin-bottom: 2px;
+    }
+
+    .slot-title.vegan {
+      color: #0d7a3f;
+      border-bottom-color: #0d7a3f;
+    }
+
+    table.item-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    table.item-table td {
+      padding: 4px 4px;
+      border-bottom: 0.75px solid #ddd;
+      vertical-align: top;
+    }
+
+    .item-name {
+      font-size: 10pt;
+      font-weight: 700;
+    }
+
+    .item-breakdown {
+      font-size: 7.5pt;
+      color: #666;
+      margin-top: 1px;
+    }
+
+    .item-count-cell {
+      width: 65px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .item-count-label {
+      display: block;
+      font-size: 6pt;
+      font-weight: 400;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .item-count {
+      font-size: 13pt;
+      font-weight: 800;
+    }
+
+    .empty-note {
+      font-style: italic;
+      color: #888;
+      padding: 8px 0;
+      font-size: 8.5pt;
+    }
+  </style>
+</head>
+<body>
+
+{% if not day_sheets %}
+<div class="day-page">
+  <div class="day-header">
+    <div class="month-label">{{ month_label }}</div>
+    <div class="day-name">No serving days found</div>
+  </div>
+  <p class="empty-note">No programs are scheduled to serve this month.</p>
+</div>
+{% endif %}
+
+{% for day in day_sheets %}
+<div class="day-page">
+
+  <div class="day-header">
+    <div class="month-label">{{ month_label }}</div>
+    <div class="day-name">{{ day.date.strftime('%A') }}</div>
+    <div class="day-date">{{ day.date.strftime('%B') }} {{ day.date.day }}, {{ day.date.year }}</div>
+  </div>
+
+  <div class="program-strip">
+    {% for p in day.serving_programs %}
+    <span class="program-chip">{{ p.name }}</span>
+    {% endfor %}
+  </div>
+
+  {% for group in day.prep_by_slot %}
+  <div class="slot-block">
+    <div class="slot-title">{{ group.slot_label }}</div>
+    <table class="item-table">
+      {% for comp in group['items'] %}
+      <tr>
+        <td>
+          <div class="item-name">{{ comp.name }}</div>
+          {% if comp.program_breakdown|length > 1 %}
+          <div class="item-breakdown">
+            {% for pb in comp.program_breakdown %}{{ pb.name }}: {{ pb.count }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+          </div>
+          {% endif %}
+        </td>
+        <td class="item-count-cell">
+          <span class="item-count-label">Make</span>
+          <span class="item-count">{{ comp.total_count }}</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+
+  {% if day.vegan_total > 0 %}
+  <div class="slot-block">
+    <div class="slot-title vegan">Vegan Meals</div>
+    <table class="item-table">
+      <tr>
+        <td>
+          <div class="item-name">Vegan meals</div>
+          {% if day.vegan_breakdown|length > 1 %}
+          <div class="item-breakdown">
+            {% for vb in day.vegan_breakdown %}{{ vb.name }}: {{ vb.count }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+          </div>
+          {% endif %}
+        </td>
+        <td class="item-count-cell">
+          <span class="item-count-label">Make</span>
+          <span class="item-count">{{ day.vegan_total }}</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if not day.prep_by_slot and day.vegan_total == 0 %}
+  <p class="empty-note">No menu assigned for this day.</p>
+  {% endif %}
+
+</div>
+{% endfor %}
+
+</body>
+</html>

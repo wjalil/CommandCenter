@@ -6,13 +6,15 @@ Accessible to both admin and worker roles.
 """
 from fastapi import APIRouter, Depends, Request
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Optional
+import calendar
+import io
 import json
 
 from app.db import get_db
@@ -491,6 +493,63 @@ async def production_daily_view(
             "vegan_total": data["vegan_total"],
             "vegan_breakdown": data["vegan_breakdown"],
         },
+    )
+
+
+@router.get("/production/monthly-pdf")
+async def production_monthly_pdf(
+    request: Request,
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_or_worker),
+):
+    """Printable production sheet for the kitchen: one page per serving day in the month,
+    with the exact count to produce for every menu item, grouped by program."""
+    tenant_id = request.state.tenant_id
+    today = date.today()
+    month = month or today.month
+    year = year or today.year
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    all_days = [date(year, month, d) for d in range(1, days_in_month + 1)]
+
+    day_sheets = []
+    for d in all_days:
+        data = await _build_production_data(db, tenant_id, d)
+        if not data["serving_programs"]:
+            continue  # weekend / no service / holiday for every program — skip the page
+        day_sheets.append({
+            "date": d,
+            "prep_by_slot": _group_comps_by_slot(data["prep_components"]),
+            "vegan_total": data["vegan_total"],
+            "vegan_breakdown": data["vegan_breakdown"],
+            "serving_programs": data["serving_programs"],
+            "programs_data": data["programs_data"],
+        })
+
+    month_label = date(year, month, 1).strftime("%B %Y")
+
+    html_content = templates.TemplateResponse(
+        "catering/production_pdf.html",
+        {
+            "request": request,
+            "month_label": month_label,
+            "day_sheets": day_sheets,
+        },
+    ).body.decode("utf-8")
+
+    from xhtml2pdf import pisa
+    pdf_buffer = io.BytesIO()
+    pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
+    if pisa_status.err:
+        raise Exception(f"PDF generation failed with {pisa_status.err} errors")
+
+    filename = f"Production_Sheet_{date(year, month, 1).strftime('%B_%Y')}.pdf"
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

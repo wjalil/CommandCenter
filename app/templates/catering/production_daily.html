@@ -20,6 +20,12 @@
     <a href="/catering/production" class="prod-nav-btn prod-nav-today">This Week</a>
     {% endif %}
     <a href="/catering/production?date_str={{ next_week_anchor }}" class="prod-nav-btn">&#8594;</a>
+    {% if user.role != 'worker' %}
+    <a href="/catering/production/monthly-pdf?month={{ anchor_date.month }}&year={{ anchor_date.year }}"
+       class="prod-nav-btn prod-nav-print" target="_blank">
+      &#128424; Print Monthly Sheet
+    </a>
+    {% endif %}
   </div>
 </div>
 
@@ -351,6 +357,18 @@
   color: #fff !important;
 }
 .prod-nav-today:hover { opacity: 0.88; }
+.prod-nav-print {
+  min-width: unset;
+  padding: 0 0.9rem;
+  margin-left: 0.25rem;
+  border-color: rgba(16,185,129,0.35);
+  color: #059669;
+}
+.prod-nav-print:hover {
+  border-color: #059669;
+  color: #059669;
+  background: rgba(16,185,129,0.08);
+}
 
 /* ── Empty state ─────────────────────────────── */
 .prod-empty {
