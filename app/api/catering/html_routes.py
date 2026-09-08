@@ -24,6 +24,8 @@ from app.models.catering import (
     CateringProgramHoliday,
     CateringMealItem,
     CateringMonthlyMenu,
+    CateringMenuDay,
+    MenuDayComponent,
     CateringInvoice,
     FoodComponent,
     CACFPAgeGroup
@@ -132,6 +134,26 @@ def parse_optional_int(value) -> Optional[int]:
     return int(value)
 
 
+def clear_unselected_meal_counts(meal_types_required, counts_by_meal_type):
+    """Null out a meal type's count if that meal type isn't selected.
+
+    The count inputs stay in the DOM (just hidden) when a meal type checkbox
+    is unchecked, so the browser still submits their old value. Without this,
+    a stale count (e.g. AM Snack left at 48 after being unchecked) keeps
+    feeding into total_children and invoicing/production calculations.
+    """
+    for meal_type, key in [
+        ("Breakfast", "breakfast_count"),
+        ("Lunch", "lunch_count"),
+        ("Snack", "snack_count"),
+        ("AM Snack", "am_snack_count"),
+        ("PM Snack", "pm_snack_count"),
+    ]:
+        if meal_type not in meal_types_required:
+            counts_by_meal_type[key] = None
+    return counts_by_meal_type
+
+
 @router.post("/programs/create")
 async def program_create(
     request: Request,
@@ -165,6 +187,20 @@ async def program_create(
     snack_count = parse_optional_int(form.get("snack_count"))
     am_snack_count = parse_optional_int(form.get("am_snack_count"))
     pm_snack_count = parse_optional_int(form.get("pm_snack_count"))
+
+    # Clear stale counts left over from meal types that were unchecked
+    cleared = clear_unselected_meal_counts(meal_types_required, {
+        "breakfast_count": breakfast_count,
+        "lunch_count": lunch_count,
+        "snack_count": snack_count,
+        "am_snack_count": am_snack_count,
+        "pm_snack_count": pm_snack_count,
+    })
+    breakfast_count = cleared["breakfast_count"]
+    lunch_count = cleared["lunch_count"]
+    snack_count = cleared["snack_count"]
+    am_snack_count = cleared["am_snack_count"]
+    pm_snack_count = cleared["pm_snack_count"]
 
     # Set legacy total_children from the highest meal count for backward compat
     counts = [c for c in [breakfast_count, lunch_count, snack_count, am_snack_count, pm_snack_count] if c is not None]
@@ -299,6 +335,20 @@ async def program_update(
     am_snack_count = parse_optional_int(form.get("am_snack_count"))
     pm_snack_count = parse_optional_int(form.get("pm_snack_count"))
 
+    # Clear stale counts left over from meal types that were unchecked
+    cleared = clear_unselected_meal_counts(meal_types_required, {
+        "breakfast_count": breakfast_count,
+        "lunch_count": lunch_count,
+        "snack_count": snack_count,
+        "am_snack_count": am_snack_count,
+        "pm_snack_count": pm_snack_count,
+    })
+    breakfast_count = cleared["breakfast_count"]
+    lunch_count = cleared["lunch_count"]
+    snack_count = cleared["snack_count"]
+    am_snack_count = cleared["am_snack_count"]
+    pm_snack_count = cleared["pm_snack_count"]
+
     # Set legacy total_children from the highest meal count for backward compat
     counts = [c for c in [breakfast_count, lunch_count, snack_count, am_snack_count, pm_snack_count] if c is not None]
     total_children = max(counts) if counts else 0
@@ -338,6 +388,31 @@ async def program_update(
     )
 
     await program_crud.update_program(db, program_id, tenant_id, program_data)
+    return RedirectResponse(url="/catering/programs", status_code=303)
+
+
+@router.post("/programs/{program_id}/delete")
+async def program_delete(
+    request: Request,
+    program_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Delete a program, unless it has existing invoices (those are financial history)"""
+    tenant_id = request.state.tenant_id
+
+    program = await program_crud.get_program(db, program_id, tenant_id)
+    if not program:
+        return RedirectResponse(url="/catering/programs", status_code=303)
+
+    existing_invoices = await invoice_crud.get_invoices(db, tenant_id, program_id)
+    if existing_invoices:
+        return RedirectResponse(
+            url="/catering/programs?error=Cannot+delete+a+program+with+existing+invoices.+Mark+it+inactive+instead.",
+            status_code=303,
+        )
+
+    await program_crud.delete_program(db, program_id, tenant_id)
     return RedirectResponse(url="/catering/programs", status_code=303)
 
 
@@ -559,6 +634,223 @@ async def monthly_menus_list(
     return templates.TemplateResponse("catering/monthly_menus_list.html", {
         "request": request,
         "programs_with_menus": programs_with_menus,
+    })
+
+
+# ==================== MASTER CALENDAR ====================
+
+MASTER_CALENDAR_PALETTE = [
+    "#4C6EF5", "#12B886", "#F59F00", "#E64980",
+    "#7048E8", "#15AABF", "#FA5252", "#2F9E44",
+]
+
+MASTER_CALENDAR_SLOTS = [
+    ("breakfast", "Breakfast", "🥞", "#FD7E14"),
+    ("lunch", "Lunch", "🥪", "#4C6EF5"),
+    ("snack", "Snack", "🍎", "#12B886"),
+    ("am_snack", "AM Snack", "☀️", "#F5A623"),
+    ("pm_snack", "PM Snack", "🌙", "#7048E8"),
+]
+
+
+@router.get("/master-calendar")
+async def master_calendar_view(
+    request: Request,
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Aggregated month view: every active program's menu on one calendar"""
+    tenant_id = request.state.tenant_id
+    from calendar import monthcalendar, month_name as month_name_arr, setfirstweekday, SUNDAY
+    from datetime import date as dt_date
+
+    today = dt_date.today()
+    month = month or today.month
+    year = year or today.year
+
+    programs = await program_crud.get_programs(db, tenant_id, active_only=True)
+    program_colors = {p.id: MASTER_CALENDAR_PALETTE[i % len(MASTER_CALENDAR_PALETTE)] for i, p in enumerate(programs)}
+
+    menus_result = await db.execute(
+        select(CateringMonthlyMenu)
+        .where(
+            CateringMonthlyMenu.tenant_id == tenant_id,
+            CateringMonthlyMenu.month == month,
+            CateringMonthlyMenu.year == year,
+            CateringMonthlyMenu.menu_type == "regular",
+        )
+        .options(
+            selectinload(CateringMonthlyMenu.menu_days)
+                .selectinload(CateringMenuDay.components)
+                .selectinload(MenuDayComponent.food_component)
+                .selectinload(FoodComponent.component_type),
+        )
+    )
+    menus_by_program = {m.program_id: m for m in menus_result.scalars().all()}
+
+    fruit_portions_cache: dict = {}
+
+    setfirstweekday(SUNDAY)
+    month_weeks = monthcalendar(year, month)
+
+    day_details = {}
+    calendar_weeks = []
+    for week in month_weeks:
+        week_data = []
+        for day_num in week:
+            if day_num == 0:
+                week_data.append({"day": "", "date": "", "in_month": False, "entries": []})
+                continue
+
+            date_obj = dt_date(year, month, day_num)
+            date_str = date_obj.isoformat()
+            day_name = date_obj.strftime("%A")
+
+            entries = []
+            day_totals = {}  # slot key -> {"label","icon","color","foods": {food_name: {"total_count", "programs": {program_id: {...}}}}}
+            for program in programs:
+                service_days = (
+                    json.loads(program.service_days)
+                    if isinstance(program.service_days, str)
+                    else (program.service_days or [])
+                )
+                if day_name not in service_days:
+                    continue
+                holiday_dates = {h.holiday_date for h in program.holidays} if program.holidays else set()
+                if date_obj in holiday_dates:
+                    continue
+
+                meal_types = (
+                    json.loads(program.meal_types_required)
+                    if isinstance(program.meal_types_required, str)
+                    else (program.meal_types_required or [])
+                )
+
+                menu = menus_by_program.get(program.id)
+                menu_day = None
+                if menu:
+                    menu_day = next((d for d in menu.menu_days if d.service_date == date_obj), None)
+
+                if program.cacfp_eligible:
+                    if program.age_group_id not in fruit_portions_cache:
+                        fruit_portions_cache[program.age_group_id] = await cacfp_rules.get_fruit_portions(db, program.age_group_id)
+                    fruit_portions = fruit_portions_cache[program.age_group_id]
+                else:
+                    fruit_portions = {}
+
+                preview = _build_component_preview(menu_day, fruit_portions)
+                slot_counts = {
+                    "breakfast": program.breakfast_count if program.breakfast_count is not None else program.total_children,
+                    "lunch": program.lunch_count if program.lunch_count is not None else program.total_children,
+                    "snack": program.snack_count if program.snack_count is not None else program.total_children,
+                    "am_snack": program.am_snack_count if program.am_snack_count is not None else program.total_children,
+                    "pm_snack": program.pm_snack_count if program.pm_snack_count is not None else program.total_children,
+                }
+                active_slots = [
+                    {"key": key, "label": label, "icon": icon, "color": color, "text": preview[key], "count": slot_counts.get(key) or 0}
+                    for key, label, icon, color in MASTER_CALENDAR_SLOTS
+                    if label in meal_types and preview[key]
+                ]
+
+                entries.append({
+                    "program_id": program.id,
+                    "program_name": program.name,
+                    "color": program_colors[program.id],
+                    "has_menu": bool(active_slots),
+                })
+                day_details[f"{date_str}|{program.id}"] = {
+                    "program_name": program.name,
+                    "color": program_colors[program.id],
+                    "date_label": f"{date_obj.strftime('%A, %B')} {date_obj.day}",
+                    "slots": active_slots,
+                }
+
+                # Food-level breakdown for the daily total: aggregate by dish, not by program,
+                # so "Blueberry Muffin" appears once per meal with an expandable program list —
+                # not once per program, which duplicates the same dish name repeatedly.
+                if menu_day and menu_day.components:
+                    for key, label, icon, color in MASTER_CALENDAR_SLOTS:
+                        if label not in meal_types:
+                            continue
+                        slot_comps = [
+                            c for c in menu_day.components
+                            if c.meal_slot == key and not c.is_vegan and c.food_component
+                        ]
+                        meal_count = slot_counts.get(key) or 0
+                        if meal_count <= 0:
+                            continue
+
+                        food_names = [c.food_component.name for c in slot_comps]
+                        if (
+                            key == "lunch" and food_names and fruit_portions.get("lunch")
+                            and not _slot_has_component_type(slot_comps, "Fruit")
+                        ):
+                            food_names.append("Seasonal Fruit")
+
+                        if not food_names:
+                            continue
+
+                        bucket = day_totals.setdefault(key, {"label": label, "icon": icon, "color": color, "foods": {}})
+                        for name in food_names:
+                            food = bucket["foods"].setdefault(name, {"total_count": 0, "programs": {}})
+                            food["total_count"] += meal_count
+                            pb = food["programs"].setdefault(program.id, {
+                                "name": program.name, "color": program_colors[program.id], "count": 0,
+                            })
+                            pb["count"] += meal_count
+
+            if entries:
+                total_slots = []
+                for key, label, icon, color in MASTER_CALENDAR_SLOTS:
+                    bucket = day_totals.get(key)
+                    if not bucket:
+                        continue
+                    foods = [
+                        {
+                            "name": name,
+                            "total_count": food["total_count"],
+                            "programs": sorted(food["programs"].values(), key=lambda p: p["name"]),
+                        }
+                        for name, food in sorted(bucket["foods"].items())
+                    ]
+                    total_slots.append({"key": key, "label": label, "icon": icon, "color": color, "foods": foods})
+
+                day_details[f"{date_str}|__total__"] = {
+                    "program_name": "All Programs — Daily Total",
+                    "color": "#495057",
+                    "date_label": f"{date_obj.strftime('%A, %B')} {date_obj.day}",
+                    "slots": total_slots,
+                }
+
+            week_data.append({
+                "day": day_num,
+                "date": date_str,
+                "in_month": True,
+                "is_today": date_obj == today,
+                "entries": entries,
+                "has_total": bool(entries),
+            })
+        calendar_weeks.append(week_data)
+
+    prev_month, prev_year = (12, year - 1) if month == 1 else (month - 1, year)
+    next_month, next_year = (1, year + 1) if month == 12 else (month + 1, year)
+
+    return templates.TemplateResponse("catering/master_calendar.html", {
+        "request": request,
+        "month": month,
+        "year": year,
+        "month_name": month_name_arr[month],
+        "calendar_weeks": calendar_weeks,
+        "programs": programs,
+        "program_colors": program_colors,
+        "day_details_json": json.dumps(day_details),
+        "prev_month": prev_month,
+        "prev_year": prev_year,
+        "next_month": next_month,
+        "next_year": next_year,
+        "is_current_month": (month == today.month and year == today.year),
     })
 
 

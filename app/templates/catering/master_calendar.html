@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+{% block title %}Master Calendar{% endblock %}
+
+{% block content %}
+{% set active = 'master_calendar' %}
+{% include "catering/_nav.html" %}
+
+<div class="mcal-header mb-3">
+  <div>
+    <div class="mcal-eyebrow">Catering</div>
+    <h2 class="mcal-title mb-0">Master Calendar</h2>
+    <p class="mcal-subtitle mb-0">Every active program's menu, on one calendar</p>
+  </div>
+  <div class="mcal-nav">
+    <a href="/catering/master-calendar?month={{ prev_month }}&year={{ prev_year }}" class="mcal-nav-btn">&#8592;</a>
+    <span class="mcal-month-label">{{ month_name }} {{ year }}</span>
+    {% if not is_current_month %}
+    <a href="/catering/master-calendar" class="mcal-nav-btn mcal-nav-today">Today</a>
+    {% endif %}
+    <a href="/catering/master-calendar?month={{ next_month }}&year={{ next_year }}" class="mcal-nav-btn">&#8594;</a>
+  </div>
+</div>
+
+{% if programs %}
+<div class="mcal-toolbar mb-3">
+  <div class="mcal-search">
+    <i data-lucide="search" class="mcal-search-icon"></i>
+    <input type="text" id="mcalSearchInput" class="mcal-search-input"
+           placeholder="Search by program or food (e.g. &quot;Sunshine Daycare&quot; or &quot;Pancakes&quot;)"
+           oninput="mcalApplySearch()">
+    <button type="button" id="mcalSearchClear" class="mcal-search-clear" onclick="mcalClearSearch()" hidden>&times;</button>
+  </div>
+  <span id="mcalSearchCount" class="mcal-search-count"></span>
+</div>
+
+<div class="mcal-legend mb-3">
+  {% for p in programs %}
+  <span class="mcal-legend-item">
+    <span class="mcal-dot" style="background:{{ program_colors[p.id] }}"></span>{{ p.name }}
+  </span>
+  {% endfor %}
+</div>
+
+<div class="mcal-card">
+  <table class="mcal-table">
+    <thead>
+      <tr>
+        <th>Sunday</th>
+        <th>Monday</th>
+        <th>Tuesday</th>
+        <th>Wednesday</th>
+        <th>Thursday</th>
+        <th>Friday</th>
+        <th>Saturday</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in calendar_weeks %}
+      <tr>
+        {% for day in week %}
+        <td class="mcal-day {% if not day.in_month %}mcal-day-out{% elif day.is_today %}mcal-day-today{% endif %}"
+            {% if day.in_month %}data-date="{{ day.date }}"{% endif %}>
+          {% if day.in_month %}
+          <div class="mcal-day-num">{{ day.day }}</div>
+          {% if day.is_today %}<span class="mcal-today-pill">Today</span>{% endif %}
+          {% if day.entries %}
+          <div class="mcal-chips">
+            {% for entry in day.entries %}
+            <button type="button" class="mcal-chip {% if not entry.has_menu %}mcal-chip-empty{% endif %}"
+                    style="--chip-color:{{ entry.color }};" title="{{ entry.program_name }}"
+                    data-program-id="{{ entry.program_id }}" data-program-name="{{ entry.program_name }}"
+                    onclick="mcalShowDetail('{{ day.date }}', '{{ entry.program_id }}')">
+              <span class="mcal-chip-dot"></span>{{ entry.program_name }}
+            </button>
+            {% endfor %}
+            {% if day.has_total %}
+            <button type="button" class="mcal-chip mcal-chip-total"
+                    onclick="mcalShowDetail('{{ day.date }}', '__total__')">
+              &#931; Totals
+            </button>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Detail overlay -->
+<div id="mcalOverlay" class="mcal-overlay" onclick="mcalCloseDetail(event)">
+  <div class="mcal-panel" onclick="event.stopPropagation();">
+    <div class="mcal-panel-header">
+      <div>
+        <div id="mcalPanelDate" class="mcal-panel-date"></div>
+        <div id="mcalPanelProgram" class="mcal-panel-program"></div>
+      </div>
+      <button type="button" class="mcal-panel-close" onclick="mcalCloseDetail()">&times;</button>
+    </div>
+    <div id="mcalPanelBody" class="mcal-panel-body"></div>
+  </div>
+</div>
+
+{% else %}
+<div class="alert alert-info">
+  <h5>No Active Programs</h5>
+  <p>Create a catering program to see it on the master calendar.</p>
+  <a href="/catering/programs/create" class="btn btn-primary">+ Create Program</a>
+</div>
+{% endif %}
+
+<script>
+const mcalDayDetails = {{ day_details_json | safe }};
+
+function mcalEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function mcalSlotIcon(slot) {
+  return '<span class="mcal-slot-icon" style="background:' + slot.color + '1a; color:' + slot.color + ';">' + slot.icon + '</span>';
+}
+
+function mcalToggleFood(btn) {
+  const item = btn.closest('.mcal-food-item');
+  const panel = item.querySelector('.mcal-food-breakdown');
+  if (!panel) return;
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  panel.hidden = open;
+}
+
+function mcalRenderSlot(slot) {
+  if (slot.foods) {
+    // Aggregate/total view: one row per dish (not per program), expandable to
+    // see which programs are serving it and how many servings each needs.
+    const rows = slot.foods.map(function(food) {
+      const breakdown = food.programs.map(function(p) {
+        return '<div class="mcal-food-bd-row">' +
+                 '<span class="mcal-dot" style="background:' + p.color + '"></span>' +
+                 '<span class="mcal-food-bd-name">' + mcalEsc(p.name) + '</span>' +
+                 '<span class="mcal-food-bd-count">' + p.count + '</span>' +
+               '</div>';
+      }).join('');
+      return '<div class="mcal-food-item">' +
+               '<div class="mcal-food-row">' +
+                 '<span class="mcal-food-name">' + mcalEsc(food.name) + '</span>' +
+                 '<button type="button" class="mcal-food-toggle" onclick="mcalToggleFood(this)" aria-expanded="false">' +
+                   '<span>' + food.total_count + ' servings</span>' +
+                   '<span class="mcal-food-caret">&#9662;</span>' +
+                 '</button>' +
+               '</div>' +
+               '<div class="mcal-food-breakdown" hidden>' + breakdown + '</div>' +
+             '</div>';
+    }).join('');
+    return '<div class="mcal-slot-group" style="--slot-color:' + slot.color + ';">' +
+             '<div class="mcal-slot-group-header">' + mcalSlotIcon(slot) +
+               '<span class="mcal-slot-group-title">' + mcalEsc(slot.label) + '</span>' +
+             '</div>' +
+             rows +
+           '</div>';
+  }
+
+  // Single-program view
+  return '<div class="mcal-slot-group">' +
+           '<div class="mcal-slot-row">' +
+             mcalSlotIcon(slot) +
+             '<span class="mcal-slot-main">' +
+               '<span class="mcal-slot-label">' + mcalEsc(slot.label) + '</span>' +
+               '<span class="mcal-slot-text">' + mcalEsc(slot.text) + '</span>' +
+             '</span>' +
+             '<span class="mcal-slot-count">' + slot.count + '</span>' +
+           '</div>' +
+         '</div>';
+}
+
+function mcalShowDetail(date, programId) {
+  const data = mcalDayDetails[date + '|' + programId];
+  if (!data) return;
+
+  const panel = document.querySelector('.mcal-panel');
+  panel.style.setProperty('--panel-color', data.color);
+
+  document.getElementById('mcalPanelDate').textContent = data.date_label;
+  document.getElementById('mcalPanelProgram').innerHTML =
+    '<span class="mcal-dot" style="background:' + data.color + '"></span>' + mcalEsc(data.program_name);
+
+  const body = document.getElementById('mcalPanelBody');
+  if (data.slots.length === 0) {
+    body.innerHTML = '<p class="text-muted mb-0">No meals assigned for this day yet.</p>';
+  } else {
+    body.innerHTML = data.slots.map(mcalRenderSlot).join('');
+  }
+
+  document.getElementById('mcalOverlay').classList.add('open');
+}
+
+function mcalCloseDetail(evt) {
+  document.getElementById('mcalOverlay').classList.remove('open');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') mcalCloseDetail();
+});
+
+function mcalApplySearch() {
+  const input = document.getElementById('mcalSearchInput');
+  const q = input.value.trim().toLowerCase();
+  document.getElementById('mcalSearchClear').hidden = !q;
+
+  let matchDays = 0;
+  document.querySelectorAll('.mcal-day[data-date]').forEach(function(cell) {
+    const date = cell.dataset.date;
+    const chips = cell.querySelectorAll('.mcal-chip:not(.mcal-chip-total)');
+    let dayHasMatch = !q;
+
+    chips.forEach(function(chip) {
+      if (!q) {
+        chip.classList.remove('mcal-chip-dim');
+        return;
+      }
+      const programId = chip.dataset.programId;
+      const detail = mcalDayDetails[date + '|' + programId];
+      let haystack = (chip.dataset.programName || '').toLowerCase();
+      if (detail) {
+        haystack += ' ' + detail.slots.map(function(s) { return s.text; }).join(' ').toLowerCase();
+      }
+      const isMatch = haystack.indexOf(q) !== -1;
+      chip.classList.toggle('mcal-chip-dim', !isMatch);
+      if (isMatch) dayHasMatch = true;
+    });
+
+    cell.classList.toggle('mcal-day-nomatch', !!q && !dayHasMatch);
+    if (q && dayHasMatch) matchDays++;
+  });
+
+  document.getElementById('mcalSearchCount').textContent = q
+    ? (matchDays + ' day' + (matchDays === 1 ? '' : 's') + ' match')
+    : '';
+}
+
+function mcalClearSearch() {
+  const input = document.getElementById('mcalSearchInput');
+  input.value = '';
+  mcalApplySearch();
+  input.focus();
+}
+</script>
+
+<style>
+.mcal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.mcal-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent, #14b8a6);
+  margin-bottom: 0.15rem;
+}
+.mcal-title { margin: 0; }
+.mcal-subtitle {
+  color: var(--text-secondary, #64748b);
+  font-size: 0.8125rem;
+  margin-top: 0.15rem;
+}
+
+.mcal-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mcal-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.7rem;
+  border-radius: var(--radius, 10px);
+  border: 1.5px solid var(--border, #e2e8f0);
+  background: var(--surface, #fff);
+  color: var(--text-secondary, #64748b);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.mcal-nav-btn:hover {
+  border-color: var(--accent, #14b8a6);
+  color: var(--accent, #14b8a6);
+  background: rgba(20,184,166,0.06);
+}
+.mcal-nav-today {
+  background: var(--accent, #14b8a6);
+  border-color: var(--accent, #14b8a6);
+  color: #fff !important;
+}
+.mcal-nav-today:hover { background: var(--accent-hover, #0d9488); border-color: var(--accent-hover, #0d9488); color: #fff !important; }
+.mcal-month-label {
+  font-weight: 600;
+  min-width: 9.5rem;
+  text-align: center;
+  color: var(--text-primary, #0f172a);
+}
+
+.mcal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.mcal-search {
+  position: relative;
+  flex: 1;
+  min-width: 260px;
+  max-width: 420px;
+}
+.mcal-search-icon {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--text-muted, #94a3b8);
+  pointer-events: none;
+}
+.mcal-search-input {
+  width: 100%;
+  padding: 0.5rem 2rem 0.5rem 2.1rem;
+  border: 1.5px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 10px);
+  background: var(--surface, #fff);
+  font-size: 0.82rem;
+  color: var(--text-primary, #0f172a);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.mcal-search-input:focus {
+  outline: none;
+  border-color: var(--accent, #14b8a6);
+  box-shadow: 0 0 0 3px rgba(20,184,166,0.12);
+}
+.mcal-search-clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+.mcal-search-clear:hover { color: var(--text-primary, #0f172a); }
+.mcal-search-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent, #14b8a6);
+}
+.mcal-chip-dim { opacity: 0.25; }
+.mcal-day-nomatch { opacity: 0.4; }
+
+.mcal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.mcal-legend-item {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+}
+.mcal-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  margin-right: 0.45rem;
+  flex-shrink: 0;
+}
+
+.mcal-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 10px);
+  box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.07));
+  overflow: hidden;
+}
+.mcal-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.mcal-table th {
+  padding: 0.625rem 0.5rem;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #64748b);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  background: #f8fafc;
+}
+.mcal-day {
+  position: relative;
+  vertical-align: top;
+  height: auto;
+  min-height: 138px;
+  border: 1px solid var(--border, #e2e8f0);
+  padding: 0.55rem;
+  width: 14.28%;
+  transition: background 0.15s;
+}
+.mcal-day:hover { background: #fafbfc; }
+.mcal-day-out { background: #f8fafc; }
+.mcal-day-today {
+  background: rgba(20,184,166,0.05);
+  box-shadow: inset 0 2px 0 var(--accent, #14b8a6);
+}
+.mcal-day-num {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.45rem;
+  color: var(--text-primary, #0f172a);
+}
+.mcal-today-pill {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--accent, #14b8a6);
+  color: #fff;
+}
+.mcal-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.mcal-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  padding: 0.32rem 0.55rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #0f172a);
+  cursor: pointer;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transition: all 0.15s;
+}
+.mcal-chip-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--chip-color, #14b8a6);
+  flex-shrink: 0;
+  margin-top: 0.3rem;
+}
+.mcal-chip:hover {
+  border-color: var(--chip-color, #14b8a6);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}
+.mcal-chip-empty { color: var(--text-muted, #94a3b8); font-style: italic; font-weight: 500; }
+.mcal-chip-total {
+  background: var(--text-primary, #0f172a);
+  color: #fff;
+  border-color: var(--text-primary, #0f172a);
+  justify-content: center;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.mcal-chip-total:hover {
+  opacity: 0.9;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}
+
+.mcal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.45);
+  z-index: 1050;
+  align-items: center;
+  justify-content: center;
+}
+.mcal-overlay.open { display: flex; animation: mcalFadeIn 0.15s ease-out; }
+.mcal-panel {
+  --panel-color: #14b8a6;
+  background: var(--surface, #fff);
+  border-radius: var(--radius, 10px);
+  border-top: 4px solid var(--panel-color);
+  width: 100%;
+  max-width: 440px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.08));
+  animation: mcalPopIn 0.15s ease-out;
+}
+@keyframes mcalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mcalPopIn { from { opacity: 0; transform: scale(0.97) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+.mcal-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.1rem 1.3rem 0.9rem;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.mcal-panel-date {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #64748b);
+}
+.mcal-panel-program {
+  font-weight: 700;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  margin-top: 0.25rem;
+  color: var(--text-primary, #0f172a);
+}
+.mcal-panel-close {
+  border: none;
+  background: var(--bg, #f1f5f9);
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mcal-panel-close:hover { background: var(--border, #e2e8f0); color: var(--text-primary, #0f172a); }
+.mcal-panel-body { padding: 0.6rem 1rem 1.1rem; }
+.mcal-slot-group { border-bottom: 1px solid var(--border, #e2e8f0); padding: 0.5rem 0.4rem; }
+.mcal-slot-group:last-child { border-bottom: none; }
+.mcal-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.3rem 0;
+}
+.mcal-slot-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0.4rem;
+  margin-bottom: 0.3rem;
+  border-radius: 8px;
+  background: var(--bg, #f1f5f9);
+  background: color-mix(in srgb, var(--slot-color, #94a3b8) 12%, transparent);
+}
+.mcal-slot-group-title {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--slot-color, var(--text-primary, #0f172a));
+}
+.mcal-food-item { border-top: 1px solid var(--border, #e2e8f0); }
+.mcal-food-item:first-of-type { border-top: none; }
+.mcal-food-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0 0.45rem 2.9rem;
+}
+.mcal-food-name { font-size: 0.9rem; font-weight: 600; color: var(--text-primary, #0f172a); }
+.mcal-food-toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: none;
+  background: var(--bg, #f1f5f9);
+  color: var(--text-secondary, #64748b);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mcal-food-toggle:hover { color: var(--accent, #14b8a6); }
+.mcal-food-caret { font-size: 0.6rem; }
+.mcal-food-breakdown { padding: 0.1rem 0 0.5rem 2.9rem; }
+.mcal-food-bd-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #64748b);
+}
+.mcal-food-bd-name { flex: 1; font-weight: 600; color: var(--text-primary, #0f172a); }
+.mcal-food-bd-count { font-weight: 700; }
+.mcal-slot-icon {
+  flex-shrink: 0;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+}
+.mcal-slot-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mcal-slot-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #64748b);
+}
+.mcal-slot-text {
+  font-size: 0.875rem;
+  color: var(--text-primary, #0f172a);
+  overflow-wrap: break-word;
+}
+.mcal-slot-count {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--bg, #f1f5f9);
+  color: var(--text-secondary, #64748b);
+  white-space: nowrap;
+}
+.mcal-slot-count::after { content: ' kids'; font-weight: 500; }
+</style>
+{% endblock %}

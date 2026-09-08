@@ -195,8 +195,16 @@ async def redirect_home(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/logout")
-async def logout(request: Request):
+async def logout(request: Request, db: AsyncSession = Depends(get_db)):
+    tenant_id = request.session.get("tenant_id")
     request.session.clear()
+
+    if tenant_id:
+        result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+        tenant = result.scalar_one_or_none()
+        if tenant:
+            return RedirectResponse(url=f"/t/{tenant.slug}/", status_code=302)
+
     return RedirectResponse(url="/", status_code=302)
 
 

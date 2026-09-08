@@ -1,29 +1,70 @@
 {# Catering Navigation - include this at the top of catering pages #}
-<nav class="navbar navbar-expand navbar-light bg-light mb-3 rounded">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="/catering">Catering</a>
-    <ul class="navbar-nav">
-      <li class="nav-item">
-        <a class="nav-link {% if active == 'programs' %}fw-bold text-primary{% endif %}" href="/catering/programs">Programs</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if active == 'menus' %}fw-bold text-primary{% endif %}" href="/catering/monthly-menus">Menus</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if active == 'invoices' %}fw-bold text-primary{% endif %}" href="/catering/invoices">Invoices</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if active == 'shopping' %}fw-bold text-primary{% endif %}" href="/catering/weekly-ingredients/">Shopping</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if active == 'components' %}fw-bold text-primary{% endif %}" href="/catering/food-components">Components</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if active == 'meals' %}fw-bold text-primary{% endif %}" href="/catering/meal-items">Meals</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link {% if active == 'production' %}fw-bold text-primary{% endif %}" href="/catering/production">Production</a>
-      </li>
-    </ul>
-  </div>
+<nav class="cat-nav mb-3">
+  <a class="cat-nav-link {% if active == 'dashboard' %}active{% endif %}" href="/catering">
+    <i data-lucide="layout-dashboard"></i>Dashboard
+  </a>
+  <a class="cat-nav-link {% if active == 'programs' %}active{% endif %}" href="/catering/programs">
+    <i data-lucide="users"></i>Programs
+  </a>
+  <a class="cat-nav-link {% if active == 'menus' %}active{% endif %}" href="/catering/monthly-menus">
+    <i data-lucide="calendar-days"></i>Menus
+  </a>
+  <a class="cat-nav-link {% if active == 'master_calendar' %}active{% endif %}" href="/catering/master-calendar">
+    <i data-lucide="calendar-range"></i>Master Calendar
+  </a>
+  <a class="cat-nav-link {% if active == 'invoices' %}active{% endif %}" href="/catering/invoices">
+    <i data-lucide="receipt"></i>Invoices
+  </a>
+  <a class="cat-nav-link {% if active == 'shopping' %}active{% endif %}" href="/catering/weekly-ingredients/">
+    <i data-lucide="shopping-cart"></i>Shopping
+  </a>
+  <a class="cat-nav-link {% if active == 'components' %}active{% endif %}" href="/catering/food-components">
+    <i data-lucide="layers"></i>Components
+  </a>
+  <a class="cat-nav-link {% if active == 'meals' %}active{% endif %}" href="/catering/meal-items">
+    <i data-lucide="utensils"></i>Meals
+  </a>
+  <a class="cat-nav-link {% if active == 'production' %}active{% endif %}" href="/catering/production">
+    <i data-lucide="chef-hat"></i>Production
+  </a>
 </nav>
+
+<style>
+.cat-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 10px);
+  padding: 0.35rem;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}
+.cat-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 7px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.cat-nav-link i {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.cat-nav-link:hover {
+  background: var(--bg, #f1f5f9);
+  color: var(--text-primary, #0f172a);
+}
+.cat-nav-link.active {
+  background: rgba(20,184,166,0.12);
+  color: var(--accent, #14b8a6);
+  font-weight: 600;
+}
+</style>

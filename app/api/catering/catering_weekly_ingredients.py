@@ -3,7 +3,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
 from calendar import month_name
 from datetime import date
 
@@ -12,7 +11,7 @@ from app.utils.tenant import get_current_tenant_id
 from app.auth.dependencies import get_current_admin_user
 from app.models.user import User
 from app.models.catering import CateringMonthlyMenu, CateringProgram
-from app.services.catering.weekly_ingredients import build_weekly_ingredient_list, build_aggregate_ingredient_list
+from app.services.catering.weekly_ingredients import build_aggregate_ingredient_list
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -72,7 +71,6 @@ async def aggregate_ingredient_list(
         "total_ingredients": data["total_ingredients"],
         "all_programs": all_programs,
         "selected_program_id": program_id,
-        "is_aggregate": True,
     })
 
 
@@ -80,52 +78,31 @@ async def aggregate_ingredient_list(
     "/monthly-menus/{menu_id}",
     name="weekly_ingredient_list"
 )
-async def weekly_ingredient_list(
+async def weekly_ingredient_list_redirect(
     request: Request,
     menu_id: str,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
     """
-    Weekly ingredient list for a specific monthly menu.
+    Legacy per-menu ingredient link — redirects into the one shopping list,
+    pre-filtered to that program and month, instead of maintaining a second view.
     """
     tenant_id = get_current_tenant_id(request)
 
-    # Get monthly menu with program details
     result = await db.execute(
         select(CateringMonthlyMenu)
         .where(
             CateringMonthlyMenu.id == menu_id,
             CateringMonthlyMenu.tenant_id == tenant_id,
         )
-        .options(selectinload(CateringMonthlyMenu.program))
     )
     monthly_menu = result.scalar_one_or_none()
 
     if not monthly_menu:
         return RedirectResponse(url="/catering/monthly-menus", status_code=303)
 
-    # Build weekly ingredient list using sync session
-    weeks = await db.run_sync(
-        lambda sync_db: build_weekly_ingredient_list(
-            sync_db,
-            monthly_menu.id
-        )
+    return RedirectResponse(
+        url=f"/catering/weekly-ingredients/?year={monthly_menu.year}&month={monthly_menu.month}&program_id={monthly_menu.program_id}",
+        status_code=303,
     )
-
-    # Count total unique ingredients
-    all_ingredients = set()
-    for week in weeks:
-        all_ingredients.update(week["ingredients"])
-
-    return templates.TemplateResponse("catering/weekly_ingredients.html", {
-        "request": request,
-        "program": monthly_menu.program,
-        "month": monthly_menu.month,
-        "month_name": month_name[monthly_menu.month],
-        "year": monthly_menu.year,
-        "weeks": weeks,
-        "menu_id": menu_id,
-        "total_ingredients": len(all_ingredients),
-        "is_aggregate": False,
-    })

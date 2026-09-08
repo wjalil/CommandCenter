@@ -44,6 +44,14 @@ SLOT_LABELS = {
     "am_snack": "AM",
     "pm_snack": "PM",
 }
+SLOT_COLORS = {
+    "breakfast": "#FD7E14",
+    "lunch": "#4C6EF5",
+    "snack": "#12B886",
+    "am_snack": "#F5A623",
+    "pm_snack": "#7048E8",
+    "other": "#868E96",
+}
 
 
 async def _build_production_data(db: AsyncSession, tenant_id: int, service_date: date):
@@ -209,11 +217,17 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
         prep_components.append({
             "name": name,
             "total_oz": round(data["total_oz"], 1),
+            "total_lb": round(data["total_oz"] / 16, 2),
             "total_count": data["total_count"],
+            "slots": slots_sorted,
             "slot_labels": [SLOT_LABELS.get(s, s) for s in slots_sorted],
+            "slot_badges": [
+                {"slot": s, "label": SLOT_LABELS.get(s, s), "color": SLOT_COLORS.get(s, SLOT_COLORS["other"])}
+                for s in slots_sorted
+            ],
             "primary_slot": slots_sorted[0] if slots_sorted else "other",
             "program_breakdown": [
-                {"name": pname, "count": vals["count"], "oz": round(vals["oz"], 1)}
+                {"name": pname, "count": vals["count"], "oz": round(vals["oz"], 1), "lb": round(vals["oz"] / 16, 2)}
                 for pname, vals in sorted(data["program_breakdown"].items())
             ],
         })
@@ -377,15 +391,27 @@ def _sort_key_for_comp(comp):
 
 
 def _group_comps_by_slot(comps: list) -> list:
-    """Return [{slot, slot_label, items}] in meal-type order."""
+    """Return [{slot, slot_label, items}] in meal-type order.
+
+    A component prepped for multiple meal slots (e.g. milk served at both
+    breakfast and PM snack) is listed under every slot it's actually used in,
+    not just the earliest one — otherwise later slots (like PM snack) would
+    silently drop items that also happen to appear earlier in the day.
+    """
     grouped: dict = {}
     for comp in sorted(comps, key=_sort_key_for_comp):
-        slot = comp.get("primary_slot", "other")
-        grouped.setdefault(slot, []).append(comp)
+        slots = comp.get("slots") or [comp.get("primary_slot", "other")]
+        for slot in slots:
+            grouped.setdefault(slot, []).append(comp)
     result = []
     for slot in SLOT_ORDER + ["other"]:
         if slot in grouped:
-            result.append({"slot": slot, "slot_label": SLOT_DISPLAY.get(slot, slot.title()), "items": grouped[slot]})
+            result.append({
+                "slot": slot,
+                "slot_label": SLOT_DISPLAY.get(slot, slot.title()),
+                "color": SLOT_COLORS.get(slot, SLOT_COLORS["other"]),
+                "items": grouped[slot],
+            })
     return result
 
 

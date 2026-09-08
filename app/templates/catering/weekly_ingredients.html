@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}
-{% if is_aggregate %}Shopping List - {{ month_name }} {{ year }}{% else %}Ingredients - {{ program.name }}{% endif %}
-{% endblock %}
+{% block title %}Shopping List - {{ month_name }} {{ year }}{% endblock %}
 
 {% block content %}
 {% set active = 'shopping' %}
@@ -13,31 +11,20 @@
   <!-- Header -->
   <div class="row mb-3">
     <div class="col-md-6">
-      {% if is_aggregate %}
-        <h2>Shopping List</h2>
-        <p class="text-muted mb-0">
-          {{ month_name }} {{ year }} - {{ total_ingredients }} unique ingredients
-          {% if programs_included %}
-            across {{ programs_included|length }} program{% if programs_included|length > 1 %}s{% endif %}
-          {% endif %}
-        </p>
-      {% else %}
-        <h2>Ingredient List</h2>
-        <p class="text-muted mb-0">
-          {{ program.name }} - {{ month_name }} {{ year }} ({{ total_ingredients }} items)
-        </p>
-      {% endif %}
+      <h2>Shopping List</h2>
+      <p class="text-muted mb-0">
+        {{ month_name }} {{ year }} &middot; {{ total_ingredients }} unique ingredients
+        {% if programs_included %}
+          across {{ programs_included|length }} program{% if programs_included|length > 1 %}s{% endif %}
+        {% endif %}
+      </p>
     </div>
     <div class="col-md-6 text-end">
-      {% if menu_id %}
-        <a href="/catering/monthly-menus/{{ menu_id }}/calendar" class="btn btn-outline-secondary btn-sm">Back to Calendar</a>
-      {% endif %}
       <button class="btn btn-outline-primary btn-sm" onclick="window.print()">Print</button>
     </div>
   </div>
 
-  {% if is_aggregate %}
-  <!-- Filters for aggregate view -->
+  <!-- Filters -->
   <div class="card mb-3">
     <div class="card-body py-2">
       <form method="GET" class="row g-2 align-items-center">
@@ -90,29 +77,42 @@
     </small>
   </div>
   {% endif %}
-  {% endif %}
+
+  <!-- Toolbar: search + unit toggle -->
+  <div class="wsl-toolbar mb-3">
+    <div class="wsl-search">
+      <i data-lucide="search" class="wsl-search-icon"></i>
+      <input type="text" id="wslSearchInput" class="wsl-search-input" placeholder="Search ingredients..." oninput="wslApplySearch()">
+      <button type="button" id="wslSearchClear" class="wsl-search-clear" onclick="wslClearSearch()" hidden>&times;</button>
+    </div>
+    <span id="wslSearchCount" class="wsl-search-count"></span>
+    <div class="wsl-unit-toggle" id="wslUnitToggle">
+      <button type="button" class="wsl-unit-btn active" data-unit="oz" onclick="wslSetUnit('oz')">oz</button>
+      <button type="button" class="wsl-unit-btn" data-unit="lb" onclick="wslSetUnit('lb')">lb</button>
+    </div>
+  </div>
 
   <!-- Meal Filter Tabs -->
   <div class="row mb-3">
     <div class="col-12">
       <div class="btn-group" role="group" aria-label="Meal filter">
-        <input type="radio" class="btn-check" name="mealFilter" id="filterAll" value="all" checked>
+        <input type="radio" class="btn-check" name="mealFilter" id="filterAll" value="all" checked onchange="wslApplyMealFilter()">
         <label class="btn btn-outline-primary" for="filterAll">All</label>
 
-        <input type="radio" class="btn-check" name="mealFilter" id="filterBreakfast" value="breakfast">
-        <label class="btn btn-outline-warning" for="filterBreakfast">Breakfast</label>
+        <input type="radio" class="btn-check" name="mealFilter" id="filterBreakfast" value="breakfast" onchange="wslApplyMealFilter()">
+        <label class="btn btn-outline-primary" for="filterBreakfast">Breakfast</label>
 
-        <input type="radio" class="btn-check" name="mealFilter" id="filterLunch" value="lunch">
-        <label class="btn btn-outline-success" for="filterLunch">Lunch</label>
+        <input type="radio" class="btn-check" name="mealFilter" id="filterLunch" value="lunch" onchange="wslApplyMealFilter()">
+        <label class="btn btn-outline-primary" for="filterLunch">Lunch</label>
 
-        <input type="radio" class="btn-check" name="mealFilter" id="filterSnack" value="snack">
-        <label class="btn btn-outline-info" for="filterSnack">Snack</label>
+        <input type="radio" class="btn-check" name="mealFilter" id="filterSnack" value="snack" onchange="wslApplyMealFilter()">
+        <label class="btn btn-outline-primary" for="filterSnack">Snack</label>
 
-        <input type="radio" class="btn-check" name="mealFilter" id="filterAmSnack" value="am_snack">
-        <label class="btn btn-outline-info" for="filterAmSnack">AM Snack</label>
+        <input type="radio" class="btn-check" name="mealFilter" id="filterAmSnack" value="am_snack" onchange="wslApplyMealFilter()">
+        <label class="btn btn-outline-primary" for="filterAmSnack">AM Snack</label>
 
-        <input type="radio" class="btn-check" name="mealFilter" id="filterPmSnack" value="pm_snack">
-        <label class="btn btn-outline-info" for="filterPmSnack">PM Snack</label>
+        <input type="radio" class="btn-check" name="mealFilter" id="filterPmSnack" value="pm_snack" onchange="wslApplyMealFilter()">
+        <label class="btn btn-outline-primary" for="filterPmSnack">PM Snack</label>
       </div>
     </div>
   </div>
@@ -124,130 +124,56 @@
   {% else %}
     <!-- Weeks -->
     {% for week in weeks %}
-      <div class="card mb-4 shadow-sm week-card">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <div class="wsl-week-card {% if week.is_past %}wsl-collapsed{% endif %}">
+        <button type="button" class="wsl-week-header" onclick="wslToggleWeek(this)">
+          <span class="wsl-week-caret">&#9656;</span>
           <strong>Week of {{ week.week_start.strftime('%B %d') }} - {{ week.week_end.strftime('%B %d') }}</strong>
-          <span class="badge bg-secondary item-count"
-                data-all="{{ week.ingredients|length }}"
-                data-breakfast="{{ week.by_meal.breakfast|length }}"
-                data-lunch="{{ week.by_meal.lunch|length }}"
-                data-snack="{{ week.by_meal.snack|length }}"
-                data-am-snack="{{ week.by_meal.am_snack|length }}"
-                data-pm-snack="{{ week.by_meal.pm_snack|length }}">
-            {{ week.ingredients|length }} items
-          </span>
-        </div>
+          {% if week.is_past %}<span class="wsl-week-tag">Past</span>{% endif %}
+          <span class="wsl-week-count" data-total="{{ week.ingredients|length }}">{{ week.ingredients|length }} items</span>
+        </button>
 
-        <div class="card-body">
-          {% set week_idx = loop.index %}
-          <!-- All Ingredients -->
-          <div class="ingredient-section" data-meal="all">
-            {% if week.ingredients %}
-              <div class="row">
-                {% for ingredient in week.ingredients %}
-                  <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
-                    <div class="form-check">
-                      <input type="checkbox" class="form-check-input ingredient-check" id="all-{{ week_idx }}-{{ loop.index }}">
-                      <label class="form-check-label ingredient-label" for="all-{{ week_idx }}-{{ loop.index }}">{{ ingredient }}</label>
-                    </div>
-                  </div>
-                {% endfor %}
+        <ul class="wsl-item-list">
+          {% for ing in week.ingredients %}
+          {% set by_slot = {"all": {"oz": ing.total_oz, "lb": ing.total_lb, "count": ing.total_count, "days": ing.days}} %}
+          {% for slot, v in ing.by_slot.items() %}{% set _ = by_slot.update({slot: v}) %}{% endfor %}
+          <li class="wsl-item" data-name="{{ ing.name|lower }}" data-slots='{{ by_slot|tojson }}'>
+            <label class="wsl-item-row">
+              <input type="checkbox" class="wsl-check">
+              <span class="wsl-check-box"></span>
+              <span class="wsl-item-content">
+                <span class="wsl-item-name">{{ ing.name }}</span>
+                <span class="wsl-item-meta">
+                  <span class="wsl-measure" data-oz="{{ ing.total_oz }}" data-lb="{{ ing.total_lb }}">{{ ing.total_oz }} oz</span>
+                  <span class="wsl-meta-sep">&middot;</span>
+                  {% if ing.program_breakdown|length > 0 %}
+                  <button type="button" class="wsl-breakdown-btn" onclick="wslToggleBreakdown(event, this)" aria-expanded="false">
+                    <span class="wsl-count-text">{{ ing.total_count }} servings</span>
+                    <span class="wsl-breakdown-caret">&#9662;</span>
+                  </button>
+                  {% else %}
+                  <span class="wsl-count-text">{{ ing.total_count }} servings</span>
+                  {% endif %}
+                  {% for badge in ing.slot_badges %}<span class="wsl-slot-badge" style="background:{{ badge.color }};">{{ badge.label }}</span>{% endfor %}
+                </span>
+                <span class="wsl-day-badges">
+                  {% for d in ing.days %}<span class="wsl-day-badge" title="{{ d.count }} servings on {{ d.label }} {{ d.day_num }}">{{ d.label }} {{ d.day_num }}</span>{% endfor %}
+                </span>
+              </span>
+            </label>
+            {% if ing.program_breakdown|length > 0 %}
+            <div class="wsl-breakdown-panel" hidden>
+              {% for pb in ing.program_breakdown %}
+              <div class="wsl-breakdown-row">
+                <span class="wsl-bd-name">{{ pb.name }}</span>
+                <span class="wsl-bd-count">{{ pb.count }} svgs</span>
+                <span class="wsl-bd-oz" data-oz="{{ pb.oz }}" data-lb="{{ pb.lb }}">{{ pb.oz }} oz</span>
               </div>
-            {% else %}
-              <p class="text-muted mb-0">No ingredients for this week.</p>
+              {% endfor %}
+            </div>
             {% endif %}
-          </div>
-
-          <!-- Breakfast -->
-          <div class="ingredient-section" data-meal="breakfast" style="display: none;">
-            {% if week.by_meal.breakfast %}
-              <div class="row">
-                {% for ingredient in week.by_meal.breakfast %}
-                  <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
-                    <div class="form-check">
-                      <input type="checkbox" class="form-check-input ingredient-check" id="bf-{{ week_idx }}-{{ loop.index }}">
-                      <label class="form-check-label ingredient-label" for="bf-{{ week_idx }}-{{ loop.index }}">{{ ingredient }}</label>
-                    </div>
-                  </div>
-                {% endfor %}
-              </div>
-            {% else %}
-              <p class="text-muted mb-0">No breakfast ingredients.</p>
-            {% endif %}
-          </div>
-
-          <!-- Lunch -->
-          <div class="ingredient-section" data-meal="lunch" style="display: none;">
-            {% if week.by_meal.lunch %}
-              <div class="row">
-                {% for ingredient in week.by_meal.lunch %}
-                  <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
-                    <div class="form-check">
-                      <input type="checkbox" class="form-check-input ingredient-check" id="ln-{{ week_idx }}-{{ loop.index }}">
-                      <label class="form-check-label ingredient-label" for="ln-{{ week_idx }}-{{ loop.index }}">{{ ingredient }}</label>
-                    </div>
-                  </div>
-                {% endfor %}
-              </div>
-            {% else %}
-              <p class="text-muted mb-0">No lunch ingredients.</p>
-            {% endif %}
-          </div>
-
-          <!-- Snack -->
-          <div class="ingredient-section" data-meal="snack" style="display: none;">
-            {% if week.by_meal.snack %}
-              <div class="row">
-                {% for ingredient in week.by_meal.snack %}
-                  <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
-                    <div class="form-check">
-                      <input type="checkbox" class="form-check-input ingredient-check" id="sn-{{ week_idx }}-{{ loop.index }}">
-                      <label class="form-check-label ingredient-label" for="sn-{{ week_idx }}-{{ loop.index }}">{{ ingredient }}</label>
-                    </div>
-                  </div>
-                {% endfor %}
-              </div>
-            {% else %}
-              <p class="text-muted mb-0">No snack ingredients.</p>
-            {% endif %}
-          </div>
-
-          <!-- AM Snack -->
-          <div class="ingredient-section" data-meal="am_snack" style="display: none;">
-            {% if week.by_meal.am_snack %}
-              <div class="row">
-                {% for ingredient in week.by_meal.am_snack %}
-                  <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
-                    <div class="form-check">
-                      <input type="checkbox" class="form-check-input ingredient-check" id="am-{{ week_idx }}-{{ loop.index }}">
-                      <label class="form-check-label ingredient-label" for="am-{{ week_idx }}-{{ loop.index }}">{{ ingredient }}</label>
-                    </div>
-                  </div>
-                {% endfor %}
-              </div>
-            {% else %}
-              <p class="text-muted mb-0">No AM snack ingredients.</p>
-            {% endif %}
-          </div>
-
-          <!-- PM Snack -->
-          <div class="ingredient-section" data-meal="pm_snack" style="display: none;">
-            {% if week.by_meal.pm_snack %}
-              <div class="row">
-                {% for ingredient in week.by_meal.pm_snack %}
-                  <div class="col-lg-3 col-md-4 col-sm-6 mb-2">
-                    <div class="form-check">
-                      <input type="checkbox" class="form-check-input ingredient-check" id="pm-{{ week_idx }}-{{ loop.index }}">
-                      <label class="form-check-label ingredient-label" for="pm-{{ week_idx }}-{{ loop.index }}">{{ ingredient }}</label>
-                    </div>
-                  </div>
-                {% endfor %}
-              </div>
-            {% else %}
-              <p class="text-muted mb-0">No PM snack ingredients.</p>
-            {% endif %}
-          </div>
-        </div>
+          </li>
+          {% endfor %}
+        </ul>
       </div>
     {% endfor %}
   {% endif %}
@@ -255,35 +181,332 @@
 </div>
 
 <style>
-  .ingredient-check:checked + .ingredient-label {
-    text-decoration: line-through;
-    color: #6c757d;
-  }
+.wsl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.wsl-search {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+}
+.wsl-search-icon {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--text-muted, #94a3b8);
+  pointer-events: none;
+}
+.wsl-search-input {
+  width: 100%;
+  padding: 0.4rem 2rem 0.4rem 2.1rem;
+  border: 1.5px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 10px);
+  background: var(--surface, #fff);
+  font-size: 0.82rem;
+  color: var(--text-primary, #0f172a);
+}
+.wsl-search-input:focus {
+  outline: none;
+  border-color: var(--accent, #14b8a6);
+  box-shadow: 0 0 0 3px rgba(20,184,166,0.12);
+}
+.wsl-search-clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+}
+.wsl-search-clear:hover { color: var(--text-primary, #0f172a); }
+.wsl-search-count { font-size: 0.78rem; font-weight: 600; color: var(--accent, #14b8a6); }
 
-  @media print {
-    .btn, nav, .navbar, .sidebar, .btn-group, .card.mb-3:first-of-type { display: none !important; }
-    .card { break-inside: avoid; }
-    .form-check-input { display: inline-block !important; }
-    .ingredient-section[style*="display: none"] { display: none !important; }
-  }
+.wsl-unit-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  border: 1.5px solid var(--border, #e2e8f0);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.wsl-unit-btn {
+  border: none;
+  background: transparent;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+}
+.wsl-unit-btn.active { background: var(--accent, #14b8a6); color: #fff; }
+
+.wsl-week-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 10px);
+  box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.07));
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+.wsl-week-header {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.75rem 1.125rem;
+  background: #f8fafc;
+  border: none;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text-primary, #0f172a);
+  cursor: pointer;
+  text-align: left;
+}
+.wsl-week-caret {
+  flex-shrink: 0;
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+  transition: transform 0.15s;
+}
+.wsl-week-card.wsl-collapsed .wsl-week-caret { transform: rotate(-90deg); }
+.wsl-week-card.wsl-collapsed .wsl-week-header { border-bottom: none; }
+.wsl-week-card.wsl-collapsed .wsl-item-list { display: none; }
+.wsl-week-tag {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--bg, #f1f5f9);
+  color: var(--text-secondary, #64748b);
+}
+.wsl-week-header strong { flex: 1; }
+.wsl-week-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--bg, #f1f5f9);
+  color: var(--text-secondary, #64748b);
+}
+.wsl-item-list { list-style: none; margin: 0; padding: 0; }
+.wsl-item {
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.wsl-item:last-child { border-bottom: none; }
+.wsl-item.wsl-hidden { display: none; }
+.wsl-item.wsl-search-miss { display: none; }
+.wsl-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1.125rem;
+  margin: 0;
+  cursor: pointer;
+}
+.wsl-check { display: none; }
+.wsl-check-box {
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 6px;
+  border: 2px solid var(--border, #e2e8f0);
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.15s;
+}
+.wsl-check-box::after {
+  content: '';
+  position: absolute;
+  left: 0.3rem;
+  top: 0.15rem;
+  width: 0.4rem;
+  height: 0.65rem;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(45deg) scale(0);
+  transition: transform 0.15s;
+}
+.wsl-check:checked + .wsl-check-box {
+  background: var(--accent, #14b8a6);
+  border-color: var(--accent, #14b8a6);
+}
+.wsl-check:checked + .wsl-check-box::after { transform: rotate(45deg) scale(1); }
+.wsl-check:checked ~ .wsl-item-content .wsl-item-name {
+  text-decoration: line-through;
+  color: var(--text-muted, #94a3b8);
+}
+.wsl-item-content { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 0; }
+.wsl-item-name { font-size: 0.875rem; font-weight: 600; color: var(--text-primary, #0f172a); }
+.wsl-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+  flex-wrap: wrap;
+}
+.wsl-measure { font-weight: 600; color: var(--text-primary, #0f172a); }
+.wsl-breakdown-btn {
+  border: none;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+}
+.wsl-breakdown-btn:hover { color: var(--accent, #14b8a6); }
+.wsl-slot-badge {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.wsl-day-badges { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.05rem; }
+.wsl-day-badge {
+  display: inline-block;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  background: var(--bg, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
+  color: var(--text-secondary, #64748b);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+.wsl-breakdown-panel {
+  padding: 0.4rem 1.125rem 0.65rem 3.2rem;
+  background: #fafbfc;
+}
+.wsl-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #64748b);
+}
+.wsl-bd-name { font-weight: 600; color: var(--text-primary, #0f172a); flex: 1; }
+
+@media print {
+  .btn, .cat-nav, nav, .wsl-toolbar, .card.mb-3, .btn-group { display: none !important; }
+  .wsl-week-card { break-inside: avoid; box-shadow: none; }
+  .wsl-week-card.wsl-collapsed .wsl-item-list { display: block !important; }
+  .wsl-week-caret { display: none; }
+}
 </style>
 
 <script>
-document.querySelectorAll('input[name="mealFilter"]').forEach(radio => {
-  radio.addEventListener('change', function() {
-    const meal = this.value;
-    const dataKey = meal.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-
-    document.querySelectorAll('.ingredient-section').forEach(section => {
-      section.style.display = section.dataset.meal === meal ? 'block' : 'none';
-    });
-
-    document.querySelectorAll('.item-count').forEach(badge => {
-      const count = badge.dataset[dataKey] ?? badge.dataset[meal] ?? '0';
-      badge.textContent = count + ' items';
-    });
-  });
+document.querySelectorAll('input[name="mealFilter"]').forEach(function(radio) {
+  radio.addEventListener('change', wslApplyMealFilter);
 });
-</script>
 
+function wslEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function wslApplyMealFilter() {
+  const filter = document.querySelector('input[name="mealFilter"]:checked').value;
+  document.querySelectorAll('.wsl-item').forEach(function(item) {
+    let data;
+    try { data = JSON.parse(item.dataset.slots); } catch (e) { data = {}; }
+    const key = filter === 'all' ? 'all' : filter;
+    const values = data[key];
+    if (!values) {
+      item.classList.add('wsl-hidden');
+      return;
+    }
+    item.classList.remove('wsl-hidden');
+    const measure = item.querySelector('.wsl-measure');
+    measure.dataset.oz = values.oz;
+    measure.dataset.lb = values.lb;
+    const unit = document.querySelector('.wsl-unit-btn.active').dataset.unit;
+    measure.textContent = values[unit] + ' ' + unit;
+    const countText = item.querySelector('.wsl-count-text');
+    if (countText) countText.textContent = values.count + ' servings';
+
+    const dayBadges = item.querySelector('.wsl-day-badges');
+    if (dayBadges) {
+      const days = values.days || [];
+      dayBadges.innerHTML = days.map(function(d) {
+        return '<span class="wsl-day-badge" title="' + d.count + ' servings on ' + wslEsc(d.label) + ' ' + d.day_num + '">' +
+               wslEsc(d.label) + ' ' + d.day_num + '</span>';
+      }).join('');
+    }
+  });
+  wslUpdateWeekCounts();
+  wslApplySearch();
+}
+
+function wslToggleWeek(btn) {
+  btn.closest('.wsl-week-card').classList.toggle('wsl-collapsed');
+}
+
+function wslUpdateWeekCounts() {
+  document.querySelectorAll('.wsl-week-card').forEach(function(card) {
+    const visible = card.querySelectorAll('.wsl-item:not(.wsl-hidden):not(.wsl-search-miss)').length;
+    const badge = card.querySelector('.wsl-week-count');
+    badge.textContent = visible + ' item' + (visible === 1 ? '' : 's');
+  });
+}
+
+function wslSetUnit(unit) {
+  document.querySelectorAll('.wsl-unit-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.unit === unit);
+  });
+  document.querySelectorAll('.wsl-measure, .wsl-bd-oz').forEach(function(el) {
+    const val = el.dataset[unit];
+    if (val !== undefined) el.textContent = val + ' ' + unit;
+  });
+}
+
+function wslToggleBreakdown(evt, btn) {
+  evt.preventDefault();
+  const li = btn.closest('.wsl-item');
+  const panel = li.querySelector('.wsl-breakdown-panel');
+  if (!panel) return;
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  panel.hidden = open;
+}
+
+function wslApplySearch() {
+  const q = document.getElementById('wslSearchInput').value.trim().toLowerCase();
+  document.getElementById('wslSearchClear').hidden = !q;
+  let matches = 0;
+  document.querySelectorAll('.wsl-item').forEach(function(item) {
+    const name = item.dataset.name || '';
+    const isTextMatch = !q || name.indexOf(q) !== -1;
+    item.classList.toggle('wsl-search-miss', !isTextMatch);
+    if (isTextMatch && !item.classList.contains('wsl-hidden')) matches++;
+  });
+  document.getElementById('wslSearchCount').textContent = q ? (matches + ' match' + (matches === 1 ? '' : 'es')) : '';
+  wslUpdateWeekCounts();
+}
+
+function wslClearSearch() {
+  const input = document.getElementById('wslSearchInput');
+  input.value = '';
+  wslApplySearch();
+  input.focus();
+}
+</script>
 {% endblock %}

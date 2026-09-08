@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date, datetime
 
@@ -25,7 +25,7 @@ class ProgramHolidayRead(ProgramHolidayBase):
 class CateringProgramBase(BaseModel):
     name: str
     client_name: str
-    client_email: Optional[EmailStr] = None
+    client_email: Optional[str] = None
     client_phone: Optional[str] = None
     address: Optional[str] = None
     age_group_id: int
@@ -58,7 +58,7 @@ class CateringProgramCreate(CateringProgramBase):
 class CateringProgramUpdate(BaseModel):
     name: Optional[str] = None
     client_name: Optional[str] = None
-    client_email: Optional[EmailStr] = None
+    client_email: Optional[str] = None
     client_phone: Optional[str] = None
     address: Optional[str] = None
     age_group_id: Optional[int] = None

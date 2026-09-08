@@ -5,6 +5,10 @@
 {% set active = 'programs' %}
 {% include "catering/_nav.html" %}
 
+{% if request.query_params.get('error') %}
+<div class="alert alert-danger">{{ request.query_params.get('error') }}</div>
+{% endif %}
+
 <div class="row mb-4">
   <div class="col-md-8">
     <h2>Catering Programs</h2>
@@ -60,6 +64,10 @@
       <td>
         <div class="btn-group btn-group-sm">
           <a href="/catering/programs/{{ program.id }}/edit" class="btn btn-outline-primary">Edit</a>
+          <form method="post" action="/catering/programs/{{ program.id }}/delete" style="display:inline"
+                onsubmit="return confirm('Delete {{ program.name }}? This cannot be undone.');">
+            <button type="submit" class="btn btn-outline-danger">Delete</button>
+          </form>
         </div>
       </td>
     </tr>

@@ -2,140 +2,158 @@
 {% block title %}Catering Dashboard{% endblock %}
 
 {% block content %}
+{% set active = 'dashboard' %}
+{% include "catering/_nav.html" %}
+
 <div class="row mb-4">
   <div class="col-md-12">
-    <h2>🍽️ Catering Management</h2>
-    <p class="text-muted">CACFP-compliant meal planning and invoicing</p>
+    <h2>Catering Management</h2>
+    <p class="text-muted mb-0">CACFP-compliant meal planning and invoicing</p>
   </div>
 </div>
 
-<div class="row">
-  <!-- Programs Card -->
-  <div class="col-md-4 mb-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">📋 Programs</h5>
-        <p class="card-text">Manage catering programs, clients, and service schedules</p>
-        <div class="d-flex justify-content-between align-items-center">
-          <span class="badge bg-primary">{{ program_count }} Active</span>
-          <a href="/catering/programs" class="btn btn-sm btn-primary">Manage</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Meal Items Card -->
-  <div class="col-md-4 mb-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">🥗 Meal Items</h5>
-        <p class="card-text">Create and manage CACFP-compliant meal recipes</p>
-        <div class="d-flex justify-content-between align-items-center">
-          <span class="badge bg-success">{{ meal_item_count }} Items</span>
-          <a href="/catering/meal-items" class="btn btn-sm btn-success">Manage</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Monthly Menus Card -->
-  <div class="col-md-4 mb-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">📅 Monthly Menus</h5>
-        <p class="card-text">Plan and generate monthly meal calendars</p>
-        <div class="d-flex justify-content-between align-items-center">
-          <span class="badge bg-info text-dark">{{ menu_count }} Menus</span>
-          <a href="/catering/monthly-menus" class="btn btn-sm btn-info">Manage</a>
-        </div>
-      </div>
-    </div>
-  </div>
+<div class="quick-actions">
+  <a href="/catering/programs/create" class="quick-action-btn">
+    <i data-lucide="users"></i>
+    <span class="label">New Program</span>
+  </a>
+  <a href="/catering/monthly-menus/create" class="quick-action-btn">
+    <i data-lucide="calendar-days"></i>
+    <span class="label">New Menu</span>
+  </a>
+  <a href="/catering/master-calendar" class="quick-action-btn">
+    <i data-lucide="calendar-range"></i>
+    <span class="label">Master Calendar</span>
+  </a>
+  <a href="/catering/production" class="quick-action-btn">
+    <i data-lucide="chef-hat"></i>
+    <span class="label">Production Sheet</span>
+  </a>
+  <a href="/catering/weekly-ingredients/" class="quick-action-btn">
+    <i data-lucide="shopping-cart"></i>
+    <span class="label">Shopping List</span>
+  </a>
 </div>
 
-<div class="row">
-  <!-- Shopping List Card -->
-  <div class="col-md-4 mb-3">
-    <div class="card border-info">
-      <div class="card-body">
-        <h5 class="card-title">🛒 Shopping List</h5>
-        <p class="card-text">Weekly ingredient lists for prep and shopping across all programs</p>
-        <a href="/catering/weekly-ingredients/" class="btn btn-info w-100">View Shopping List</a>
+<div class="dashboard-grid">
+
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-3">
+      <div class="card-icon teal"><i data-lucide="users"></i></div>
+      <div class="card-header-text">
+        <div class="label">Clients</div>
+        <div class="title">Programs</div>
       </div>
+    </div>
+    <div class="card-body">
+      <p class="text-muted" style="font-size: 0.8125rem;">Manage catering programs, clients, and service schedules.</p>
+      <ul class="nav-link-list">
+        <li><a href="/catering/programs"><i data-lucide="list"></i>All Programs<span class="badge badge-new">{{ program_count }} Active</span></a></li>
+        <li><a href="/catering/programs/create"><i data-lucide="plus"></i>New Program</a></li>
+      </ul>
     </div>
   </div>
 
-  <!-- Invoices Card -->
-  <div class="col-md-4 mb-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">💵 Invoices</h5>
-        <p class="card-text">Generate and track service invoices</p>
-        <div class="d-flex justify-content-between align-items-center">
-          <span class="badge bg-warning text-dark">{{ invoice_count }} Invoices</span>
-          <a href="/catering/invoices" class="btn btn-sm btn-warning">Manage</a>
-        </div>
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-3">
+      <div class="card-icon orange"><i data-lucide="utensils"></i></div>
+      <div class="card-header-text">
+        <div class="label">Recipes</div>
+        <div class="title">Meal Items</div>
       </div>
+    </div>
+    <div class="card-body">
+      <p class="text-muted" style="font-size: 0.8125rem;">Create and manage CACFP-compliant meal recipes.</p>
+      <ul class="nav-link-list">
+        <li><a href="/catering/meal-items"><i data-lucide="list"></i>All Meal Items<span class="badge badge-new">{{ meal_item_count }}</span></a></li>
+        <li><a href="/catering/meal-items/create"><i data-lucide="plus"></i>New Meal Item</a></li>
+      </ul>
     </div>
   </div>
 
-  <!-- Food Components Card -->
-  <div class="col-md-4 mb-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">🥛 Food Components</h5>
-        <p class="card-text">Manage individual food items and portions</p>
-        <a href="/catering/food-components" class="btn btn-sm btn-secondary">Manage</a>
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-3">
+      <div class="card-icon blue"><i data-lucide="calendar-days"></i></div>
+      <div class="card-header-text">
+        <div class="label">Planning</div>
+        <div class="title">Monthly Menus</div>
       </div>
     </div>
-  </div>
-</div>
-
-<div class="row">
-  <!-- CACFP Reference Card -->
-  <div class="col-md-4 mb-3">
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">📊 CACFP Reference</h5>
-        <p class="card-text">View USDA portion requirements and guidelines</p>
-        <a href="/catering/cacfp-reference" class="btn btn-sm btn-secondary">View</a>
-      </div>
+    <div class="card-body">
+      <p class="text-muted" style="font-size: 0.8125rem;">Plan and generate monthly meal calendars.</p>
+      <ul class="nav-link-list">
+        <li><a href="/catering/monthly-menus"><i data-lucide="list"></i>All Menus<span class="badge badge-new">{{ menu_count }}</span></a></li>
+        <li><a href="/catering/monthly-menus/create"><i data-lucide="plus"></i>New Menu</a></li>
+        <li><a href="/catering/master-calendar"><i data-lucide="calendar-range"></i>Master Calendar</a></li>
+      </ul>
     </div>
   </div>
-</div>
 
-
-<div class="row mt-4">
-  <div class="col-md-12">
-    <div class="card">
-      <div class="card-header bg-light">
-        <h5 class="mb-0">Quick Actions</h5>
-      </div>
-      <div class="card-body">
-        <div class="btn-group" role="group">
-          <a href="/catering/programs/create" class="btn btn-outline-primary">+ New Program</a>
-          <a href="/catering/meal-items/create" class="btn btn-outline-success">+ New Meal Item</a>
-          <a href="/catering/monthly-menus/create" class="btn btn-outline-info">+ New Menu</a>
-        </div>
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-3">
+      <div class="card-icon cyan"><i data-lucide="shopping-cart"></i></div>
+      <div class="card-header-text">
+        <div class="label">Kitchen</div>
+        <div class="title">Shopping List</div>
       </div>
     </div>
+    <div class="card-body">
+      <p class="text-muted" style="font-size: 0.8125rem;">Weekly ingredient lists for prep and shopping across all programs.</p>
+      <ul class="nav-link-list">
+        <li><a href="/catering/weekly-ingredients/"><i data-lucide="clipboard-list"></i>View Shopping List</a></li>
+        <li><a href="/catering/production"><i data-lucide="chef-hat"></i>Production Sheet<span class="badge badge-daily">Daily</span></a></li>
+      </ul>
+    </div>
   </div>
+
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-3">
+      <div class="card-icon green"><i data-lucide="receipt"></i></div>
+      <div class="card-header-text">
+        <div class="label">Billing</div>
+        <div class="title">Invoices</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="text-muted" style="font-size: 0.8125rem;">Generate and track service invoices.</p>
+      <ul class="nav-link-list">
+        <li><a href="/catering/invoices"><i data-lucide="list"></i>All Invoices<span class="badge badge-new">{{ invoice_count }}</span></a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-3">
+      <div class="card-icon indigo"><i data-lucide="layers"></i></div>
+      <div class="card-header-text">
+        <div class="label">Reference</div>
+        <div class="title">Components &amp; CACFP</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <ul class="nav-link-list">
+        <li><a href="/catering/food-components"><i data-lucide="layers"></i>Food Components</a></li>
+        <li><a href="/catering/cacfp-reference"><i data-lucide="bar-chart-2"></i>CACFP Reference<span class="badge badge-admin">Guide</span></a></li>
+      </ul>
+    </div>
+  </div>
+
 </div>
 
 {% if meal_item_count == 0 %}
-<div class="row mt-4">
-  <div class="col-md-12">
-    <div class="card border-success">
-      <div class="card-header bg-success text-white">
-        <h5 class="mb-0">Get Started Quickly</h5>
-      </div>
-      <div class="card-body">
-        <p>No meal items yet? Load sample data to get started immediately with 68 food components and 32 ready-to-use meals (breakfast, lunch, snack - including vegan options).</p>
-        <form method="POST" action="/catering/seed-sample-data" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerHTML='Loading...';">
-          <button type="submit" class="btn btn-success btn-lg">Load Sample Data</button>
-        </form>
-      </div>
+<div class="card" style="border-color: rgba(20,184,166,0.35);">
+  <div class="card-header d-flex align-items-center gap-3">
+    <div class="card-icon teal"><i data-lucide="sparkles"></i></div>
+    <div class="card-header-text">
+      <div class="label">Get Started</div>
+      <div class="title">Load Sample Data</div>
     </div>
+  </div>
+  <div class="card-body">
+    <p class="text-muted" style="font-size: 0.8125rem;">No meal items yet? Load sample data to get started immediately with 68 food components and 32 ready-to-use meals (breakfast, lunch, snack — including vegan options).</p>
+    <form method="POST" action="/catering/seed-sample-data" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerHTML='Loading...';">
+      <button type="submit" class="btn btn-primary">Load Sample Data</button>
+    </form>
   </div>
 </div>
 {% endif %}
