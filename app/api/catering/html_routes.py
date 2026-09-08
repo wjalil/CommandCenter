@@ -829,6 +829,7 @@ async def master_calendar_view(
                 "date": date_str,
                 "in_month": True,
                 "is_today": date_obj == today,
+                "day_name": day_name,
                 "entries": entries,
                 "has_total": bool(entries),
             })

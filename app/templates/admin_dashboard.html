@@ -669,7 +669,7 @@
       {% if enabled_modules.get("shopping", True) %}
       <a href="/shopping/view" class="quick-action-btn">
         <i data-lucide="shopping-cart"></i>
-        <span class="label">Shopping Cart</span>
+        <span class="label">Supply Cart</span>
       </a>
       {% endif %}
       {% if enabled_modules.get("catering", True) %}
@@ -779,6 +779,12 @@
                 <i data-lucide="calendar-range"></i>Master Calendar
               </a>
               <div class="link-meta">Every program's menu, searchable, one view</div>
+            </li>
+            <li>
+              <a href="/catering/weekly-ingredients/">
+                <i data-lucide="shopping-cart"></i>Catering Shopping List
+              </a>
+              <div class="link-meta">CACFP ingredient quantities, by program &amp; day</div>
             </li>
             <li>
               <a href="/catering/invoices">
@@ -911,10 +917,10 @@
           </div>
         </div>
         <div class="card-body">
-          <p style="font-size: 0.79rem; color: var(--text-muted); margin-bottom: 0.75rem;">Create and view shopping lists and items.</p>
+          <p style="font-size: 0.79rem; color: var(--text-muted); margin-bottom: 0.75rem;">General supply restocking — not catering ingredients (see the Catering card for that).</p>
           <ul class="nav-link-list">
-            <li><a href="/shopping/items"><i data-lucide="shopping-cart"></i>Create Shopping Cart</a></li>
-            <li><a href="/shopping/view"><i data-lucide="clipboard-list"></i>View Shopping Cart</a></li>
+            <li><a href="/shopping/items"><i data-lucide="shopping-cart"></i>Create Supply Cart</a></li>
+            <li><a href="/shopping/view"><i data-lucide="clipboard-list"></i>View Supply Cart</a></li>
             <li><a href="/admin/shopping/purchased"><i data-lucide="receipt"></i>Past Purchases</a></li>
           </ul>
         </div>

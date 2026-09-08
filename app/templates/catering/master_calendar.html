@@ -61,7 +61,7 @@
         <td class="mcal-day {% if not day.in_month %}mcal-day-out{% elif day.is_today %}mcal-day-today{% endif %}"
             {% if day.in_month %}data-date="{{ day.date }}"{% endif %}>
           {% if day.in_month %}
-          <div class="mcal-day-num">{{ day.day }}</div>
+          <div class="mcal-day-num"><span class="mcal-day-dow">{{ day.day_name }}</span>{{ day.day }}</div>
           {% if day.is_today %}<span class="mcal-today-pill">Today</span>{% endif %}
           {% if day.entries %}
           <div class="mcal-chips">
@@ -442,6 +442,7 @@ function mcalClearSearch() {
   margin-bottom: 0.45rem;
   color: var(--text-primary, #0f172a);
 }
+.mcal-day-dow { display: none; }
 .mcal-today-pill {
   position: absolute;
   top: 0.5rem;
@@ -669,5 +670,54 @@ function mcalClearSearch() {
   white-space: nowrap;
 }
 .mcal-slot-count::after { content: ' kids'; font-weight: 500; }
+
+/* ── Mobile: collapse the 7-column grid into a scrollable day-by-day agenda ── */
+@media (max-width: 760px) {
+  .mcal-header { align-items: flex-start; }
+  .mcal-nav { width: 100%; justify-content: center; }
+  .mcal-search { max-width: none; }
+  .mcal-toolbar { flex-direction: column; align-items: stretch; }
+  .mcal-search-count { text-align: center; }
+
+  .mcal-table thead { display: none; }
+  .mcal-table, .mcal-table tbody, .mcal-table tr, .mcal-table td {
+    display: block;
+    width: 100% !important;
+  }
+  .mcal-table tr { border-bottom: 6px solid var(--bg, #f1f5f9); }
+  .mcal-table tr:last-child { border-bottom: none; }
+
+  .mcal-day {
+    min-height: unset;
+    border-left: none;
+    border-right: none;
+    padding: 0.7rem 0.85rem;
+  }
+  .mcal-day-out { display: none; }
+  .mcal-day-num {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  .mcal-day-dow {
+    display: inline;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary, #64748b);
+  }
+  .mcal-today-pill { position: static; margin-bottom: 0.5rem; display: inline-block; }
+  .mcal-chip {
+    font-size: 0.82rem;
+    padding: 0.5rem 0.65rem;
+  }
+  .mcal-chip-total { padding: 0.5rem 0.65rem; }
+
+  .mcal-panel { max-width: 94vw; }
+  .mcal-food-toggle { min-height: 2rem; }
+}
 </style>
 {% endblock %}
