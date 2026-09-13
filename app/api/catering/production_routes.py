@@ -6,7 +6,7 @@ Accessible to both admin and worker roles.
 """
 from fastapi import APIRouter, Depends, Request
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -14,8 +14,8 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Optional
 import calendar
-import io
 import json
+import re
 
 from app.db import get_db
 from app.auth.dependencies import get_current_admin_or_worker
@@ -52,6 +52,43 @@ SLOT_COLORS = {
     "pm_snack": "#7048E8",
     "other": "#868E96",
 }
+
+# Distinct colors cycled per top-level route (e.g. "R1" from "R1-4"), so every
+# stop on the same route reads as one visual group on screen and on the printout.
+ROUTE_COLORS = ["#2563EB", "#7C3AED", "#DB2777", "#EA580C", "#16A34A", "#0891B2", "#CA8A04", "#DC2626"]
+
+
+def _natural_key(s: str):
+    """Sort key that orders 'R1-2' before 'R1-10' (plain string sort would not)."""
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s or "")]
+
+
+def _route_group_key(route_code: str) -> str:
+    """Top-level route used for color grouping only, e.g. 'R1-4' -> 'R1'."""
+    if not route_code:
+        return ""
+    return route_code.split("-")[0].strip()
+
+
+def _group_programs_by_route(programs_data: list) -> list:
+    """Group program delivery cards by route_code, naturally sorted, one color per top-level route."""
+    groups: dict = {}
+    for pd in programs_data:
+        route_code = (pd["program"].route_code or "").strip()
+        groups.setdefault(route_code, []).append(pd)
+
+    ordered_codes = sorted((c for c in groups if c), key=_natural_key)
+
+    color_map: dict = {}
+    result = []
+    for code in ordered_codes:
+        top = _route_group_key(code) or code
+        if top not in color_map:
+            color_map[top] = ROUTE_COLORS[len(color_map) % len(ROUTE_COLORS)]
+        result.append({"route_code": code, "color": color_map[top], "programs": groups[code]})
+    if "" in groups:
+        result.append({"route_code": "Unassigned", "color": "#94A3B8", "programs": groups[""]})
+    return result
 
 
 async def _build_production_data(db: AsyncSession, tenant_id: int, service_date: date):
@@ -304,6 +341,34 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             default=program.total_children or 0,
         )
 
+        # Per-meal-type counts + vegan sub-counts for the route delivery sheet
+        slot_counts = {
+            "breakfast": program.breakfast_count if program.breakfast_count is not None else program.total_children,
+            "lunch": program.lunch_count if program.lunch_count is not None else program.total_children,
+            "snack": program.snack_count if program.snack_count is not None else program.total_children,
+            "am_snack": program.am_snack_count if program.am_snack_count is not None else program.total_children,
+            "pm_snack": program.pm_snack_count if program.pm_snack_count is not None else program.total_children,
+        }
+        slot_vegan = {"breakfast": program.breakfast_vegan_count or 0, "lunch": program.lunch_vegan_count or 0}
+        meal_breakdown = []
+        for slot in SLOT_ORDER:
+            if slot not in meal_types_lower:
+                continue
+            slot_total = slot_counts.get(slot) or 0
+            slot_veg = slot_vegan.get(slot, 0)
+            meal_breakdown.append({
+                "slot": slot,
+                "label": SLOT_DISPLAY.get(slot, slot.title()),
+                "count": slot_total,
+                "vegan": slot_veg,
+                # Vegan is a subset of count, not additional to it — surface the
+                # non-vegan remainder explicitly so "66 Lunch · 6 vegan" (ambiguous:
+                # is that 66+6 or 66 of which 6 are vegan?) can't be misread by
+                # whoever is portioning meals.
+                "regular": max(slot_total - slot_veg, 0),
+                "color": SLOT_COLORS.get(slot, SLOT_COLORS["other"]),
+            })
+
         supply_checks = {}
         for supply in SUPPLY_TYPES:
             if supply == "produce":
@@ -348,6 +413,7 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             "program": program,
             "meal_types": meal_types,
             "total_meals": total_meals,
+            "meal_breakdown": meal_breakdown,
             "has_menu": program.id in program_menu_days,
             "supply_checks": supply_checks,
         })
@@ -365,6 +431,7 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
         "prep_components": prep_components,
         "checked_items": checked_items,
         "programs_data": programs_data,
+        "route_groups": _group_programs_by_route(programs_data),
         "produce_items": produce_items,
         "vegan_total": vegan_total,
         "vegan_breakdown": vegan_breakdown,
@@ -513,6 +580,7 @@ async def production_daily_view(
             "prep_components": data["prep_components"],
             "prep_by_slot": _group_comps_by_slot(data["prep_components"]),
             "programs_data": data["programs_data"],
+            "route_groups": data["route_groups"],
             "checked_keys_json": json.dumps(checked_keys),
             "supply_types": SUPPLY_TYPES,
             "produce_items": data["produce_items"],
@@ -522,8 +590,8 @@ async def production_daily_view(
     )
 
 
-@router.get("/production/monthly-pdf")
-async def production_monthly_pdf(
+@router.get("/production/print")
+async def production_print_view(
     request: Request,
     month: Optional[int] = None,
     year: Optional[int] = None,
@@ -531,7 +599,9 @@ async def production_monthly_pdf(
     user: User = Depends(get_current_admin_or_worker),
 ):
     """Printable production sheet for the kitchen: one page per serving day in the month,
-    with the exact count to produce for every menu item, grouped by program."""
+    split into a Cook half (ingredient totals to prep) and a Portion half (route/delivery
+    breakdown). Rendered as a plain HTML page (fast) — use the browser's print dialog
+    (or the on-page Print button) to get a paper/PDF copy instead of generating one server-side."""
     tenant_id = request.state.tenant_id
     today = date.today()
     month = month or today.month
@@ -552,30 +622,26 @@ async def production_monthly_pdf(
             "vegan_breakdown": data["vegan_breakdown"],
             "serving_programs": data["serving_programs"],
             "programs_data": data["programs_data"],
+            "route_groups": data["route_groups"],
         })
 
     month_label = date(year, month, 1).strftime("%B %Y")
+    prev_month_date = date(year, month, 1) - timedelta(days=1)
+    next_month_date = date(year, month, days_in_month) + timedelta(days=1)
 
-    html_content = templates.TemplateResponse(
-        "catering/production_pdf.html",
+    return templates.TemplateResponse(
+        "catering/production_print.html",
         {
             "request": request,
             "month_label": month_label,
+            "month": month,
+            "year": year,
+            "prev_month": prev_month_date.month,
+            "prev_year": prev_month_date.year,
+            "next_month": next_month_date.month,
+            "next_year": next_month_date.year,
             "day_sheets": day_sheets,
         },
-    ).body.decode("utf-8")
-
-    from xhtml2pdf import pisa
-    pdf_buffer = io.BytesIO()
-    pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
-    if pisa_status.err:
-        raise Exception(f"PDF generation failed with {pisa_status.err} errors")
-
-    filename = f"Production_Sheet_{date(year, month, 1).strftime('%B_%Y')}.pdf"
-    return Response(
-        content=pdf_buffer.getvalue(),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

@@ -5,7 +5,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 import enum
-from app.db import Base
+from app.models.base import Base
 
 
 class TimeStatus(str, enum.Enum):

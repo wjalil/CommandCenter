@@ -21,9 +21,9 @@
     {% endif %}
     <a href="/catering/production?date_str={{ next_week_anchor }}" class="prod-nav-btn">&#8594;</a>
     {% if user.role != 'worker' %}
-    <a href="/catering/production/monthly-pdf?month={{ anchor_date.month }}&year={{ anchor_date.year }}"
+    <a href="/catering/production/print?month={{ anchor_date.month }}&year={{ anchor_date.year }}"
        class="prod-nav-btn prod-nav-print" target="_blank">
-      &#128424; Print Monthly Sheet
+      &#128424; View / Print Monthly Sheet
     </a>
     {% endif %}
   </div>
@@ -188,12 +188,23 @@
   <!-- ==================== PROGRAM DELIVERIES ==================== -->
   <div class="col-12 col-lg-6">
     <div class="d-flex flex-column gap-3">
-      {% for pd in programs_data %}
-      <div class="prod-card">
+      {% for group in route_groups %}
+      <div class="prod-route-group">
+        <div class="prod-route-header" style="--route-color: {{ group.color }};">
+          <span class="prod-route-badge" style="background: {{ group.color }};">{{ group.route_code }}</span>
+        </div>
+        <div class="d-flex flex-column gap-3 mt-2">
+        {% for pd in group.programs %}
+      <div class="prod-card" style="border-left: 4px solid {{ group.color }};">
         <div class="prod-card-header">
           <div class="prod-card-title">
             <span class="prod-card-icon">🚚</span>
             {{ pd.program.name }}
+            {% if pd.program.meal_service_style == 'family_style' %}
+            <span class="prod-style-badge family">Family Style</span>
+            {% elif pd.program.meal_service_style == 'individual' %}
+            <span class="prod-style-badge individual">Individualized</span>
+            {% endif %}
             {% if not pd.has_menu %}
             <span class="prod-warn-badge">No menu</span>
             {% endif %}
@@ -201,6 +212,16 @@
           <span class="prod-count-badge">{{ pd.total_meals }} meals</span>
         </div>
         <div class="prod-card-body">
+          {% if pd.meal_breakdown %}
+          <div class="prod-meal-pills mb-2">
+            {% for mb in pd.meal_breakdown %}
+            <span class="prod-meal-pill" style="background: {{ mb.color }};">{% if mb.vegan %}{{ mb.label }}: {{ mb.regular }} Regular, {{ mb.vegan }} Vegan{% else %}{{ mb.count }} {{ mb.label }}{% endif %}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if pd.program.special_instructions %}
+          <div class="prod-special-note mb-2">📝 {{ pd.program.special_instructions }}</div>
+          {% endif %}
           <div class="prod-supply-grid">
             {% for supply in supply_types %}
             {% set sc = pd.supply_checks[supply] %}
@@ -264,6 +285,9 @@
             {% endif %}
             {% endfor %}
           </div>
+        </div>
+      </div>
+        {% endfor %}
         </div>
       </div>
       {% endfor %}
@@ -538,6 +562,48 @@
   background: rgba(245,158,11,0.12);
   color: #d97706;
   border: 1px solid rgba(245,158,11,0.25);
+}
+
+/* ── Route grouping ──────────────────────────── */
+.prod-route-header { display: flex; align-items: center; }
+.prod-route-badge {
+  display: inline-block;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+}
+.prod-style-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.5rem;
+  border-radius: 5px;
+  margin-left: 0.35rem;
+}
+.prod-style-badge.family { background: #FEF3C7; color: #92400E; }
+.prod-style-badge.individual { background: #DBEAFE; color: #1E40AF; }
+
+/* ── Meal count pills ────────────────────────── */
+.prod-meal-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.prod-meal-pill {
+  display: inline-block;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+}
+.prod-special-note {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--text-secondary, #64748b);
+  background: rgba(148,163,184,0.1);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
 }
 
 /* ── Prep list ───────────────────────────────── */

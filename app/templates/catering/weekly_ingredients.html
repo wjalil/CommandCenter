@@ -138,7 +138,11 @@
           {% for slot, v in ing.by_slot.items() %}{% set _ = by_slot.update({slot: v}) %}{% endfor %}
           <li class="wsl-item" data-name="{{ ing.name|lower }}" data-slots='{{ by_slot|tojson }}'>
             <label class="wsl-item-row">
-              <input type="checkbox" class="wsl-check">
+              <input type="checkbox" class="wsl-check"
+                     data-week-start="{{ week.week_start.isoformat() }}"
+                     data-ingredient-name="{{ ing.name }}"
+                     {% if ing.checked %}checked{% endif %}
+                     onchange="wslToggleCheck(this)">
               <span class="wsl-check-box"></span>
               <span class="wsl-item-content">
                 <span class="wsl-item-name">{{ ing.name }}</span>
@@ -416,6 +420,26 @@
 document.querySelectorAll('input[name="mealFilter"]').forEach(function(radio) {
   radio.addEventListener('change', wslApplyMealFilter);
 });
+
+function wslToggleCheck(checkbox) {
+  const weekStart = checkbox.dataset.weekStart;
+  const ingredientName = checkbox.dataset.ingredientName;
+  const wasChecked = checkbox.checked;
+  checkbox.disabled = true;
+
+  fetch('/catering/weekly-ingredients/toggle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ week_start: weekStart, ingredient_name: ingredientName })
+  })
+  .then(function(r) { if (!r.ok) throw new Error('save failed'); return r.json(); })
+  .then(function(data) { checkbox.checked = data.checked; })
+  .catch(function() {
+    checkbox.checked = !wasChecked;
+    alert('Could not save. Try again.');
+  })
+  .finally(function() { checkbox.disabled = false; });
+}
 
 function wslEsc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {

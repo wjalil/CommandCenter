@@ -1,0 +1,57 @@
+{% extends "catering/_portal_shell.html" %}
+{% set active = 'requests' %}
+{% block title %}Requests{% endblock %}
+{% block content %}
+
+<div class="page-title">Requests</div>
+<div class="page-subtitle">Ask for items like condiments or spoons, request a headcount change, or send feedback about a menu.</div>
+
+<div class="card">
+  <strong style="font-size:0.95rem; display:block; margin-bottom:1rem;">New Request</strong>
+  <form method="post" action="/portal/requests">
+    <div style="margin-bottom:1rem;">
+      <label style="display:block; font-size:0.8rem; font-weight:600; color:#475569; margin-bottom:0.4rem;">Type</label>
+      <select name="request_type" style="width:100%; padding:0.55rem 0.75rem; border:1px solid #e2e8f0; border-radius:8px; font-size:0.875rem; font-family:inherit; background:#f8fafc;">
+        <option value="general">General request (e.g. condiments, spoons, napkins)</option>
+        <option value="count_change">Headcount change</option>
+        <option value="menu_feedback">Menu feedback</option>
+      </select>
+    </div>
+    <div style="margin-bottom:1rem;">
+      <label style="display:block; font-size:0.8rem; font-weight:600; color:#475569; margin-bottom:0.4rem;">Message</label>
+      <textarea name="message" required rows="4" placeholder="Tell us what you need..." style="width:100%; padding:0.65rem 0.75rem; border:1px solid #e2e8f0; border-radius:8px; font-size:0.875rem; font-family:inherit; background:#f8fafc; resize:vertical;"></textarea>
+    </div>
+    <button type="submit" class="btn">Submit Request</button>
+  </form>
+</div>
+
+<div class="card">
+  <strong style="font-size:0.95rem; display:block; margin-bottom:1rem;">Your Requests</strong>
+  {% if requests %}
+  <table class="list-table">
+    <thead>
+      <tr><th>Date</th><th>Type</th><th>Message</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for r in requests %}
+      <tr>
+        <td style="white-space:nowrap; color:#64748b;">{{ r.created_at.strftime('%b %d, %Y') }}</td>
+        <td style="text-transform:capitalize;">{{ r.request_type.replace('_', ' ') }}</td>
+        <td>
+          {{ r.message }}
+          {% if r.staff_reply %}
+          <div style="margin-top:0.4rem; padding:0.5rem 0.65rem; background:#f8fafc; border-radius:6px; font-size:0.8rem; color:#334155;">
+            <strong>Reply:</strong> {{ r.staff_reply }}
+          </div>
+          {% endif %}
+        </td>
+        <td><span class="badge badge-{{ r.status }}">{{ r.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">You haven't submitted any requests yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

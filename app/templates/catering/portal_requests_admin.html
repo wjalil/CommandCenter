@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Client Requests{% endblock %}
+
+{% block content %}
+{% set active = 'portal_requests' %}
+{% include "catering/_nav.html" %}
+
+<div class="row mb-4">
+  <div class="col-md-8">
+    <h2>Client Requests</h2>
+    <p class="text-muted">Requests submitted by catering clients through their portal (condiments, headcount changes, menu feedback, etc.)</p>
+  </div>
+</div>
+
+<div class="mb-3">
+  <div class="btn-group btn-group-sm">
+    <a href="/catering/portal-requests" class="btn btn-outline-secondary {% if not status_filter %}active{% endif %}">All</a>
+    <a href="/catering/portal-requests?status=open" class="btn btn-outline-secondary {% if status_filter == 'open' %}active{% endif %}">Open</a>
+    <a href="/catering/portal-requests?status=acknowledged" class="btn btn-outline-secondary {% if status_filter == 'acknowledged' %}active{% endif %}">Acknowledged</a>
+    <a href="/catering/portal-requests?status=resolved" class="btn btn-outline-secondary {% if status_filter == 'resolved' %}active{% endif %}">Resolved</a>
+  </div>
+</div>
+
+{% if requests %}
+<table class="nice-table">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Program</th>
+      <th>Type</th>
+      <th>Message</th>
+      <th>Status</th>
+      <th>Reply / Update</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in requests %}
+    <tr>
+      <td style="white-space:nowrap;">{{ r.created_at.strftime('%b %d, %Y') }}</td>
+      <td>{{ r.program.name }}</td>
+      <td style="text-transform:capitalize;">{{ r.request_type.replace('_', ' ') }}</td>
+      <td style="max-width:280px;">{{ r.message }}</td>
+      <td>
+        {% if r.status == 'open' %}<span class="badge bg-warning text-dark">Open</span>
+        {% elif r.status == 'acknowledged' %}<span class="badge bg-info text-dark">Acknowledged</span>
+        {% else %}<span class="badge bg-success">Resolved</span>{% endif %}
+      </td>
+      <td style="min-width:260px;">
+        <form method="post" action="/catering/portal-requests/{{ r.id }}/update">
+          <div class="input-group input-group-sm mb-2">
+            <select name="status" class="form-select">
+              <option value="open" {% if r.status == 'open' %}selected{% endif %}>Open</option>
+              <option value="acknowledged" {% if r.status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
+              <option value="resolved" {% if r.status == 'resolved' %}selected{% endif %}>Resolved</option>
+            </select>
+            <button type="submit" class="btn btn-outline-primary">Save</button>
+          </div>
+          <textarea name="staff_reply" class="form-control form-control-sm" rows="2" placeholder="Reply to client (optional)">{{ r.staff_reply or '' }}</textarea>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">No client requests {% if status_filter %}with this status{% endif %} yet.</div>
+{% endif %}
+{% endblock %}

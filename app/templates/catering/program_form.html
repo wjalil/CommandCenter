@@ -8,6 +8,44 @@
   </div>
 </div>
 
+{% if request.query_params.get('error') %}
+<div class="alert alert-danger">{{ request.query_params.get('error') }}</div>
+{% endif %}
+{% if request.query_params.get('success') %}
+<div class="alert alert-success">{{ request.query_params.get('success') }}</div>
+{% endif %}
+
+{% if program %}
+<div class="card mb-3">
+  <div class="card-header bg-light">
+    <h5 class="mb-0">Client Portal Access</h5>
+  </div>
+  <div class="card-body">
+    {% if client_account %}
+      {% if client_account.hashed_password %}
+        <p class="mb-2"><span class="badge bg-success">Active</span> — {{ client_account.email }}
+          {% if client_account.last_login_at %}<br><small class="text-muted">Last login: {{ client_account.last_login_at.strftime('%b %d, %Y %I:%M %p') }}</small>{% endif %}
+        </p>
+        <small class="text-muted">The client can reset their own password from the portal login page.</small>
+      {% else %}
+        <p class="mb-2"><span class="badge bg-warning text-dark">Invite Sent</span> — {{ client_account.email }}
+          <br><small class="text-muted">Sent {{ client_account.invite_sent_at.strftime('%b %d, %Y') if client_account.invite_sent_at else '' }}, awaiting setup</small>
+        </p>
+        <form method="post" action="/catering/programs/{{ program.id }}/portal/invite" style="display:inline">
+          <button type="submit" class="btn btn-outline-primary btn-sm">Resend Invite</button>
+        </form>
+      {% endif %}
+    {% else %}
+      <p class="text-muted mb-2">This client doesn't have portal access yet. They'll be able to log in to view menus, invoices, and submit requests.</p>
+      <form method="post" action="/catering/programs/{{ program.id }}/portal/invite">
+        <button type="submit" class="btn btn-primary btn-sm" {% if not program.client_email %}disabled title="Add a client email first"{% endif %}>Send Portal Invite</button>
+      </form>
+      {% if not program.client_email %}<small class="text-danger">Add a client email above first.</small>{% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <form method="POST" action="{{ '/catering/programs/' + program.id + '/update' if program else '/catering/programs/create' }}">
   <div class="card">
     <div class="card-header bg-light">
@@ -128,6 +166,28 @@
       <div class="mb-3">
         <label class="form-label">Service Address</label>
         <textarea name="address" class="form-control" rows="2">{{ program.address if program else '' }}</textarea>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Route Code</label>
+          <input type="text" name="route_code" class="form-control" placeholder="e.g., R3" maxlength="20" value="{{ program.route_code if program and program.route_code else '' }}">
+          <small class="form-text text-muted">Delivery route this program is on</small>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Meal Service Style</label>
+          <select name="meal_service_style" class="form-select">
+            <option value="" {% if not program or not program.meal_service_style %}selected{% endif %}>-- Not set --</option>
+            <option value="family_style" {% if program and program.meal_service_style == 'family_style' %}selected{% endif %}>Family Style</option>
+            <option value="individual" {% if program and program.meal_service_style == 'individual' %}selected{% endif %}>Individualized Meals</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Special Instructions</label>
+        <textarea name="special_instructions" class="form-control" rows="2" placeholder="e.g., Split food into 5 trays">{{ program.special_instructions if program and program.special_instructions else '' }}</textarea>
+        <small class="form-text text-muted">Notes for the production/kitchen log, e.g. tray splits or packaging requirements</small>
       </div>
 
       <div class="row">

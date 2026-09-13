@@ -38,6 +38,7 @@ from app.api.admin import admin_settings_routes
 from app.api.admin import admin_customer_routes
 from app.api import taskboard_routes
 from app.api.catering import router as catering_router
+from app.api.catering import portal_routes as catering_portal_routes
 from app.api.delivery import router as delivery_router
 from app.api.auto_shop import router as auto_shop_router
 from app.api.catering_inquiry_routes import router as catering_inquiry_router
@@ -62,6 +63,16 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
 # Create the FastAPI app
 app = FastAPI()
+
+
+# ✅ Catering client portal: unauthenticated visits redirect to login instead
+# of surfacing a raw 401 (this is a client-facing surface, not an internal one)
+from fastapi.responses import RedirectResponse as _RedirectResponse
+from app.auth.dependencies import PortalAuthRequired as _PortalAuthRequired
+
+@app.exception_handler(_PortalAuthRequired)
+async def _portal_auth_required_handler(request: Request, exc: _PortalAuthRequired):
+    return _RedirectResponse(url="/portal/login", status_code=302)
 
 
 # ✅ Session middleware (required for PIN login sessions)
@@ -356,6 +367,7 @@ app.include_router(admin_settings_routes.router)
 app.include_router(admin_customer_routes.router)
 app.include_router(taskboard_routes.router)
 app.include_router(catering_router, prefix="/catering")
+app.include_router(catering_portal_routes.router)
 app.include_router(delivery_router, prefix="/delivery")
 app.include_router(auto_shop_router, prefix="/auto_shop")
 app.include_router(catering_inquiry_router)

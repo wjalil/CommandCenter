@@ -537,6 +537,11 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         Back to Menus
       </a>
+      {% elif portal_view %}
+      <a href="/portal/menus" class="btn-back">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Back to Menus
+      </a>
       {% else %}
       <a href="/catering/monthly-menus/{{ monthly_menu.id }}/calendar" class="btn-back">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -677,7 +682,7 @@
     async function downloadPDF() {
       // Try server-side PDF generation first
       try {
-        const pdfUrl = {% if worker_view %}'/worker/menus/{{ monthly_menu.id }}/pdf'{% else %}'/catering/monthly-menus/{{ monthly_menu.id }}/pdf'{% endif %};
+        const pdfUrl = {% if worker_view %}'/worker/menus/{{ monthly_menu.id }}/pdf'{% elif portal_view %}'/portal/menus/{{ monthly_menu.id }}/pdf'{% else %}'/catering/monthly-menus/{{ monthly_menu.id }}/pdf'{% endif %};
         const response = await fetch(pdfUrl);
         if (response.ok && response.headers.get('content-type')?.includes('pdf')) {
           const blob = await response.blob();

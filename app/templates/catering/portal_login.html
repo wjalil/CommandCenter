@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ tenant.name }} — Client Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+      padding: 2.25rem 2rem;
+      width: 100%;
+      max-width: 380px;
+    }
+    .workspace-tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #14b8a6;
+      background: rgba(20,184,166,0.1);
+      padding: 0.2rem 0.65rem;
+      border-radius: 20px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    .title { font-size: 1.2rem; font-weight: 700; color: #0f172a; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
+    .subtitle { font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.75rem; }
+    label { display: block; font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 0.4rem; }
+    .input-wrap { position: relative; margin-bottom: 1rem; }
+    .input-wrap i { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: #94a3b8; pointer-events: none; }
+    input[type="email"], input[type="password"] {
+      width: 100%; padding: 0.6rem 0.875rem 0.6rem 2.375rem; border: 1px solid #e2e8f0;
+      border-radius: 8px; font-size: 0.875rem; font-family: inherit; color: #0f172a;
+      background: #f8fafc; outline: none; transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    input[type="email"]:focus, input[type="password"]:focus {
+      border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.1); background: #fff;
+    }
+    .field-group { margin-bottom: 1.25rem; }
+    .row-between { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+    .row-between label { margin-bottom: 0; }
+    .row-between a { font-size: 0.75rem; color: #14b8a6; text-decoration: none; }
+    .row-between a:hover { text-decoration: underline; }
+    button[type="submit"] {
+      width: 100%; padding: 0.625rem; background: #14b8a6; color: #fff; border: none;
+      border-radius: 8px; font-size: 0.875rem; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: background 0.12s; margin-top: 0.25rem;
+    }
+    button[type="submit"]:hover { background: #0d9488; }
+    .error {
+      background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px;
+      padding: 0.625rem 0.875rem; font-size: 0.8rem; margin-bottom: 1.25rem;
+    }
+    .back-link { display: block; text-align: center; margin-top: 1.25rem; font-size: 0.775rem; color: #94a3b8; text-decoration: none; transition: color 0.12s; }
+    .back-link:hover { color: #64748b; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="workspace-tag">{{ tenant.name }}</div>
+  <div class="title">Client Portal</div>
+  <div class="subtitle">Sign in to view your menus, invoices, and requests</div>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <form method="post">
+    <div class="field-group">
+      <label for="email">Email address</label>
+      <div class="input-wrap">
+        <i data-lucide="mail"></i>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required autofocus value="{{ prefill_email or '' }}">
+      </div>
+    </div>
+
+    <div class="field-group">
+      <div class="row-between">
+        <label for="password">Password</label>
+        <a href="/t/{{ tenant.slug }}/portal/forgot-password">Forgot password?</a>
+      </div>
+      <div class="input-wrap">
+        <i data-lucide="lock"></i>
+        <input type="password" id="password" name="password" placeholder="••••••••" required>
+      </div>
+    </div>
+
+    <button type="submit">Sign in</button>
+  </form>
+
+  <a href="/t/{{ tenant.slug }}/" class="back-link">← Back</a>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

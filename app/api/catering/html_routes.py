@@ -19,6 +19,8 @@ import zipfile
 from app.db import get_db
 from app.auth.dependencies import get_current_admin_user
 from app.models.user import User
+from app.models.tenant import Tenant
+from app.utils.email_service import send_portal_invite_email
 from app.models.catering import (
     CateringProgram,
     CateringProgramHoliday,
@@ -31,6 +33,8 @@ from app.models.catering import (
     CACFPAgeGroup
 )
 from app.crud.catering import (
+    client_account as client_account_crud,
+    portal_request as portal_request_crud,
     program as program_crud,
     meal_item as meal_item_crud,
     monthly_menu as menu_crud,
@@ -178,6 +182,9 @@ async def program_create(
     end_date_str = form.get("end_date")
     is_active = "is_active" in form
     cacfp_eligible = "cacfp_eligible" in form
+    route_code = form.get("route_code") or None
+    meal_service_style = form.get("meal_service_style") or None
+    special_instructions = form.get("special_instructions") or None
 
     # Parse optional meal counts (handle empty strings)
     breakfast_count = parse_optional_int(form.get("breakfast_count"))
@@ -238,6 +245,9 @@ async def program_create(
         end_date=parsed_end_date,
         is_active=is_active,
         cacfp_eligible=cacfp_eligible,
+        route_code=route_code,
+        meal_service_style=meal_service_style,
+        special_instructions=special_instructions,
         tenant_id=tenant_id,
         holidays=[]
     )
@@ -265,6 +275,9 @@ async def program_edit_form(
     meal_types_required = json.loads(program.meal_types_required) if isinstance(program.meal_types_required, str) else (program.meal_types_required or [])
 
     age_groups = await cacfp_rules.get_all_age_groups(db)
+    client_account = await client_account_crud.get_by_program(db, program_id, tenant_id)
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant = tenant_result.scalar_one_or_none()
 
     # Create a dict with program data for the template
     program_data = {
@@ -289,6 +302,9 @@ async def program_edit_form(
         "end_date": program.end_date,
         "is_active": program.is_active,
         "cacfp_eligible": program.cacfp_eligible,
+        "route_code": program.route_code,
+        "meal_service_style": program.meal_service_style,
+        "special_instructions": program.special_instructions,
         "service_days": service_days,
         "meal_types_required": meal_types_required,
     }
@@ -297,7 +313,82 @@ async def program_edit_form(
         "request": request,
         "program": program_data,
         "age_groups": age_groups,
+        "client_account": client_account,
+        "tenant": tenant,
     })
+
+
+@router.post("/programs/{program_id}/portal/invite")
+async def program_portal_invite(
+    request: Request,
+    program_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Send (or resend) a client-portal invite email for this program."""
+    tenant_id = request.state.tenant_id
+    program = await program_crud.get_program(db, program_id, tenant_id)
+    if not program:
+        return RedirectResponse(url="/catering/programs", status_code=303)
+
+    if not program.client_email:
+        return RedirectResponse(
+            url=f"/catering/programs/{program_id}/edit?error=Add+a+client+email+before+sending+a+portal+invite",
+            status_code=303,
+        )
+
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant = tenant_result.scalar_one_or_none()
+
+    account = await client_account_crud.create_or_resend_invite(db, program_id, tenant_id, program.client_email)
+    invite_url = str(request.base_url).rstrip("/") + f"/t/{tenant.slug}/portal/invite/{account.invite_token}"
+    email_result = send_portal_invite_email(tenant, account.email, program.name, invite_url)
+
+    if email_result.get("success"):
+        return RedirectResponse(url=f"/catering/programs/{program_id}/edit?success=Portal+invite+sent", status_code=303)
+    return RedirectResponse(
+        url=f"/catering/programs/{program_id}/edit?error=Invite+created+but+email+failed:+{email_result.get('message', '')[:80]}",
+        status_code=303,
+    )
+
+
+@router.get("/portal-requests")
+async def portal_requests_inbox(
+    request: Request,
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    """Staff inbox for requests submitted by catering clients through the portal."""
+    tenant_id = request.state.tenant_id
+    requests_list = await portal_request_crud.get_requests_for_tenant(db, tenant_id, status=status or None)
+
+    return templates.TemplateResponse("catering/portal_requests_admin.html", {
+        "request": request,
+        "requests": requests_list,
+        "status_filter": status or "",
+    })
+
+
+@router.post("/portal-requests/{request_id}/update")
+async def portal_request_update(
+    request: Request,
+    request_id: str,
+    status: str = Form(...),
+    staff_reply: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user)
+):
+    tenant_id = request.state.tenant_id
+    req = await portal_request_crud.get_request(db, request_id, tenant_id)
+    if not req:
+        return RedirectResponse(url="/catering/portal-requests", status_code=303)
+
+    if status not in ("open", "acknowledged", "resolved"):
+        status = req.status
+
+    await portal_request_crud.update_status(db, req, status, staff_reply.strip() or None, user.id)
+    return RedirectResponse(url="/catering/portal-requests", status_code=303)
 
 
 @router.post("/programs/{program_id}/update")
@@ -325,6 +416,9 @@ async def program_update(
     end_date_str = form.get("end_date")
     is_active = "is_active" in form
     cacfp_eligible = "cacfp_eligible" in form
+    route_code = form.get("route_code") or None
+    meal_service_style = form.get("meal_service_style") or None
+    special_instructions = form.get("special_instructions") or None
 
     # Parse optional meal counts (handle empty strings)
     breakfast_count = parse_optional_int(form.get("breakfast_count"))
@@ -385,6 +479,9 @@ async def program_update(
         end_date=parsed_end_date,
         is_active=is_active,
         cacfp_eligible=cacfp_eligible,
+        route_code=route_code,
+        meal_service_style=meal_service_style,
+        special_instructions=special_instructions,
     )
 
     await program_crud.update_program(db, program_id, tenant_id, program_data)

@@ -2,9 +2,17 @@
 from fastapi import Request, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from app.db import get_db
 from app.models.user import User
 from app.models.customer.customer import Customer
+
+
+class PortalAuthRequired(Exception):
+    """Raised when a catering-client-portal page is hit without a valid session.
+    Caught by an exception handler in main.py that redirects to the login page
+    (instead of surfacing a raw 401 JSON body to a client-facing user)."""
+    pass
 
 async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)):
     user_id = request.session.get("user_id")
@@ -52,3 +60,27 @@ async def get_current_customer(
         raise HTTPException(status_code=404, detail="Customer not found")
 
     return customer
+
+async def get_current_catering_client(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    from app.models.catering.client_account import CateringClientAccount
+
+    account_id = request.session.get("user_id")
+    role = request.session.get("role")
+
+    if not account_id or role != "catering_client":
+        raise PortalAuthRequired()
+
+    result = await db.execute(
+        select(CateringClientAccount)
+        .options(selectinload(CateringClientAccount.program))
+        .where(CateringClientAccount.id == account_id)
+    )
+    account = result.scalar_one_or_none()
+
+    if not account or not account.is_active:
+        raise PortalAuthRequired()
+
+    return account

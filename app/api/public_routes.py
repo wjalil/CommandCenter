@@ -185,6 +185,8 @@ async def redirect_home(request: Request, db: AsyncSession = Depends(get_db)):
         return RedirectResponse(url="/auto_shop/admin/", status_code=302)
     if role == "customer":
         return RedirectResponse(url="/customer/", status_code=302)
+    if role == "catering_client":
+        return RedirectResponse(url="/portal/", status_code=302)
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()

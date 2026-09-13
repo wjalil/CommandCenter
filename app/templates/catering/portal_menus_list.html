@@ -1,0 +1,31 @@
+{% extends "catering/_portal_shell.html" %}
+{% set active = 'menus' %}
+{% block title %}Menus{% endblock %}
+{% block content %}
+
+<div class="page-title">Monthly Menus</div>
+<div class="page-subtitle">{{ program.name }}</div>
+
+<div class="card">
+  {% if menus %}
+  <table class="list-table">
+    <thead>
+      <tr><th>Month</th><th>Type</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for menu in menus %}
+      <tr>
+        <td>
+          {{ ["", "January","February","March","April","May","June","July","August","September","October","November","December"][menu.month] }} {{ menu.year }}
+        </td>
+        <td style="color:#64748b; text-transform:capitalize;">{{ menu.menu_type }}</td>
+        <td style="text-align:right;"><a href="/portal/menus/{{ menu.id }}" class="btn" style="padding:0.4rem 0.9rem; font-size:0.8rem;">View</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">No menus have been published yet. Check back soon.</div>
+  {% endif %}
+</div>
+{% endblock %}

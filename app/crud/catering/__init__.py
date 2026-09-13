@@ -5,6 +5,8 @@ from . import program
 from . import monthly_menu
 from . import invoice
 from . import menu_day_component
+from . import client_account
+from . import portal_request
 
 __all__ = [
     "cacfp_rules",
@@ -14,4 +16,6 @@ __all__ = [
     "monthly_menu",
     "invoice",
     "menu_day_component",
+    "client_account",
+    "portal_request",
 ]

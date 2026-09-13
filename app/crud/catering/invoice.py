@@ -190,13 +190,19 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
         has_pm_snack = program_has_pm_snack and menu_day.pm_snack_item_id is not None
         has_pm_snack_vegan = program_has_pm_snack and menu_day.pm_snack_vegan_item_id is not None
 
-    # Build meal count fields
+    # Build meal count fields.
+    # Only subtract the vegan headcount from the regular count when a vegan
+    # item/component actually exists for that meal on this day - otherwise the
+    # "vegan" kids are eating the regular meal and must stay counted as regular,
+    # or they silently disappear from the invoice (undercount) while an
+    # unconditional subtraction that assumes a vegan alt always exists would
+    # double-count them whenever one is present (overcount).
     meal_counts = dict(
         regular_meal_count=program.total_children - program.vegan_count,
         vegan_meal_count=program.vegan_count,
-        breakfast_count=breakfast_count if has_breakfast else None,
+        breakfast_count=(breakfast_count - breakfast_vegan if has_breakfast_vegan else breakfast_count) if has_breakfast else None,
         breakfast_vegan_count=breakfast_vegan if has_breakfast_vegan else 0,
-        lunch_count=lunch_count - lunch_vegan if has_lunch else None,
+        lunch_count=(lunch_count - lunch_vegan if has_lunch_vegan else lunch_count) if has_lunch else None,
         lunch_vegan_count=lunch_vegan if has_lunch_vegan else 0,
         snack_count=snack_count if has_snack else None,
         snack_vegan_count=0 if has_snack_vegan else 0,

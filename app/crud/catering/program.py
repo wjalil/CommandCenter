@@ -33,6 +33,9 @@ async def create_program(db: AsyncSession, program: CateringProgramCreate):
         end_date=program.end_date,
         is_active=program.is_active,
         cacfp_eligible=program.cacfp_eligible,
+        route_code=program.route_code,
+        meal_service_style=program.meal_service_style,
+        special_instructions=program.special_instructions,
         tenant_id=program.tenant_id
     )
     db.add(new_program)

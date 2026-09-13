@@ -1,0 +1,39 @@
+{% extends "catering/_portal_shell.html" %}
+{% set active = 'invoices' %}
+{% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+{% block content %}
+
+<div class="page-title">Invoice {{ invoice.invoice_number }}</div>
+<div class="page-subtitle">{{ invoice.service_date.strftime('%B %d, %Y') }}</div>
+
+<div class="card">
+  <table class="list-table">
+    {% if invoice.breakfast_count %}
+    <tr><td>Breakfast</td><td style="text-align:right;">{{ invoice.breakfast_count }}</td></tr>
+    {% endif %}
+    {% if invoice.breakfast_vegan_count %}
+    <tr><td>Breakfast (Vegan)</td><td style="text-align:right;">{{ invoice.breakfast_vegan_count }}</td></tr>
+    {% endif %}
+    {% if invoice.lunch_count %}
+    <tr><td>Lunch</td><td style="text-align:right;">{{ invoice.lunch_count }}</td></tr>
+    {% endif %}
+    {% if invoice.lunch_vegan_count %}
+    <tr><td>Lunch (Vegan)</td><td style="text-align:right;">{{ invoice.lunch_vegan_count }}</td></tr>
+    {% endif %}
+    {% if invoice.snack_count %}
+    <tr><td>Snack</td><td style="text-align:right;">{{ invoice.snack_count }}</td></tr>
+    {% endif %}
+    {% if invoice.am_snack_count %}
+    <tr><td>AM Snack</td><td style="text-align:right;">{{ invoice.am_snack_count }}</td></tr>
+    {% endif %}
+    {% if invoice.pm_snack_count %}
+    <tr><td>PM Snack</td><td style="text-align:right;">{{ invoice.pm_snack_count }}</td></tr>
+    {% endif %}
+  </table>
+
+  <div style="margin-top:1.5rem;">
+    <a href="/portal/invoices/{{ invoice.id }}/pdf" class="btn">Download PDF</a>
+    <a href="/portal/invoices" class="btn-outline btn" style="margin-left:0.5rem;">Back to Invoices</a>
+  </div>
+</div>
+{% endblock %}

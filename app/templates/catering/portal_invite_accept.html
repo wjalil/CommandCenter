@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ tenant.name }} — Set Up Your Account</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f1f5f9; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+    .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); padding: 2.25rem 2rem; width: 100%; max-width: 400px; }
+    .workspace-tag { display: inline-block; font-size: 0.68rem; font-weight: 600; color: #14b8a6; background: rgba(20,184,166,0.1); padding: 0.2rem 0.65rem; border-radius: 20px; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 1rem; }
+    .title { font-size: 1.2rem; font-weight: 700; color: #0f172a; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
+    .subtitle { font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.75rem; line-height: 1.5; }
+    label { display: block; font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 0.4rem; }
+    .input-wrap { position: relative; margin-bottom: 1rem; }
+    .input-wrap i { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: #94a3b8; pointer-events: none; }
+    input[type="password"] { width: 100%; padding: 0.6rem 0.875rem 0.6rem 2.375rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.875rem; font-family: inherit; color: #0f172a; background: #f8fafc; outline: none; transition: border-color 0.12s, box-shadow 0.12s; }
+    input[type="password"]:focus { border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.1); background: #fff; }
+    .field-group { margin-bottom: 1.25rem; }
+    button[type="submit"] { width: 100%; padding: 0.625rem; background: #14b8a6; color: #fff; border: none; border-radius: 8px; font-size: 0.875rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.12s; margin-top: 0.25rem; }
+    button[type="submit"]:hover { background: #0d9488; }
+    .error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 0.625rem 0.875rem; font-size: 0.8rem; margin-bottom: 1.25rem; }
+    .back-link { display: block; text-align: center; margin-top: 1.25rem; font-size: 0.775rem; color: #94a3b8; text-decoration: none; }
+    .back-link:hover { color: #64748b; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="workspace-tag">{{ tenant.name }}</div>
+
+  {% if invalid %}
+  <div class="title">Invite Link Invalid</div>
+  <div class="error">This invite link is invalid or has expired. Please ask {{ tenant.name }} to resend your invite.</div>
+  {% else %}
+  <div class="title">Welcome to Your Client Portal</div>
+  <div class="subtitle">{{ program_name }} &middot; {{ email }}<br>Set a password to get started (min. 8 characters).</div>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post">
+    <div class="field-group">
+      <label for="password">Password</label>
+      <div class="input-wrap">
+        <i data-lucide="lock"></i>
+        <input type="password" id="password" name="password" placeholder="••••••••" required minlength="8" autofocus>
+      </div>
+    </div>
+    <div class="field-group">
+      <label for="confirm_password">Confirm password</label>
+      <div class="input-wrap">
+        <i data-lucide="lock"></i>
+        <input type="password" id="confirm_password" name="confirm_password" placeholder="••••••••" required minlength="8">
+      </div>
+    </div>
+    <button type="submit">Create account</button>
+  </form>
+  {% endif %}
+  <a href="/t/{{ tenant.slug }}/" class="back-link">← Back</a>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

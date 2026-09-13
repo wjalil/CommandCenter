@@ -25,6 +25,7 @@
     <tr>
       <th>Program Name</th>
       <th>Client</th>
+      <th>Route</th>
       <th>Age Group</th>
       <th>Children</th>
       <th>Service Days</th>
@@ -39,6 +40,13 @@
       <td>
         {{ program.client_name }}<br>
         <small class="text-muted">{{ program.client_email or 'No email' }}</small>
+      </td>
+      <td>
+        {% if program.route_code %}
+        <span class="badge bg-light text-dark border">{{ program.route_code }}</span>
+        {% else %}
+        <small class="text-muted">&mdash;</small>
+        {% endif %}
       </td>
       <td>{{ program.age_group.name }}</td>
       <td>

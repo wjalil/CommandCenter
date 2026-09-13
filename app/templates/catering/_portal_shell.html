@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Client Portal{% endblock %} — {{ account.program.name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f1f5f9; color: #0f172a; min-height: 100vh; }
+
+    .topbar {
+      background: #0f172a;
+      padding: 0.9rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .topbar-brand { display: flex; flex-direction: column; }
+    .topbar-brand .tag { font-size: 0.65rem; font-weight: 700; color: #14b8a6; letter-spacing: 0.08em; text-transform: uppercase; }
+    .topbar-brand .name { font-size: 0.95rem; font-weight: 600; color: #fff; }
+
+    nav { display: flex; gap: 0.25rem; flex-wrap: wrap; align-items: center; }
+    nav a {
+      color: #cbd5e1;
+      text-decoration: none;
+      font-size: 0.825rem;
+      font-weight: 500;
+      padding: 0.45rem 0.75rem;
+      border-radius: 8px;
+      transition: background 0.12s, color 0.12s;
+    }
+    nav a:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    nav a.active { background: #14b8a6; color: #fff; }
+    nav a.logout { color: #94a3b8; }
+
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
+
+    .page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
+    .page-subtitle { font-size: 0.85rem; color: #64748b; margin-bottom: 1.75rem; }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .badge { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .badge-open { background: #fef3c7; color: #92400e; }
+    .badge-acknowledged { background: #dbeafe; color: #1e40af; }
+    .badge-resolved { background: #dcfce7; color: #166534; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: #14b8a6; color: #fff; border: none; text-decoration: none;
+      padding: 0.55rem 1rem; border-radius: 8px; font-size: 0.825rem; font-weight: 600;
+      cursor: pointer; transition: background 0.12s;
+    }
+    .btn:hover { background: #0d9488; }
+    .btn-outline { background: #fff; color: #334155; border: 1px solid #e2e8f0; }
+    .btn-outline:hover { background: #f8fafc; }
+
+    table.list-table { width: 100%; border-collapse: collapse; }
+    table.list-table th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+    table.list-table td { padding: 0.7rem 0.6rem; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; }
+    table.list-table tr:last-child td { border-bottom: none; }
+
+    .empty-state { text-align: center; padding: 2rem 1rem; color: #94a3b8; font-size: 0.875rem; }
+
+    @media (max-width: 640px) {
+      .topbar { flex-direction: column; align-items: flex-start; }
+      table.list-table thead { display: none; }
+      table.list-table, table.list-table tbody, table.list-table tr, table.list-table td { display: block; width: 100%; }
+      table.list-table tr { border-bottom: 1px solid #e2e8f0; padding: 0.5rem 0; }
+      table.list-table td { border-bottom: none; padding: 0.2rem 0; }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-brand">
+      <span class="tag">Client Portal</span>
+      <span class="name">{{ account.program.name }}</span>
+    </div>
+    <nav>
+      <a href="/portal/" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="/portal/menus" class="{% if active == 'menus' %}active{% endif %}">Menus</a>
+      <a href="/portal/invoices" class="{% if active == 'invoices' %}active{% endif %}">Invoices</a>
+      <a href="/portal/requests" class="{% if active == 'requests' %}active{% endif %}">Requests</a>
+      <a href="/logout" class="logout">Sign out</a>
+    </nav>
+  </div>
+
+  <div class="wrap">
+    {% block content %}{% endblock %}
+  </div>
+
+  <script>lucide.createIcons();</script>
+</body>
+</html>

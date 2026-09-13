@@ -1,0 +1,65 @@
+{% extends "catering/_portal_shell.html" %}
+{% set active = 'dashboard' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="page-title">Welcome back</div>
+<div class="page-subtitle">{{ program.name }} &middot; {{ program.client_name }}</div>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+    <strong style="font-size:0.95rem;">This Month's Menu</strong>
+    <a href="/portal/menus" class="btn-outline btn" style="padding:0.35rem 0.75rem; font-size:0.75rem;">View all</a>
+  </div>
+  {% if latest_menu %}
+  <p style="font-size:0.875rem; color:#334155; margin-bottom:1rem;">
+    {{ ["", "January","February","March","April","May","June","July","August","September","October","November","December"][latest_menu.month] }} {{ latest_menu.year }}
+  </p>
+  <a href="/portal/menus/{{ latest_menu.id }}" class="btn">View Menu Calendar</a>
+  {% else %}
+  <div class="empty-state">No menus have been published yet. Check back soon.</div>
+  {% endif %}
+</div>
+
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem;">
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+      <strong style="font-size:0.95rem;">Recent Invoices</strong>
+      <a href="/portal/invoices" class="btn-outline btn" style="padding:0.35rem 0.75rem; font-size:0.75rem;">View all</a>
+    </div>
+    {% if recent_invoices %}
+    <table class="list-table">
+      {% for inv in recent_invoices %}
+      <tr>
+        <td><a href="/portal/invoices/{{ inv.id }}/view" style="color:#0f172a; text-decoration:none; font-weight:500;">{{ inv.invoice_number }}</a></td>
+        <td style="color:#64748b;">{{ inv.service_date.strftime('%b %d, %Y') }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="empty-state">No invoices yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+      <strong style="font-size:0.95rem;">Requests</strong>
+      <a href="/portal/requests" class="btn-outline btn" style="padding:0.35rem 0.75rem; font-size:0.75rem;">View all</a>
+    </div>
+    <p style="font-size:0.875rem; color:#334155; margin-bottom:1rem;">
+      {% if open_requests_count %}
+        You have <strong>{{ open_requests_count }}</strong> open request{{ 's' if open_requests_count != 1 else '' }}.
+      {% else %}
+        No open requests.
+      {% endif %}
+    </p>
+    <a href="/portal/requests" class="btn">Submit a Request</a>
+  </div>
+</div>
+
+<style>
+@media (max-width: 640px) {
+  div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+}
+</style>
+{% endblock %}

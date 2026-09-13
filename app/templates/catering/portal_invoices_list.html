@@ -1,0 +1,33 @@
+{% extends "catering/_portal_shell.html" %}
+{% set active = 'invoices' %}
+{% block title %}Invoices{% endblock %}
+{% block content %}
+
+<div class="page-title">Invoices</div>
+<div class="page-subtitle">{{ program.name }}</div>
+
+<div class="card">
+  {% if invoices %}
+  <table class="list-table">
+    <thead>
+      <tr><th>Invoice #</th><th>Service Date</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td>{{ inv.invoice_number }}</td>
+        <td style="color:#64748b;">{{ inv.service_date.strftime('%b %d, %Y') }}</td>
+        <td style="text-transform:capitalize; color:#64748b;">{{ inv.status }}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <a href="/portal/invoices/{{ inv.id }}/view" class="btn-outline btn" style="padding:0.4rem 0.75rem; font-size:0.78rem;">View</a>
+          <a href="/portal/invoices/{{ inv.id }}/pdf" class="btn" style="padding:0.4rem 0.75rem; font-size:0.78rem;">PDF</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">No invoices yet.</div>
+  {% endif %}
+</div>
+{% endblock %}
