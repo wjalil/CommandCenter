@@ -1,0 +1,104 @@
+{% extends base_template %}
+{% block title %}Daily Manifest — {{ route_code }}{% endblock %}
+
+{% block content %}
+<a href="/catering/production/manifest/driver/view?date_str={{ service_date.isoformat() }}" class="dm-back-link">&lsaquo; All Routes</a>
+
+<div class="dm-header mb-3">
+  <div>
+    <div class="dm-eyebrow">Daily Manifest</div>
+    <h3 class="mb-0">{{ route_code }}</h3>
+    <p class="text-muted mb-0" style="font-size:0.85rem;">{{ service_date.strftime('%A, %B %d, %Y') }}</p>
+  </div>
+</div>
+
+{% if not manifest or not stops %}
+<div class="dm-empty">
+  <div style="font-size:2rem;">📋</div>
+  <p class="text-muted mb-0">This route's manifest isn't released for this day.</p>
+</div>
+{% else %}
+{% for stop in stops %}
+<div class="dm-stop-card">
+  <div class="dm-stop-header">
+    {% if stop.program.route_code %}<span class="dm-stop-code">{{ stop.program.route_code }}</span>{% endif %}
+    <span class="dm-stop-name">{{ stop.program.name if stop.program else 'Unknown Program' }}</span>
+  </div>
+  {% if stop.special_instructions %}
+  <div class="dm-stop-note">📝 {{ stop.special_instructions }}</div>
+  {% endif %}
+  {% if stop.items %}
+  <ul class="dm-item-list">
+    {% for item in stop.items %}
+    <li class="dm-item {% if item.driver_confirmed %}dm-item-done{% endif %}" data-item-id="{{ item.id }}" onclick="dmToggleItem(this)">
+      <span class="dm-item-check">{% if item.driver_confirmed %}✓{% endif %}</span>
+      <span class="dm-item-label">{{ item.label }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="text-muted" style="font-size:0.8rem; font-style:italic;">No items for this stop.</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+<style>
+/* Distinct identity color for this page — deliberately not the app's shared
+   teal accent, so "Driver Manifests" reads as its own place at a glance. */
+:root { --dm-accent: #7c3aed; --dm-accent-hover: #6d28d9; }
+
+.dm-back-link { display: inline-block; font-size: 0.82rem; font-weight: 600; color: var(--dm-accent); text-decoration: none; margin-bottom: 0.75rem; }
+.dm-back-link:hover { text-decoration: underline; }
+
+.dm-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 0.75rem; }
+.dm-eyebrow { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dm-accent); }
+
+.dm-empty { text-align: center; padding: 3rem 1rem; }
+
+.dm-stop-card {
+  background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 10px;
+  padding: 0.9rem 1rem; margin-bottom: 0.75rem; box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}
+.dm-stop-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+.dm-stop-code { font-size: 0.72rem; font-weight: 700; color: var(--text-secondary, #64748b); background: var(--bg, #f1f5f9); padding: 0.1rem 0.4rem; border-radius: 6px; }
+.dm-stop-name { font-size: 1rem; font-weight: 700; color: var(--text-primary, #0f172a); }
+.dm-stop-note { font-size: 0.8rem; color: #b45309; background: rgba(245,158,11,0.08); border-radius: 7px; padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; }
+
+.dm-item-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.dm-item {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.55rem 0.6rem; border-radius: 8px; border: 1.5px solid var(--border, #e2e8f0);
+  cursor: pointer; user-select: none; transition: all 0.12s;
+}
+.dm-item:hover { border-color: var(--dm-accent); }
+.dm-item-check {
+  flex-shrink: 0; width: 1.2rem; height: 1.2rem; border-radius: 5px; border: 1.5px solid var(--border, #cbd5e1);
+  display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #fff;
+}
+.dm-item-label { font-size: 0.9rem; font-weight: 600; color: var(--text-primary, #0f172a); }
+.dm-item-done { background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.3); }
+.dm-item-done .dm-item-check { background: #10b981; border-color: #10b981; }
+.dm-item-done .dm-item-label { color: #059669; text-decoration: line-through; text-decoration-color: rgba(5,150,105,0.4); }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function dmToggleItem(li) {
+  const itemId = li.dataset.itemId;
+  try {
+    const resp = await fetch('/catering/production/manifest/item/' + itemId + '/confirm', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ item_id: itemId })
+    });
+    const data = await resp.json();
+    li.classList.toggle('dm-item-done', data.confirmed);
+    li.querySelector('.dm-item-check').textContent = data.confirmed ? '✓' : '';
+  } catch (e) {
+    console.error('Confirm failed', e);
+  }
+}
+</script>
+{% endblock %}

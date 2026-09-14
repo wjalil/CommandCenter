@@ -31,6 +31,8 @@ class CateringProgram(Base):
     route_code = Column(String, nullable=True)  # delivery route code, e.g. "R3"
     meal_service_style = Column(String, nullable=True)  # "family_style" or "individual"
     special_instructions = Column(Text, nullable=True)  # e.g. "Split food into 5 trays"
+    breakfast_pack_note = Column(String, nullable=True)  # driver manifest line, e.g. "5 trays breakfast"
+    lunch_pack_note = Column(String, nullable=True)  # driver manifest line, e.g. "15 trays lunch"
     invoice_prefix = Column(String, nullable=False)  # BC, LC, etc.
     last_invoice_number = Column(Integer, default=0, nullable=False)
     service_days = Column(String, nullable=False)  # JSON: ["Monday", "Tuesday", ...]

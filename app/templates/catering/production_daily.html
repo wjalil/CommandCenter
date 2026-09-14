@@ -43,6 +43,13 @@
   {% endfor %}
 </div>
 
+{% if user.role != 'worker' %}
+<div class="prod-manifest-banner mb-3">
+  <span>📋 Driver manifests: <strong>{{ manifests_released_count }}/{{ manifests_total_routes }}</strong> routes released for {{ primary_date.strftime('%b') }} {{ primary_date.day }}</span>
+  <a href="/catering/production/manifest/builder?date_str={{ primary_date.isoformat() }}">Build Manifests &rarr;</a>
+</div>
+{% endif %}
+
 {% if not serving_programs %}
 <div class="prod-empty">
   <div class="prod-empty-icon">📅</div>
@@ -212,10 +219,26 @@
           <span class="prod-count-badge">{{ pd.total_meals }} meals</span>
         </div>
         <div class="prod-card-body">
+          {% if user.role != 'worker' and pd.route_group_code %}
+          <div class="mb-2">
+            <a href="/catering/production/manifest/builder?date_str={{ primary_date.isoformat() }}"
+               class="prod-manifest-link {% if pd.manifest_status == 'released' %}is-released{% elif pd.manifest_status == 'draft' %}is-draft{% endif %}">
+              {% if pd.manifest_status == 'released' %}✓ {{ pd.route_group_code }} Manifest Released{% elif pd.manifest_status == 'draft' %}📋 {{ pd.route_group_code }} Draft ({{ pd.manifest_item_count }} item{{ 's' if pd.manifest_item_count != 1 }} this stop) — Finish &amp; Release{% else %}📋 Build {{ pd.route_group_code }} Manifest{% endif %}
+            </a>
+          </div>
+          {% endif %}
           {% if pd.meal_breakdown %}
           <div class="prod-meal-pills mb-2">
             {% for mb in pd.meal_breakdown %}
-            <span class="prod-meal-pill" style="background: {{ mb.color }};">{% if mb.vegan %}{{ mb.label }}: {{ mb.regular }} Regular, {{ mb.vegan }} Vegan{% else %}{{ mb.count }} {{ mb.label }}{% endif %}</span>
+            <span class="prod-meal-pill prod-meal-pill-check {% if mb.checked %}is-checked{% endif %}"
+                  style="background: {{ mb.color }};"
+                  data-check-type="{{ mb.slot }}"
+                  data-program-id="{{ pd.program.id }}"
+                  title="Check off to add {{ mb.label }} to the driver manifest"
+                  onclick="toggleMealPill(this)">
+              <span class="prod-meal-pill-check-icon">{% if mb.checked %}✓{% endif %}</span>
+              {% if mb.vegan %}{{ mb.label }}: {{ mb.regular }} Regular, {{ mb.vegan }} Vegan{% else %}{{ mb.count }} {{ mb.label }}{% endif %}
+            </span>
             {% endfor %}
           </div>
           {% endif %}
@@ -597,6 +620,29 @@
   padding: 0.15rem 0.55rem;
   border-radius: 999px;
 }
+.prod-meal-pill-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  opacity: 0.55;
+  border: 1.5px solid transparent;
+  transition: all 0.12s;
+}
+.prod-meal-pill-check:hover { opacity: 0.8; }
+.prod-meal-pill-check.is-checked { opacity: 1; border-color: rgba(255,255,255,0.7); box-shadow: 0 0 0 1px rgba(0,0,0,0.08); }
+.prod-meal-pill-check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 4px;
+  border: 1.5px solid rgba(255,255,255,0.8);
+  font-size: 0.65rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
 .prod-special-note {
   font-size: 0.78rem;
   font-style: italic;
@@ -605,6 +651,36 @@
   border-radius: 6px;
   padding: 0.35rem 0.6rem;
 }
+
+/* ── Driver manifest banner + per-program link ──────────── */
+.prod-manifest-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  background: rgba(20,184,166,0.06);
+  border: 1px solid rgba(20,184,166,0.25);
+  border-radius: var(--radius, 10px);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.82rem;
+}
+.prod-manifest-banner a { color: var(--accent, #14b8a6); font-weight: 600; text-decoration: none; }
+.prod-manifest-banner a:hover { text-decoration: underline; }
+
+.prod-manifest-link {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(148,163,184,0.15);
+  color: #64748b;
+  text-decoration: none;
+}
+.prod-manifest-link:hover { text-decoration: underline; }
+.prod-manifest-link.is-draft { background: rgba(239,68,68,0.13); color: #b91c1c; font-weight: 700; }
+.prod-manifest-link.is-released { background: rgba(16,185,129,0.12); color: #059669; }
 
 /* ── Prep list ───────────────────────────────── */
 .prod-prep-list { list-style: none; padding: 0; margin: 0; }
@@ -978,6 +1054,29 @@ async function toggleSupply(card) {
       if (lastEl) lastEl.style.display = '';
       delete checkedMap[key];
     }
+  } catch (e) {
+    console.error('Toggle failed', e);
+  }
+}
+
+async function toggleMealPill(pill) {
+  const checkType = pill.dataset.checkType;
+  const programId = pill.dataset.programId;
+  const icon = pill.querySelector('.prod-meal-pill-check-icon');
+
+  try {
+    const resp = await fetch(TOGGLE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        date: SERVICE_DATE,
+        check_type: checkType,
+        program_id: programId,
+      })
+    });
+    const data = await resp.json();
+    pill.classList.toggle('is-checked', data.checked);
+    icon.textContent = data.checked ? '✓' : '';
   } catch (e) {
     console.error('Toggle failed', e);
   }

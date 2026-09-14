@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Driver Manifest Builder{% endblock %}
+
+{% block content %}
+{% set active = 'production' %}
+{% include "catering/_nav.html" %}
+
+<div class="mb-page-header mb-3">
+  <div>
+    <h3 class="mb-0">Driver Manifest Builder</h3>
+    <p class="text-muted mb-0" style="font-size:0.85rem;">{{ service_date.strftime('%A, %B %d, %Y') }} — one route per section, release when ready</p>
+  </div>
+  <div class="mb-date-nav">
+    <form method="GET" action="/catering/production/manifest/builder" class="d-flex align-items-center gap-2">
+      <input type="date" name="date_str" value="{{ service_date.isoformat() }}" class="form-control form-control-sm" style="width:auto;" onchange="this.form.submit()">
+    </form>
+    <a href="/catering/production?date_str={{ service_date.isoformat() }}" class="btn btn-outline-secondary btn-sm">&lsaquo; Production Sheet</a>
+  </div>
+</div>
+
+{% if not manifest_cards %}
+<div class="mb-empty-page">
+  <div style="font-size:2rem;">📋</div>
+  <p class="text-muted mb-0">No routes with manifest activity for this day yet. Check items off on the production sheet to get started.</p>
+</div>
+{% endif %}
+
+{% for card in manifest_cards %}
+{% set manifest = card.manifest %}
+<details class="mb-route-card" {% if manifest.status != 'released' %}open{% endif %}>
+  <summary class="mb-route-summary">
+    <span class="mb-route-badge">{{ manifest.route_code }}</span>
+    <span class="mb-route-stop-count">{{ card.stops|length }} stop{{ 's' if card.stops|length != 1 }}</span>
+    {% if manifest.status == 'released' %}
+    <span class="mb-status mb-status-released">✓ Released</span>
+    {% else %}
+    <span class="mb-status mb-status-draft">Draft</span>
+    {% endif %}
+    <span class="mb-route-toggle-hint">click to {{ 'collapse' if manifest.status != 'released' else 'expand' }}</span>
+  </summary>
+
+  <div class="mb-route-body">
+    {% for stop in card.stops %}
+    <div class="mb-stop">
+      <div class="mb-stop-header">
+        {% if stop.program.route_code %}<span class="mb-stop-code">{{ stop.program.route_code }}</span>{% endif %}
+        <span class="mb-stop-name">{{ stop.program.name if stop.program else 'Unknown Program' }}</span>
+      </div>
+
+      {% if stop.items %}
+      <ul class="mb-item-list">
+        {% for item in stop.items %}
+        <li class="mb-item">
+          <span class="mb-item-source mb-source-{{ item.source }}">{{ item.source }}</span>
+          <form action="/catering/production/manifest/item/{{ item.id }}/edit" method="POST" class="mb-item-edit-form">
+            <input type="text" name="label" value="{{ item.label }}" class="mb-item-input" maxlength="200">
+            <button type="submit" class="mb-item-save" title="Save">Save</button>
+          </form>
+          <form action="/catering/production/manifest/item/{{ item.id }}/delete" method="POST" class="mb-item-remove-form">
+            <button type="submit" class="mb-item-remove" title="Remove" onclick="return confirm('Remove this item?')">&times;</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="mb-empty">No items yet — check off meal slots, milk, juice or produce on the production sheet, or add one below.</div>
+      {% endif %}
+
+      <form action="/catering/production/manifest/stop/{{ stop.id }}/items" method="POST" class="mb-add-form">
+        <input type="text" name="label" class="form-control form-control-sm" placeholder="e.g., 2 catering bags, put in wingo bags" maxlength="200" required>
+        <button type="submit" class="btn btn-outline-primary btn-sm">+ Add</button>
+      </form>
+
+      <form action="/catering/production/manifest/stop/{{ stop.id }}/instructions" method="POST" class="mb-instructions-form">
+        <input type="text" name="special_instructions" value="{{ stop.special_instructions or '' }}" class="form-control form-control-sm" placeholder="Special instructions for this stop (e.g. gated entrance)" maxlength="300">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Save Note</button>
+      </form>
+    </div>
+    {% endfor %}
+
+    <div class="mb-release-row">
+      {% if manifest.status == 'released' %}
+      <form action="/catering/production/manifest/{{ manifest.id }}/reopen" method="POST">
+        <button type="submit" class="btn btn-outline-warning btn-sm">Reopen for Editing</button>
+      </form>
+      <span class="text-muted" style="font-size:0.78rem;">Drivers can see this route's manifest.</span>
+      {% else %}
+      <form action="/catering/production/manifest/{{ manifest.id }}/release" method="POST">
+        <button type="submit" class="btn btn-success btn-sm">Release {{ manifest.route_code }} Manifest</button>
+      </form>
+      <span class="text-muted" style="font-size:0.78rem;">Not visible to drivers until released.</span>
+      {% endif %}
+    </div>
+  </div>
+</details>
+{% endfor %}
+
+<style>
+.mb-page-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 0.75rem; }
+.mb-date-nav { display: flex; align-items: center; gap: 0.5rem; }
+
+.mb-empty-page { text-align: center; padding: 3rem 1rem; }
+
+.mb-route-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 10px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+  margin-bottom: 0.9rem;
+  overflow: hidden;
+}
+.mb-route-summary {
+  display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+  padding: 0.9rem 1.1rem; cursor: pointer; list-style: none; user-select: none;
+}
+.mb-route-summary::-webkit-details-marker { display: none; }
+.mb-route-summary:hover { background: var(--bg, #f8fafc); }
+.mb-route-badge {
+  display: inline-block; font-size: 0.85rem; font-weight: 700; color: #fff;
+  background: #2563EB; padding: 0.2rem 0.65rem; border-radius: 999px;
+}
+.mb-route-stop-count { font-size: 0.8rem; color: var(--text-secondary, #64748b); font-weight: 600; }
+.mb-route-toggle-hint { margin-left: auto; font-size: 0.72rem; color: var(--text-muted, #94a3b8); }
+
+.mb-status { font-size: 0.72rem; font-weight: 700; padding: 0.25rem 0.65rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+.mb-status-draft { background: rgba(239,68,68,0.13); color: #b91c1c; }
+.mb-status-released { background: rgba(16,185,129,0.12); color: #059669; }
+
+.mb-route-body { border-top: 1px solid var(--border, #e2e8f0); padding: 1rem 1.1rem; }
+.mb-stop { padding: 0.8rem 0; border-bottom: 1px solid var(--border, #f1f5f9); }
+.mb-stop:last-of-type { border-bottom: none; }
+.mb-stop-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.mb-stop-code { font-size: 0.68rem; font-weight: 700; color: var(--text-secondary, #64748b); background: var(--bg, #f1f5f9); padding: 0.1rem 0.4rem; border-radius: 6px; }
+.mb-stop-name { font-size: 0.95rem; font-weight: 700; color: var(--text-primary, #0f172a); }
+
+.mb-item-list { list-style: none; padding: 0; margin: 0 0 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.mb-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.6rem; background: var(--bg, #f8fafc); border-radius: 8px; }
+.mb-item-source {
+  font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 0.12rem 0.4rem; border-radius: 999px; background: #e2e8f0; color: #475569; flex-shrink: 0;
+}
+.mb-source-manual { background: rgba(245,158,11,0.15); color: #b45309; }
+.mb-item-edit-form { flex: 1; display: flex; gap: 0.4rem; align-items: center; margin: 0; }
+.mb-item-input {
+  flex: 1; border: 1px solid transparent; background: transparent; border-radius: 6px;
+  font-size: 0.85rem; font-weight: 600; color: var(--text-primary, #0f172a); padding: 0.2rem 0.35rem;
+}
+.mb-item-input:hover, .mb-item-input:focus { border-color: var(--border, #cbd5e1); background: var(--surface, #fff); outline: none; }
+.mb-item-save {
+  flex-shrink: 0; font-size: 0.65rem; font-weight: 700; color: var(--accent, #14b8a6);
+  border: none; background: none; cursor: pointer; padding: 0.15rem 0.35rem; opacity: 0.7;
+}
+.mb-item-save:hover { opacity: 1; text-decoration: underline; }
+.mb-item-remove-form { margin: 0; }
+.mb-item-remove { border: none; background: none; color: #ef4444; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0 0.3rem; }
+.mb-item-remove:hover { color: #b91c1c; }
+.mb-empty { color: var(--text-muted, #94a3b8); font-size: 0.8rem; font-style: italic; margin-bottom: 0.6rem; }
+
+.mb-add-form { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; }
+.mb-add-form input { flex: 1; }
+.mb-instructions-form { display: flex; gap: 0.4rem; }
+.mb-instructions-form input { flex: 1; }
+
+.mb-release-row { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border, #e2e8f0); }
+</style>
+{% endblock %}

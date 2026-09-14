@@ -51,6 +51,8 @@ class CateringProgramBase(BaseModel):
     route_code: Optional[str] = None
     meal_service_style: Optional[str] = None  # "family_style" or "individual"
     special_instructions: Optional[str] = None
+    breakfast_pack_note: Optional[str] = None
+    lunch_pack_note: Optional[str] = None
 
 
 class CateringProgramCreate(CateringProgramBase):
@@ -87,6 +89,8 @@ class CateringProgramUpdate(BaseModel):
     route_code: Optional[str] = None
     meal_service_style: Optional[str] = None
     special_instructions: Optional[str] = None
+    breakfast_pack_note: Optional[str] = None
+    lunch_pack_note: Optional[str] = None
     holidays: Optional[List[ProgramHolidayCreate]] = None
 
 

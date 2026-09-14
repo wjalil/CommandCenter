@@ -185,6 +185,8 @@ async def program_create(
     route_code = form.get("route_code") or None
     meal_service_style = form.get("meal_service_style") or None
     special_instructions = form.get("special_instructions") or None
+    breakfast_pack_note = form.get("breakfast_pack_note") or None
+    lunch_pack_note = form.get("lunch_pack_note") or None
 
     # Parse optional meal counts (handle empty strings)
     breakfast_count = parse_optional_int(form.get("breakfast_count"))
@@ -248,6 +250,8 @@ async def program_create(
         route_code=route_code,
         meal_service_style=meal_service_style,
         special_instructions=special_instructions,
+        breakfast_pack_note=breakfast_pack_note,
+        lunch_pack_note=lunch_pack_note,
         tenant_id=tenant_id,
         holidays=[]
     )
@@ -305,6 +309,8 @@ async def program_edit_form(
         "route_code": program.route_code,
         "meal_service_style": program.meal_service_style,
         "special_instructions": program.special_instructions,
+        "breakfast_pack_note": program.breakfast_pack_note,
+        "lunch_pack_note": program.lunch_pack_note,
         "service_days": service_days,
         "meal_types_required": meal_types_required,
     }
@@ -419,6 +425,8 @@ async def program_update(
     route_code = form.get("route_code") or None
     meal_service_style = form.get("meal_service_style") or None
     special_instructions = form.get("special_instructions") or None
+    breakfast_pack_note = form.get("breakfast_pack_note") or None
+    lunch_pack_note = form.get("lunch_pack_note") or None
 
     # Parse optional meal counts (handle empty strings)
     breakfast_count = parse_optional_int(form.get("breakfast_count"))
@@ -482,6 +490,8 @@ async def program_update(
         route_code=route_code,
         meal_service_style=meal_service_style,
         special_instructions=special_instructions,
+        breakfast_pack_note=breakfast_pack_note,
+        lunch_pack_note=lunch_pack_note,
     )
 
     await program_crud.update_program(db, program_id, tenant_id, program_data)

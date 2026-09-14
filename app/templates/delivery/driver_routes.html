@@ -40,6 +40,36 @@
   .stat-pill.stat-pill-available { border-color: rgba(16,185,129,0.35); background: rgba(16,185,129,0.07); }
   .stat-pill.stat-pill-available .stat-num { color: #059669; }
 
+  /* ---------- Daily Manifest banner ---------- */
+  .manifest-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1.1rem;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    box-shadow: 0 4px 14px rgba(124,58,237,0.35);
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .manifest-banner:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(124,58,237,0.42); }
+  .manifest-banner-icon {
+    flex-shrink: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    background: rgba(255,255,255,0.18);
+    border-radius: 12px;
+  }
+  .manifest-banner-text { flex: 1; display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+  .manifest-banner-title { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+  .manifest-banner-sub { font-size: 0.78rem; color: rgba(255,255,255,0.85); font-weight: 500; }
+  .manifest-banner-arrow { flex-shrink: 0; font-size: 1.3rem; color: #fff; font-weight: 700; }
+
   /* ---------- Quick nav ---------- */
   .quick-nav {
     display: flex;
@@ -238,6 +268,17 @@
     {% endif %}
   </div>
 </div>
+
+<!-- Daily Manifest — deliberately the most prominent thing on the page, since
+     it's the first thing a driver needs before heading out. -->
+<a href="/catering/production/manifest/driver/view?date_str={{ today.isoformat() }}" class="manifest-banner">
+  <span class="manifest-banner-icon">📋</span>
+  <span class="manifest-banner-text">
+    <span class="manifest-banner-title">Today's Daily Manifest</span>
+    <span class="manifest-banner-sub">What to load — checked off by the kitchen, confirmed by you</span>
+  </span>
+  <span class="manifest-banner-arrow">&rarr;</span>
+</a>
 
 <!-- Quick nav -->
 <div class="quick-nav">

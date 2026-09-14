@@ -1,0 +1,79 @@
+{% extends base_template %}
+{% block title %}Driver Manifests{% endblock %}
+
+{% block content %}
+<div class="dm-header mb-3">
+  <div>
+    <div class="dm-eyebrow">Delivery</div>
+    <h3 class="mb-0">Driver Manifests</h3>
+    <p class="text-muted mb-0" style="font-size:0.85rem;">{{ service_date.strftime('%A, %B %d, %Y') }} — pick your route</p>
+  </div>
+  <div class="dm-nav">
+    <a href="/catering/production/manifest/driver/view?date_str={{ prev_date }}" class="dm-nav-btn">&#8592;</a>
+    {% if not is_today %}
+    <a href="/catering/production/manifest/driver/view" class="dm-nav-btn dm-nav-today">Today</a>
+    {% endif %}
+    <a href="/catering/production/manifest/driver/view?date_str={{ next_date }}" class="dm-nav-btn">&#8594;</a>
+  </div>
+</div>
+
+{% if not routes %}
+<div class="dm-empty">
+  <div style="font-size:2rem;">📋</div>
+  <p class="text-muted mb-0">No manifests released for this day yet.</p>
+</div>
+{% else %}
+<div class="dm-route-grid">
+  {% for route in routes %}
+  <a href="/catering/production/manifest/driver/view/{{ route.route_code }}?date_str={{ service_date.isoformat() }}" class="dm-route-card" style="--route-color: {{ route.color }};">
+    <div class="dm-route-badge" style="background: {{ route.color }};">{{ route.route_code }}</div>
+    <div class="dm-route-title">Daily Manifest — {{ route.route_code }}</div>
+    <div class="dm-route-meta">{{ route.stop_count }} stop{{ 's' if route.stop_count != 1 }} &middot; {{ route.item_count }} item{{ 's' if route.item_count != 1 }}</div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<style>
+/* Distinct identity color for this page — deliberately not the app's shared
+   teal accent, so "Driver Manifests" reads as its own place at a glance. */
+:root { --dm-accent: #7c3aed; --dm-accent-hover: #6d28d9; }
+
+.dm-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 0.75rem; }
+.dm-eyebrow { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dm-accent); }
+.dm-nav { display: flex; align-items: center; gap: 0.5rem; }
+.dm-nav-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 2rem; height: 2rem; padding: 0 0.7rem;
+  border-radius: var(--radius, 10px); border: 1.5px solid var(--border, #e2e8f0);
+  background: var(--surface, #fff); color: var(--text-secondary, #64748b);
+  text-decoration: none; font-size: 0.8rem; font-weight: 600;
+}
+.dm-nav-btn:hover { border-color: var(--dm-accent); color: var(--dm-accent); }
+.dm-nav-today { background: var(--dm-accent); border-color: var(--dm-accent); color: #fff !important; }
+.dm-nav-today:hover { background: var(--dm-accent-hover); border-color: var(--dm-accent-hover); color: #fff !important; }
+
+.dm-empty { text-align: center; padding: 3rem 1rem; }
+
+.dm-route-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.9rem;
+}
+.dm-route-card {
+  display: block;
+  background: var(--surface, #fff);
+  border: 1.5px solid var(--border, #e2e8f0);
+  border-top: 4px solid var(--route-color, var(--dm-accent));
+  border-radius: 12px;
+  padding: 1.1rem 1.2rem;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+  transition: all 0.15s;
+}
+.dm-route-card:hover { border-color: var(--route-color, var(--dm-accent)); box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.07)); transform: translateY(-1px); }
+.dm-route-badge { display: inline-block; font-size: 0.8rem; font-weight: 700; color: #fff; padding: 0.2rem 0.7rem; border-radius: 999px; margin-bottom: 0.6rem; }
+.dm-route-title { font-size: 1rem; font-weight: 700; color: var(--text-primary, #0f172a); }
+.dm-route-meta { font-size: 0.78rem; color: var(--text-secondary, #64748b); margin-top: 0.2rem; }
+</style>
+{% endblock %}

@@ -192,6 +192,19 @@
 
       <div class="row">
         <div class="col-md-6 mb-3">
+          <label class="form-label">Breakfast Pack Note</label>
+          <input type="text" name="breakfast_pack_note" class="form-control" maxlength="120" placeholder="e.g., 5 trays breakfast" value="{{ program.breakfast_pack_note if program and program.breakfast_pack_note else '' }}">
+          <small class="form-text text-muted">Checking "Breakfast" on the production sheet adds this line to the driver manifest</small>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Lunch Pack Note</label>
+          <input type="text" name="lunch_pack_note" class="form-control" maxlength="120" placeholder="e.g., 15 trays lunch" value="{{ program.lunch_pack_note if program and program.lunch_pack_note else '' }}">
+          <small class="form-text text-muted">Checking "Lunch" on the production sheet adds this line to the driver manifest</small>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
           <label class="form-label">Start Date *</label>
           <input type="date" name="start_date" class="form-control" value="{{ program.start_date if program else '' }}" required>
         </div>
