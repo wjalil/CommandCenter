@@ -111,12 +111,22 @@ async def driver_route_view(
     completed_count = len([s for s in sorted_stops if s.status in ["completed", "skipped"]])
     total_count = len(sorted_stops)
 
+    # Remaining stops with an address, in delivery order — fed to the
+    # "Launch in Google Maps" button so the driver gets turn-by-turn nav
+    # for everything left on the route (skips stops already done/skipped).
+    maps_stops = [
+        {"name": s.stop.name, "address": s.stop.address}
+        for s in sorted_stops
+        if s.status == "pending" and s.stop.address
+    ]
+
     return templates.TemplateResponse("delivery/driver_route_view.html", {
         "request": request,
         "route": route,
         "route_stops": sorted_stops,
         "completed_count": completed_count,
         "total_count": total_count,
+        "maps_stops": maps_stops,
     })
 
 

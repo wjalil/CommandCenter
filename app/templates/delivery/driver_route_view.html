@@ -50,6 +50,21 @@
   .start-btn.pickup-btn { background: #10b981; }
   .start-btn.pickup-btn:hover { background: #0d9668; }
 
+  .maps-btn {
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    width: 100%; padding: 0.8rem;
+    background: #fff;
+    border: 1.5px solid #4285F4;
+    border-radius: var(--radius);
+    color: #4285F4;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 1rem;
+    text-decoration: none;
+  }
+  .maps-btn:hover { background: rgba(66,133,244,0.06); color: #4285F4; }
+
   .quick-complete-btn {
     display: block;
     padding: 0.6rem;
@@ -192,6 +207,12 @@
     <div class="prog-fill" style="width:{{ (completed_count/total_count*100)|int if total_count > 0 else 0 }}%"></div>
   </div>
 </div>
+
+{% if maps_stops %}
+<button type="button" class="maps-btn" onclick="launchGoogleMaps()">
+  <span>🗺️</span> Launch in Google Maps
+</button>
+{% endif %}
 
 {% if route.notes %}
 <div class="notes-card">
@@ -369,6 +390,28 @@
 <script>
   const completeModal = new bootstrap.Modal(document.getElementById('completeModal'));
   const skipModal     = new bootstrap.Modal(document.getElementById('skipModal'));
+
+  // Remaining stops (pending, with an address), in delivery order.
+  const MAPS_STOPS = {{ maps_stops | tojson }};
+  // Google's consumer Directions link tops out at 10 stops (origin/destination
+  // + up to 9 waypoints). Longer routes get split into consecutive legs, each
+  // opened in its own tab, so the driver never has to manually re-search a stop.
+  const MAPS_MAX_STOPS_PER_LEG = 10;
+
+  function launchGoogleMaps() {
+    if (!MAPS_STOPS.length) return;
+
+    for (let i = 0; i < MAPS_STOPS.length; i += MAPS_MAX_STOPS_PER_LEG) {
+      const leg = MAPS_STOPS.slice(i, i + MAPS_MAX_STOPS_PER_LEG);
+      const destination = encodeURIComponent(leg[leg.length - 1].address);
+      const waypoints = leg.slice(0, -1).map(s => encodeURIComponent(s.address)).join('|');
+
+      let url = `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${destination}`;
+      if (waypoints) url += `&waypoints=${waypoints}`;
+
+      window.open(url, '_blank');
+    }
+  }
 
   function openComplete(stopId, stopName) {
     document.getElementById('completeForm').action = `/delivery/driver/stop/${stopId}/complete`;

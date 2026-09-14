@@ -5,68 +5,364 @@
 {% set active = 'dashboard' %}
 {% include "delivery/_nav.html" %}
 
-<div class="row mb-4">
+<div class="row mb-3">
   <div class="col">
-    <h2>Delivery Dashboard</h2>
-    <p class="text-muted">Manage delivery routes and stops</p>
+    <h2 class="mb-0">Delivery Dashboard</h2>
+    <p class="text-muted mb-0">Who's driving what, when — and what still needs a driver</p>
   </div>
 </div>
 
-<div class="row">
-  <div class="col-md-3 mb-3">
-    <div class="card">
-      <div class="card-body text-center">
-        <h3 class="display-4">{{ stops_count }}</h3>
-        <p class="text-muted mb-3">Active Stops</p>
-        <a href="/delivery/admin/stops" class="btn btn-outline-primary btn-sm">Manage Stops</a>
-      </div>
+<div class="quick-actions">
+  <a href="/delivery/admin/routes" class="quick-action-btn">
+    <i data-lucide="table"></i>
+    <span class="label">All Routes</span>
+  </a>
+  <a href="/delivery/admin/routes/generate" class="quick-action-btn">
+    <i data-lucide="zap"></i>
+    <span class="label">Generate Routes</span>
+  </a>
+  <a href="/delivery/admin/stops" class="quick-action-btn">
+    <i data-lucide="map-pin"></i>
+    <span class="label">Stops</span>
+  </a>
+  <a href="/delivery/admin/templates" class="quick-action-btn">
+    <i data-lucide="layout-template"></i>
+    <span class="label">Templates</span>
+  </a>
+  <a href="/delivery/driver/" class="quick-action-btn">
+    <i data-lucide="truck"></i>
+    <span class="label">Driver View</span>
+  </a>
+</div>
+
+<!-- Stat row -->
+<div class="rdash-stats mb-3">
+  <div class="rdash-stat">
+    <div class="rdash-stat-icon blue"><i data-lucide="truck"></i></div>
+    <div>
+      <div class="rdash-stat-num">{{ routes_today_count }}</div>
+      <div class="rdash-stat-label">Routes Today</div>
     </div>
   </div>
-
-  <div class="col-md-3 mb-3">
-    <div class="card">
-      <div class="card-body text-center">
-        <h3 class="display-4">{{ templates_count }}</h3>
-        <p class="text-muted mb-3">Route Templates</p>
-        <a href="/delivery/admin/templates" class="btn btn-outline-primary btn-sm">Manage Templates</a>
-      </div>
+  <div class="rdash-stat">
+    <div class="rdash-stat-icon teal"><i data-lucide="users"></i></div>
+    <div>
+      <div class="rdash-stat-num">{{ active_drivers_today }}</div>
+      <div class="rdash-stat-label">Drivers on the Road Today</div>
     </div>
   </div>
-
-  <div class="col-md-3 mb-3">
-    <div class="card">
-      <div class="card-body text-center">
-        <h3 class="display-4">{{ routes_count }}</h3>
-        <p class="text-muted mb-3">Upcoming Routes</p>
-        <a href="/delivery/admin/routes" class="btn btn-outline-primary btn-sm">View Routes</a>
-      </div>
+  <div class="rdash-stat {% if unassigned_count > 0 %}rdash-stat-alert{% endif %}">
+    <div class="rdash-stat-icon red"><i data-lucide="alert-triangle"></i></div>
+    <div>
+      <div class="rdash-stat-num">{{ unassigned_count }}</div>
+      <div class="rdash-stat-label">Unassigned (Next 7 Days)</div>
     </div>
   </div>
-
-  <div class="col-md-3 mb-3">
-    <div class="card">
-      <div class="card-body text-center">
-        <h3 class="display-4">⚡</h3>
-        <p class="text-muted mb-3">Generate This Week</p>
-        <a href="/delivery/admin/routes/generate" class="btn btn-success btn-sm">Generate Routes</a>
-      </div>
+  <div class="rdash-stat">
+    <div class="rdash-stat-icon indigo"><i data-lucide="map-pin"></i></div>
+    <div>
+      <div class="rdash-stat-num">{{ stops_count }}</div>
+      <div class="rdash-stat-label">Active Stops</div>
     </div>
   </div>
 </div>
 
-<div class="row mt-4">
-  <div class="col">
-    <div class="card">
-      <div class="card-header">
-        <strong>Quick Actions</strong>
+<div class="rdash-layout">
+
+  <!-- Calendar -->
+  <div class="rdash-main">
+    <div class="rcal-card">
+      <div class="rcal-header">
+        <div>
+          <div class="rcal-eyebrow">Routes Calendar</div>
+          <span class="rcal-month-label">{{ month_name }} {{ year }}</span>
+        </div>
+        <div class="rcal-nav">
+          <a href="/delivery/admin/?month={{ prev_month }}&year={{ prev_year }}" class="rcal-nav-btn">&#8592;</a>
+          {% if not is_current_month %}
+          <a href="/delivery/admin/" class="rcal-nav-btn rcal-nav-today">Today</a>
+          {% endif %}
+          <a href="/delivery/admin/?month={{ next_month }}&year={{ next_year }}" class="rcal-nav-btn">&#8594;</a>
+        </div>
       </div>
-      <div class="card-body">
-        <a href="/delivery/admin/stops" class="btn btn-outline-secondary me-2">+ Add Stop</a>
-        <a href="/delivery/admin/templates/create" class="btn btn-outline-secondary me-2">+ New Template</a>
-        <a href="/delivery/admin/routes/generate" class="btn btn-outline-success me-2">⚡ Generate Routes</a>
-        <a href="/delivery/driver/" class="btn btn-outline-secondary">Driver View</a>
+
+      {% if driver_colors %}
+      <div class="rcal-legend">
+        {% for driver_id, color in driver_colors.items() %}
+        <span class="rcal-legend-item"><span class="rcal-dot" style="background:{{ color }}"></span>{{ driver_names[driver_id] }}</span>
+        {% endfor %}
+        <span class="rcal-legend-item"><span class="rcal-dot" style="background:{{ '#94A3B8' }}"></span>Unassigned</span>
+      </div>
+      {% endif %}
+
+      <table class="rcal-table">
+        <thead>
+          <tr>
+            <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for week in calendar_weeks %}
+          <tr>
+            {% for day in week %}
+            <td class="rcal-day {% if not day.in_month %}rcal-day-out{% elif day.is_today %}rcal-day-today{% endif %}">
+              {% if day.in_month %}
+              <div class="rcal-day-num">{{ day.day }}</div>
+              {% if day.entries %}
+              <div class="rcal-chips">
+                {% for entry in day.entries %}
+                <button type="button" class="rcal-chip {% if entry.unassigned %}rcal-chip-unassigned{% endif %}"
+                        style="--chip-color:{{ entry.color }};"
+                        onclick="rcalShowDetail('{{ day.date }}', '{{ entry.route_id }}')">
+                  <span class="rcal-chip-dot"></span>{{ entry.route_name }}
+                </button>
+                {% endfor %}
+              </div>
+              {% endif %}
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- This week roster -->
+  <div class="rdash-side">
+    <div class="rroster-card">
+      <div class="rroster-header">This Week's Roster</div>
+      <div class="rroster-body">
+        {% for day in week_roster %}
+        <div class="rroster-day {% if day.is_today %}rroster-day-today{% endif %}">
+          <div class="rroster-day-label">{{ day.label }}{% if day.is_today %} <span class="rroster-today-pill">Today</span>{% endif %}</div>
+          {% if day.routes %}
+          <ul class="rroster-list">
+            {% for r in day.routes %}
+            <li class="{% if not r.driver_name %}rroster-unassigned{% endif %}">
+              <a href="/delivery/admin/routes/{{ r.id }}/edit">{{ r.name }}</a>
+              <span class="rroster-driver">{{ r.driver_name or 'Unassigned' }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="rroster-empty">No routes scheduled</div>
+          {% endif %}
+        </div>
+        {% endfor %}
       </div>
     </div>
   </div>
+
 </div>
+
+<!-- Detail overlay -->
+<div id="rcalOverlay" class="rcal-overlay" onclick="rcalCloseDetail(event)">
+  <div class="rcal-panel" onclick="event.stopPropagation();">
+    <div class="rcal-panel-header">
+      <div>
+        <div id="rcalPanelDate" class="rcal-panel-date"></div>
+        <div id="rcalPanelRoute" class="rcal-panel-route"></div>
+      </div>
+      <button type="button" class="rcal-panel-close" onclick="rcalCloseDetail()">&times;</button>
+    </div>
+    <div id="rcalPanelBody" class="rcal-panel-body"></div>
+  </div>
+</div>
+
+<script>
+const rcalDayDetails = {{ day_details_json | safe }};
+
+function rcalEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function rcalShowDetail(date, routeId) {
+  const data = rcalDayDetails[date + '|' + routeId];
+  if (!data) return;
+
+  const panel = document.querySelector('.rcal-panel');
+  panel.style.setProperty('--panel-color', data.color);
+
+  document.getElementById('rcalPanelDate').textContent = data.date_label;
+  document.getElementById('rcalPanelRoute').innerHTML =
+    '<span class="rcal-dot" style="background:' + data.color + '"></span>' + rcalEsc(data.route_name);
+
+  document.getElementById('rcalPanelBody').innerHTML =
+    '<div class="rcal-detail-row"><span class="rcal-detail-label">Driver</span><span class="rcal-detail-value">' + rcalEsc(data.driver_name) + '</span></div>' +
+    '<div class="rcal-detail-row"><span class="rcal-detail-label">Status</span><span class="rcal-detail-value">' + rcalEsc(data.status) + '</span></div>' +
+    '<div class="rcal-detail-row"><span class="rcal-detail-label">Stops</span><span class="rcal-detail-value">' + data.stop_count + '</span></div>' +
+    '<a class="btn btn-sm btn-outline-primary mt-2" href="/delivery/admin/routes/' + routeId + '/edit">Edit Route</a>';
+
+  document.getElementById('rcalOverlay').classList.add('open');
+}
+
+function rcalCloseDetail() {
+  document.getElementById('rcalOverlay').classList.remove('open');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') rcalCloseDetail();
+});
+</script>
+
+<style>
+.rdash-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.9rem;
+}
+@media (max-width: 900px) { .rdash-stats { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 500px) { .rdash-stats { grid-template-columns: 1fr; } }
+
+.rdash-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 10px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+  padding: 0.9rem 1rem;
+}
+.rdash-stat-alert { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.04); }
+.rdash-stat-icon {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.rdash-stat-icon i { width: 17px; height: 17px; }
+.rdash-stat-icon.teal   { background: rgba(20,184,166,0.1);  } .rdash-stat-icon.teal   i { color: #14b8a6; }
+.rdash-stat-icon.blue   { background: rgba(59,130,246,0.1);  } .rdash-stat-icon.blue   i { color: #3b82f6; }
+.rdash-stat-icon.red    { background: rgba(239,68,68,0.1);   } .rdash-stat-icon.red    i { color: #ef4444; }
+.rdash-stat-icon.indigo { background: rgba(99,102,241,0.1);  } .rdash-stat-icon.indigo i { color: #6366f1; }
+.rdash-stat-num { font-size: 1.4rem; font-weight: 700; line-height: 1; color: var(--text-primary, #0f172a); }
+.rdash-stat-label { font-size: 0.72rem; color: var(--text-muted, #94a3b8); margin-top: 0.2rem; }
+
+.rdash-layout {
+  display: grid;
+  grid-template-columns: 2.1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 1000px) { .rdash-layout { grid-template-columns: 1fr; } }
+
+/* ── Calendar ── */
+.rcal-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 10px);
+  box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.07));
+  overflow: hidden;
+  padding: 1rem 1rem 0.5rem;
+}
+.rcal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+.rcal-eyebrow {
+  font-size: 0.63rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #94a3b8);
+}
+.rcal-month-label { font-weight: 700; font-size: 1.05rem; color: var(--text-primary, #0f172a); }
+.rcal-nav { display: flex; align-items: center; gap: 0.4rem; }
+.rcal-nav-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 2rem; height: 2rem; padding: 0 0.6rem;
+  border-radius: var(--radius, 10px);
+  border: 1.5px solid var(--border, #e2e8f0);
+  background: var(--surface, #fff);
+  color: var(--text-secondary, #64748b);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.rcal-nav-btn:hover { border-color: var(--accent, #14b8a6); color: var(--accent, #14b8a6); }
+.rcal-nav-today { background: var(--accent, #14b8a6); border-color: var(--accent, #14b8a6); color: #fff !important; }
+
+.rcal-legend { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+.rcal-legend-item {
+  font-size: 0.72rem; font-weight: 500; color: var(--text-secondary, #64748b);
+  display: inline-flex; align-items: center;
+  padding: 0.25rem 0.6rem; border-radius: 999px;
+  background: var(--bg, #f8fafc); border: 1px solid var(--border, #e2e8f0);
+}
+.rcal-dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-right: 0.4rem; flex-shrink: 0; }
+
+.rcal-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.rcal-table th {
+  padding: 0.5rem 0.3rem; text-align: center; font-size: 0.68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-secondary, #64748b); border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.rcal-day {
+  position: relative; vertical-align: top; min-height: 92px;
+  border: 1px solid var(--border, #e2e8f0); padding: 0.4rem; width: 14.28%;
+}
+.rcal-day-out { background: #f8fafc; }
+.rcal-day-today { background: rgba(20,184,166,0.05); box-shadow: inset 0 2px 0 var(--accent, #14b8a6); }
+.rcal-day-num { font-weight: 600; font-size: 0.78rem; margin-bottom: 0.3rem; color: var(--text-primary, #0f172a); }
+.rcal-chips { display: flex; flex-direction: column; gap: 0.25rem; }
+.rcal-chip {
+  display: flex; align-items: flex-start; gap: 0.3rem; width: 100%; text-align: left;
+  font-size: 0.66rem; font-weight: 600; line-height: 1.2;
+  padding: 0.24rem 0.4rem; border: 1px solid var(--border, #e2e8f0); border-radius: 6px;
+  background: var(--surface, #fff); color: var(--text-primary, #0f172a);
+  cursor: pointer; white-space: normal; overflow-wrap: anywhere;
+}
+.rcal-chip-dot { display: inline-block; width: 0.42rem; height: 0.42rem; border-radius: 50%; background: var(--chip-color, #14b8a6); flex-shrink: 0; margin-top: 0.24rem; }
+.rcal-chip:hover { border-color: var(--chip-color, #14b8a6); }
+.rcal-chip-unassigned { border-style: dashed; color: var(--text-muted, #94a3b8); }
+
+.rcal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 1050;
+  align-items: center; justify-content: center;
+}
+.rcal-overlay.open { display: flex; }
+.rcal-panel {
+  --panel-color: #14b8a6;
+  background: var(--surface, #fff); border-radius: var(--radius, 10px); border-top: 4px solid var(--panel-color);
+  width: 100%; max-width: 380px; box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.08));
+}
+.rcal-panel-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 1rem 1.2rem 0.8rem; border-bottom: 1px solid var(--border, #e2e8f0); }
+.rcal-panel-date { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary, #64748b); }
+.rcal-panel-route { font-weight: 700; font-size: 1rem; display: flex; align-items: center; margin-top: 0.2rem; color: var(--text-primary, #0f172a); }
+.rcal-panel-close { border: none; background: var(--bg, #f1f5f9); width: 1.7rem; height: 1.7rem; border-radius: 50%; font-size: 1.1rem; cursor: pointer; color: var(--text-secondary, #64748b); }
+.rcal-panel-body { padding: 0.8rem 1.2rem 1.1rem; }
+.rcal-detail-row { display: flex; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px solid var(--border, #f1f5f9); font-size: 0.82rem; }
+.rcal-detail-label { color: var(--text-muted, #94a3b8); font-weight: 500; }
+.rcal-detail-value { color: var(--text-primary, #0f172a); font-weight: 600; }
+
+/* ── Roster ── */
+.rroster-card {
+  background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 10px); box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.07));
+  overflow: hidden;
+}
+.rroster-header { padding: 0.8rem 1rem; font-weight: 700; font-size: 0.85rem; border-bottom: 1px solid var(--border, #e2e8f0); color: var(--text-primary, #0f172a); }
+.rroster-body { padding: 0.4rem 0; }
+.rroster-day { padding: 0.55rem 1rem; border-bottom: 1px solid var(--border, #f1f5f9); }
+.rroster-day:last-child { border-bottom: none; }
+.rroster-day-today { background: rgba(20,184,166,0.05); }
+.rroster-day-label { font-size: 0.75rem; font-weight: 700; color: var(--text-secondary, #64748b); margin-bottom: 0.3rem; }
+.rroster-today-pill { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; padding: 0.05rem 0.4rem; border-radius: 999px; background: var(--accent, #14b8a6); color: #fff; }
+.rroster-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.rroster-list li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.78rem; }
+.rroster-list a { color: var(--text-primary, #0f172a); text-decoration: none; font-weight: 600; }
+.rroster-list a:hover { color: var(--accent, #14b8a6); }
+.rroster-driver { color: var(--text-muted, #94a3b8); font-size: 0.72rem; white-space: nowrap; }
+.rroster-unassigned .rroster-driver { color: #ef4444; font-weight: 600; }
+.rroster-empty { font-size: 0.75rem; color: var(--text-muted, #94a3b8); font-style: italic; }
+</style>
 {% endblock %}

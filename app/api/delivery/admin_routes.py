@@ -12,6 +12,8 @@ from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import date, datetime, timedelta
 from collections import OrderedDict
+from calendar import monthcalendar, month_name as month_name_arr, setfirstweekday, SUNDAY
+import json
 import uuid
 
 from app.db import get_db
@@ -22,19 +24,31 @@ from app.models.delivery import DeliveryStop, DeliveryRoute, DeliveryRouteStop, 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+# Stable palette used to color-code drivers on the routes calendar
+ROUTE_CALENDAR_PALETTE = [
+    "#4C6EF5", "#12B886", "#F59F00", "#E64980",
+    "#7048E8", "#15AABF", "#FA5252", "#2F9E44",
+]
+UNASSIGNED_COLOR = "#94A3B8"
+
 
 # ==================== DASHBOARD ====================
 
 @router.get("/")
 async def delivery_dashboard(
     request: Request,
+    month: Optional[int] = None,
+    year: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user)
 ):
-    """Delivery module dashboard"""
+    """Delivery module dashboard: routes calendar, driver roster, and quick stats"""
     tenant_id = request.state.tenant_id
+    today = date.today()
+    month = month or today.month
+    year = year or today.year
 
-    # Get counts
+    # ---- Quick stats ----
     stops_result = await db.execute(
         select(DeliveryStop).where(
             DeliveryStop.tenant_id == tenant_id,
@@ -42,15 +56,6 @@ async def delivery_dashboard(
         )
     )
     stops_count = len(stops_result.scalars().all())
-
-    today = date.today()
-    routes_result = await db.execute(
-        select(DeliveryRoute).where(
-            DeliveryRoute.tenant_id == tenant_id,
-            DeliveryRoute.date >= today
-        )
-    )
-    routes_count = len(routes_result.scalars().all())
 
     templates_result = await db.execute(
         select(DeliveryRouteTemplate).where(
@@ -60,11 +65,159 @@ async def delivery_dashboard(
     )
     templates_count = len(templates_result.scalars().all())
 
+    week_horizon_end = today + timedelta(days=7)
+    unassigned_result = await db.execute(
+        select(DeliveryRoute).where(
+            DeliveryRoute.tenant_id == tenant_id,
+            DeliveryRoute.date >= today,
+            DeliveryRoute.date < week_horizon_end,
+            DeliveryRoute.assigned_driver_id.is_(None),
+        )
+    )
+    unassigned_count = len(unassigned_result.scalars().all())
+
+    # ---- Routes for the displayed calendar month ----
+    month_start = date(year, month, 1)
+    month_end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+
+    month_routes_result = await db.execute(
+        select(DeliveryRoute)
+        .where(
+            DeliveryRoute.tenant_id == tenant_id,
+            DeliveryRoute.date >= month_start,
+            DeliveryRoute.date < month_end,
+        )
+        .options(
+            selectinload(DeliveryRoute.assigned_driver),
+            selectinload(DeliveryRoute.route_stops),
+        )
+        .order_by(DeliveryRoute.date, DeliveryRoute.name)
+    )
+    month_routes = month_routes_result.scalars().all()
+
+    routes_by_date: dict = {}
+    for r in month_routes:
+        routes_by_date.setdefault(r.date, []).append(r)
+
+    driver_ids_seen = sorted({r.assigned_driver_id for r in month_routes if r.assigned_driver_id})
+    driver_colors = {did: ROUTE_CALENDAR_PALETTE[i % len(ROUTE_CALENDAR_PALETTE)] for i, did in enumerate(driver_ids_seen)}
+    driver_names = {r.assigned_driver_id: r.assigned_driver.name for r in month_routes if r.assigned_driver_id}
+
+    routes_today = routes_by_date.get(today, [])
+    routes_today_count = len(routes_today)
+    active_drivers_today = len({r.assigned_driver_id for r in routes_today if r.assigned_driver_id})
+
+    # ---- Calendar grid ----
+    setfirstweekday(SUNDAY)
+    month_weeks = monthcalendar(year, month)
+
+    day_details = {}
+    calendar_weeks = []
+    for week in month_weeks:
+        week_data = []
+        for day_num in week:
+            if day_num == 0:
+                week_data.append({"day": "", "date": "", "in_month": False, "entries": []})
+                continue
+
+            date_obj = date(year, month, day_num)
+            date_str = date_obj.isoformat()
+            day_routes = routes_by_date.get(date_obj, [])
+
+            entries = []
+            for r in day_routes:
+                color = driver_colors.get(r.assigned_driver_id, UNASSIGNED_COLOR)
+                driver_name = r.assigned_driver.name if r.assigned_driver else "Unassigned"
+                entries.append({
+                    "route_id": r.id,
+                    "route_name": r.name,
+                    "driver_name": driver_name,
+                    "color": color,
+                    "status": r.status,
+                    "unassigned": r.assigned_driver_id is None,
+                })
+                day_details[f"{date_str}|{r.id}"] = {
+                    "route_name": r.name,
+                    "driver_name": driver_name,
+                    "color": color,
+                    "date_label": f"{date_obj.strftime('%A, %B')} {date_obj.day}",
+                    "status": r.status,
+                    "stop_count": len(r.route_stops),
+                }
+
+            week_data.append({
+                "day": day_num,
+                "date": date_str,
+                "in_month": True,
+                "is_today": date_obj == today,
+                "day_name": date_obj.strftime("%A"),
+                "entries": entries,
+            })
+        calendar_weeks.append(week_data)
+
+    prev_month, prev_year = (12, year - 1) if month == 1 else (month - 1, year)
+    next_month, next_year = (1, year + 1) if month == 12 else (month + 1, year)
+
+    # ---- This week's driver roster (always the real current week, independent of the calendar month shown) ----
+    current_monday = today - timedelta(days=today.weekday())
+    current_sunday = current_monday + timedelta(days=6)
+
+    if month_start <= current_monday and current_sunday < month_end:
+        week_source = routes_by_date
+    else:
+        week_routes_result = await db.execute(
+            select(DeliveryRoute)
+            .where(
+                DeliveryRoute.tenant_id == tenant_id,
+                DeliveryRoute.date >= current_monday,
+                DeliveryRoute.date <= current_sunday,
+            )
+            .options(selectinload(DeliveryRoute.assigned_driver))
+            .order_by(DeliveryRoute.name)
+        )
+        week_source = {}
+        for r in week_routes_result.scalars().all():
+            week_source.setdefault(r.date, []).append(r)
+
+    week_roster = []
+    for i in range(7):
+        d = current_monday + timedelta(days=i)
+        day_routes = sorted(week_source.get(d, []), key=lambda r: r.name)
+        week_roster.append({
+            "date": d,
+            "label": f"{d.strftime('%a, %b')} {d.day}",
+            "is_today": d == today,
+            "routes": [
+                {
+                    "id": r.id,
+                    "name": r.name,
+                    "driver_name": r.assigned_driver.name if r.assigned_driver else None,
+                    "status": r.status,
+                }
+                for r in day_routes
+            ],
+        })
+
     return templates.TemplateResponse("delivery/dashboard.html", {
         "request": request,
         "stops_count": stops_count,
-        "routes_count": routes_count,
         "templates_count": templates_count,
+        "routes_today_count": routes_today_count,
+        "active_drivers_today": active_drivers_today,
+        "unassigned_count": unassigned_count,
+        "month": month,
+        "year": year,
+        "month_name": month_name_arr[month],
+        "calendar_weeks": calendar_weeks,
+        "day_details_json": json.dumps(day_details),
+        "driver_colors": driver_colors,
+        "driver_names": driver_names,
+        "prev_month": prev_month,
+        "prev_year": prev_year,
+        "next_month": next_month,
+        "next_year": next_year,
+        "is_current_month": (month == today.month and year == today.year),
+        "week_roster": week_roster,
     })
 
 
