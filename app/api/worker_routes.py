@@ -19,7 +19,8 @@ from app.models.timeclock import TimeEntry, TimeStatus
 from app.utils.timeclock_service import clock_in as svc_clock_in, clock_out as svc_clock_out
 from app.models.customer.customer_order import CustomerOrder, OrderItem
 from app.models.catering import CateringProgram, CateringMonthlyMenu
-from app.models.delivery import DeliveryRoute
+from app.models.delivery import DeliveryRoute, DeliveryRouteStop
+from app.utils.delivery_driver_helpers import next_driver_route, route_date_label, pending_maps_stops
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -170,6 +171,34 @@ async def worker_home(
 
     enabled_modules = await get_enabled_modules(db, user.tenant_id)
 
+    driver_active_count = 0
+    driver_done_today_count = 0
+    driver_next_route = None
+    driver_next_route_label = None
+    driver_next_route_is_today = False
+    driver_next_route_maps_stops = []
+    if getattr(user, "worker_type", None) == "Driver":
+        today = dt_date.today()
+        rroutes = await db.execute(
+            select(DeliveryRoute).where(
+                DeliveryRoute.tenant_id == user.tenant_id,
+                DeliveryRoute.assigned_driver_id == user.id,
+                DeliveryRoute.date >= today,
+            ).options(
+                selectinload(DeliveryRoute.route_stops).selectinload(DeliveryRouteStop.stop)
+            )
+        )
+        driver_routes = rroutes.scalars().all()
+
+        driver_done_today_count = len([r for r in driver_routes if r.status == "completed" and r.date == today])
+        driver_active_count = len([r for r in driver_routes if r.status in ("draft", "assigned", "in_progress")])
+        driver_next_route = next_driver_route(driver_routes)
+
+        if driver_next_route:
+            driver_next_route_label = route_date_label(driver_next_route.date, today)
+            driver_next_route_is_today = driver_next_route.date == today
+            driver_next_route_maps_stops = pending_maps_stops(driver_next_route)
+
     ctx = {
         "request": request,
         "user": user,
@@ -177,6 +206,12 @@ async def worker_home(
         "open_entry": open_entry,
         "pytz": pytz,
         "enabled_modules": enabled_modules,
+        "driver_active_count": driver_active_count,
+        "driver_done_today_count": driver_done_today_count,
+        "driver_next_route": driver_next_route,
+        "driver_next_route_label": driver_next_route_label,
+        "driver_next_route_is_today": driver_next_route_is_today,
+        "driver_next_route_maps_stops": driver_next_route_maps_stops,
     }
     return templates.TemplateResponse("/worker_home.html", ctx)
 

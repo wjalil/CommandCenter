@@ -144,9 +144,14 @@
       <div class="modal-body">
         <input type="hidden" id="componentEditingDate">
 
+        <div class="accordion accordion-flush" id="componentAccordion">
         {% if 'Breakfast' in meal_types %}
-        <div class="mb-4">
-          <h6>Breakfast</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#comp-collapse-breakfast" aria-expanded="true"><span class="meal-slot-icon">🥞</span> Breakfast</button>
+          </h2>
+          <div id="comp-collapse-breakfast" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular Components</label>
@@ -167,12 +172,18 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
 
         {% if 'Lunch' in meal_types %}
-        <div class="mb-4">
-          <h6>Lunch</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#comp-collapse-lunch" aria-expanded="true"><span class="meal-slot-icon">🥪</span> Lunch</button>
+          </h2>
+          <div id="comp-collapse-lunch" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular Components</label>
@@ -193,12 +204,18 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
 
         {% if 'Snack' in meal_types %}
-        <div class="mb-4">
-          <h6>Snack</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#comp-collapse-snack" aria-expanded="true"><span class="meal-slot-icon">🍎</span> Snack</button>
+          </h2>
+          <div id="comp-collapse-snack" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular Components</label>
@@ -219,12 +236,18 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
 
         {% if 'AM Snack' in meal_types %}
-        <div class="mb-4">
-          <h6>AM Snack</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#comp-collapse-am_snack" aria-expanded="true"><span class="meal-slot-icon">☀️</span> AM Snack</button>
+          </h2>
+          <div id="comp-collapse-am_snack" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular Components</label>
@@ -245,12 +268,18 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
 
         {% if 'PM Snack' in meal_types %}
-        <div class="mb-4">
-          <h6>PM Snack</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#comp-collapse-pm_snack" aria-expanded="true"><span class="meal-slot-icon">🌙</span> PM Snack</button>
+          </h2>
+          <div id="comp-collapse-pm_snack" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular Components</label>
@@ -271,8 +300,11 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
@@ -293,9 +325,14 @@
       <div class="modal-body">
         <input type="hidden" id="editingDate">
 
+        <div class="accordion accordion-flush" id="mealAccordion">
         {% if 'Breakfast' in meal_types %}
-        <div class="mb-4">
-          <h6>Breakfast</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#meal-collapse-breakfast" aria-expanded="true"><span class="meal-slot-icon">🥞</span> Breakfast</button>
+          </h2>
+          <div id="meal-collapse-breakfast" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular</label>
@@ -318,12 +355,18 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
 
         {% if 'Lunch' in meal_types %}
-        <div class="mb-4">
-          <h6>Lunch</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#meal-collapse-lunch" aria-expanded="true"><span class="meal-slot-icon">🥪</span> Lunch</button>
+          </h2>
+          <div id="meal-collapse-lunch" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular</label>
@@ -346,12 +389,18 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
 
         {% if 'Snack' in meal_types %}
-        <div class="mb-4">
-          <h6>Snack</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#meal-collapse-snack" aria-expanded="true"><span class="meal-slot-icon">🍎</span> Snack</button>
+          </h2>
+          <div id="meal-collapse-snack" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular</label>
@@ -374,12 +423,18 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
 
         {% if 'AM Snack' in meal_types %}
-        <div class="mb-4">
-          <h6>AM Snack</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#meal-collapse-am_snack" aria-expanded="true"><span class="meal-slot-icon">☀️</span> AM Snack</button>
+          </h2>
+          <div id="meal-collapse-am_snack" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular</label>
@@ -402,12 +457,18 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
 
         {% if 'PM Snack' in meal_types %}
-        <div class="mb-4">
-          <h6>PM Snack</h6>
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#meal-collapse-pm_snack" aria-expanded="true"><span class="meal-slot-icon">🌙</span> PM Snack</button>
+          </h2>
+          <div id="meal-collapse-pm_snack" class="accordion-collapse collapse show">
+          <div class="accordion-body">
           <div class="row">
             <div class="col-md-6">
               <label class="form-label">Regular</label>
@@ -430,10 +491,13 @@
             </div>
             {% endif %}
           </div>
+          </div>
+          </div>
         </div>
         {% endif %}
+        </div>
 
-        <div class="mb-3">
+        <div class="mb-3 mt-3">
           <label class="form-label">Notes</label>
           <textarea class="form-control" id="notes" rows="2"></textarea>
         </div>
@@ -574,6 +638,51 @@
 }
 .save-toast.success { background: #198754; }
 .save-toast.error   { background: #dc3545; }
+
+/* Meal-slot accordions inside the editor modals */
+#componentEditorModal .accordion,
+#mealEditorModal .accordion {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #eef1f4;
+}
+#componentEditorModal .accordion-item,
+#mealEditorModal .accordion-item {
+  border: none;
+  border-bottom: 1px solid #eef1f4;
+}
+#componentEditorModal .accordion-item:last-child,
+#mealEditorModal .accordion-item:last-child {
+  border-bottom: none;
+}
+#componentEditorModal .accordion-button,
+#mealEditorModal .accordion-button {
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #334155;
+  background: #f8fafc;
+  box-shadow: none;
+}
+#componentEditorModal .accordion-button:not(.collapsed),
+#mealEditorModal .accordion-button:not(.collapsed) {
+  background: var(--accent-soft, rgba(20,184,166,0.08));
+  color: #0f172a;
+  box-shadow: none;
+}
+#componentEditorModal .accordion-button:focus,
+#mealEditorModal .accordion-button:focus {
+  box-shadow: 0 0 0 3px rgba(20,184,166,0.15);
+}
+#componentEditorModal .accordion-body,
+#mealEditorModal .accordion-body {
+  padding: 1rem;
+  background: #fff;
+}
+.meal-slot-icon {
+  display: inline-block;
+  margin-right: 2px;
+}
 </style>
 
 <script>

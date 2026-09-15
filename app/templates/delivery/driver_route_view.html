@@ -16,22 +16,63 @@
   .pill-progress  { background: rgba(245,158,11,0.1);  color: #b45309; border: 1px solid rgba(245,158,11,0.25); }
   .pill-completed { background: rgba(16,185,129,0.1);  color: #059669; border: 1px solid rgba(16,185,129,0.25); }
 
-  /* Progress card */
-  .prog-card {
+  /* Route summary card — header + pay + progress in one place */
+  .route-summary-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.1rem 1.25rem;
+    border-radius: 14px;
+    padding: 1.2rem 1.3rem;
     box-shadow: var(--shadow);
     margin-bottom: 1rem;
   }
+  .pay-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #059669;
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+  }
+  .prog-block { margin-top: 1rem; }
   .prog-bar { height: 7px; background: var(--border); border-radius: 7px; overflow: hidden; }
   .prog-fill { height: 100%; background: var(--accent); border-radius: 7px; transition: width 0.4s; }
   .prog-labels { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 0.5rem; }
   .prog-labels .label { font-weight: 600; color: var(--text-secondary); }
   .prog-labels .count { font-weight: 700; color: var(--accent); }
 
-  /* Start / notes */
+  /* Utility toolbar — Maps / Manifest as compact pills, not full-width buttons */
+  .toolbar-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.1rem;
+  }
+  .toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.95rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .toolbar-btn:hover { border-color: #cbd5e1; color: var(--text-primary); background: var(--bg); }
+  .toolbar-btn.maps { color: #1a73e8; border-color: rgba(26,115,232,0.3); background: rgba(26,115,232,0.05); }
+  .toolbar-btn.maps:hover { background: rgba(26,115,232,0.1); color: #1a73e8; }
+  .toolbar-btn.manifest { color: #7c3aed; border-color: rgba(124,58,237,0.3); background: rgba(124,58,237,0.05); }
+  .toolbar-btn.manifest:hover { background: rgba(124,58,237,0.1); color: #7c3aed; }
+
+  /* Primary action */
   .start-btn {
     display: block;
     width: 100%;
@@ -43,57 +84,33 @@
     font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
-    margin-bottom: 1rem;
+    margin-bottom: 0.6rem;
     transition: background 0.15s ease;
   }
   .start-btn:hover { background: var(--accent-hover); }
   .start-btn.pickup-btn { background: #10b981; }
   .start-btn.pickup-btn:hover { background: #0d9668; }
 
-  .maps-btn {
-    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-    width: 100%; padding: 0.8rem;
-    background: #fff;
-    border: 1.5px solid #4285F4;
-    border-radius: var(--radius);
-    color: #4285F4;
-    font-size: 0.95rem;
-    font-weight: 700;
-    cursor: pointer;
-    margin-bottom: 1rem;
-    text-decoration: none;
+  /* De-emphasized secondary / rare actions (quick-complete, drop) */
+  .text-link-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.2rem;
   }
-  .maps-btn:hover { background: rgba(66,133,244,0.06); color: #4285F4; }
-
-  .manifest-link-btn {
-    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-    width: 100%; padding: 0.8rem;
-    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  .text-link-action {
+    background: none;
     border: none;
-    border-radius: var(--radius);
-    color: #fff;
-    font-size: 0.95rem;
-    font-weight: 700;
+    padding: 0.3rem 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: underline;
+    text-decoration-color: rgba(100,116,139,0.35);
     cursor: pointer;
-    margin-bottom: 1rem;
-    text-decoration: none;
-    box-shadow: 0 3px 10px rgba(124,58,237,0.3);
   }
-  .manifest-link-btn:hover { opacity: 0.92; color: #fff; }
-
-  .quick-complete-btn {
-    display: block;
-    padding: 0.6rem;
-    background: rgba(16,185,129,0.08);
-    border: 1.5px solid rgba(16,185,129,0.35);
-    border-radius: var(--radius);
-    color: #059669;
-    font-size: 0.85rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-  .quick-complete-btn:hover { background: rgba(16,185,129,0.14); }
+  .text-link-action:hover { color: var(--text-primary); }
+  .text-link-action.danger:hover { color: #dc2626; text-decoration-color: rgba(220,38,38,0.4); }
 
   .notes-card {
     background: rgba(245,158,11,0.06);
@@ -190,49 +207,45 @@
 <!-- Back link -->
 <a href="/delivery/driver/" class="btn btn-outline-secondary btn-sm mb-3">‹ My Routes</a>
 
-<!-- Route header -->
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <div>
-    <h4 class="fw-bold mb-1" style="color:var(--text-primary);">{{ route.name }}</h4>
-    <small style="color:var(--text-secondary);">{{ route.date.strftime('%A, %B %d, %Y') }}</small>
+<!-- Route summary -->
+<div class="route-summary-card">
+  <div class="d-flex align-items-start justify-content-between gap-3">
+    <div>
+      <h4 class="fw-bold mb-1" style="color:var(--text-primary);">{{ route.name }}</h4>
+      <small style="color:var(--text-secondary);">{{ route.date.strftime('%A, %B %d, %Y') }}</small>
+    </div>
+    <div class="d-flex flex-column align-items-end gap-2">
+      {% if route.status == 'assigned' %}
+      <span class="status-pill pill-assigned">Ready</span>
+      {% elif route.status == 'in_progress' %}
+      <span class="status-pill pill-progress">In Progress</span>
+      {% elif route.status == 'completed' %}
+      <span class="status-pill pill-completed">Completed</span>
+      {% endif %}
+      {% if route.driver_pay_rate %}
+      <span class="pay-chip">💵 ${{ '%.2f'|format(route.driver_pay_rate|float) }}</span>
+      {% endif %}
+    </div>
   </div>
-  {% if route.status == 'assigned' %}
-  <span class="status-pill pill-assigned">Ready</span>
-  {% elif route.status == 'in_progress' %}
-  <span class="status-pill pill-progress">In Progress</span>
-  {% elif route.status == 'completed' %}
-  <span class="status-pill pill-completed">Completed</span>
+
+  <div class="prog-block">
+    <div class="prog-labels">
+      <span class="label">Stops completed</span>
+      <span class="count">{{ completed_count }} / {{ total_count }}</span>
+    </div>
+    <div class="prog-bar">
+      <div class="prog-fill" style="width:{{ (completed_count/total_count*100)|int if total_count > 0 else 0 }}%"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Utility toolbar -->
+<div class="toolbar-row">
+  {% if maps_stops %}
+  <button type="button" class="toolbar-btn maps" onclick="launchGoogleMaps()">🗺️ Navigate</button>
   {% endif %}
+  <a href="/catering/production/manifest/driver/view?date_str={{ route.date.isoformat() }}" class="toolbar-btn manifest">📋 Manifest</a>
 </div>
-
-{% if route.driver_pay_rate %}
-<div class="mb-3">
-  <span class="status-pill" style="background: rgba(16,185,129,0.1); color:#059669; border:1px solid rgba(16,185,129,0.25);">
-    💵 ${{ '%.2f'|format(route.driver_pay_rate|float) }}
-  </span>
-</div>
-{% endif %}
-
-<!-- Progress card -->
-<div class="prog-card">
-  <div class="prog-labels">
-    <span class="label">Stops completed</span>
-    <span class="count">{{ completed_count }} / {{ total_count }}</span>
-  </div>
-  <div class="prog-bar">
-    <div class="prog-fill" style="width:{{ (completed_count/total_count*100)|int if total_count > 0 else 0 }}%"></div>
-  </div>
-</div>
-
-{% if maps_stops %}
-<button type="button" class="maps-btn" onclick="launchGoogleMaps()">
-  <span>🗺️</span> Launch in Google Maps
-</button>
-{% endif %}
-
-<a href="/catering/production/manifest/driver/view?date_str={{ route.date.isoformat() }}" class="manifest-link-btn">
-  <span>📋</span> View Daily Manifest
-</a>
 
 {% if route.notes %}
 <div class="notes-card">
@@ -246,28 +259,32 @@
   <div class="notes-label" style="color:#059669;">Open Route</div>
   This route hasn't been claimed yet. Pick it up to add it to your routes.
 </div>
-<form action="/delivery/driver/route/{{ route.id }}/pickup" method="POST">
-  <button type="submit" class="start-btn pickup-btn">✋ Pick Up This Route</button>
+<form action="/delivery/driver/route/{{ route.id }}/pickup" method="POST" class="mb-3">
+  <button type="submit" class="start-btn pickup-btn mb-0">✋ Pick Up This Route</button>
 </form>
+
 {% elif route.status in ['draft', 'assigned'] %}
-<form action="/delivery/driver/route/{{ route.id }}/start" method="POST" class="mb-2">
-  <button type="submit" class="start-btn mb-0">▶ Start Route</button>
+<form action="/delivery/driver/route/{{ route.id }}/start" method="POST">
+  <button type="submit" class="start-btn">▶ Start Route</button>
 </form>
-<form action="/delivery/driver/route/{{ route.id }}/quick-complete" method="POST" class="mb-2"
-      onsubmit="return confirm('Mark this entire route as completed? All stops will be marked delivered without going through each one.');">
-  <button type="submit" class="quick-complete-btn w-100">✓ Quick Complete Route</button>
-</form>
-<form action="/delivery/driver/route/{{ route.id }}/drop" method="POST" class="mb-3">
-  <button type="submit" class="btn btn-outline-secondary btn-sm w-100"
-          onclick="return confirm('Drop this route? It will go back to the available pool for other drivers.')">
-    Drop This Route
-  </button>
-</form>
+<div class="text-link-row">
+  <form action="/delivery/driver/route/{{ route.id }}/quick-complete" method="POST"
+        onsubmit="return confirm('Mark this entire route as completed? All stops will be marked delivered without going through each one.');">
+    <button type="submit" class="text-link-action">✓ Quick complete route</button>
+  </form>
+  <form action="/delivery/driver/route/{{ route.id }}/drop" method="POST"
+        onsubmit="return confirm('Drop this route? It will go back to the available pool for other drivers.')">
+    <button type="submit" class="text-link-action danger">Drop this route</button>
+  </form>
+</div>
+
 {% elif route.status == 'in_progress' %}
-<form action="/delivery/driver/route/{{ route.id }}/quick-complete" method="POST" class="mb-3"
-      onsubmit="return confirm('Mark this entire route as completed? Any remaining stops will be marked delivered without going through each one.');">
-  <button type="submit" class="quick-complete-btn w-100">✓ Quick Complete Route</button>
-</form>
+<div class="text-link-row" style="justify-content: flex-end;">
+  <form action="/delivery/driver/route/{{ route.id }}/quick-complete" method="POST"
+        onsubmit="return confirm('Mark this entire route as completed? Any remaining stops will be marked delivered without going through each one.');">
+    <button type="submit" class="text-link-action">✓ Quick complete route</button>
+  </form>
+</div>
 {% endif %}
 
 <!-- Stop list -->

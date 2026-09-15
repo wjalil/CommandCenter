@@ -144,6 +144,62 @@
 
 {% block content %}
 
+{% set em = enabled_modules or {} %}
+{% set is_driver = user.worker_type == "Driver" %}
+
+{% if is_driver %}
+  <!-- Next Route strip — always surfaces the driver's next route, whether
+       that's today or a future date, instead of a misleading "nothing
+       today" message when there's a route waiting tomorrow morning. -->
+  <div class="hero-strip mb-4">
+    {% if driver_next_route %}
+      {% set done = driver_next_route.route_stops|selectattr("status","in",["completed","skipped"])|list|length %}
+      {% set total = driver_next_route.route_stops|length %}
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          {% if driver_next_route.status == 'in_progress' %}
+            <div class="fw-bold" style="font-size: 1.1rem; color: var(--text-primary);">🚛 Route in progress — {{ driver_next_route.name }}</div>
+            <div class="clock-meta mt-1">{{ done }}/{{ total }} stop{% if total != 1 %}s{% endif %} done <span class="ms-2 chip ok">Active</span></div>
+          {% elif driver_next_route_is_today %}
+            <div class="fw-bold" style="font-size: 1.1rem; color: var(--text-primary);">📋 Today — {{ driver_next_route.name }}</div>
+            <div class="clock-meta mt-1">{{ total }} stop{% if total != 1 %}s{% endif %} <span class="ms-2 chip out">Not started</span></div>
+          {% else %}
+            <div class="fw-bold" style="font-size: 1.1rem; color: var(--text-primary);">📅 {{ driver_next_route_label }} — {{ driver_next_route.name }}</div>
+            <div class="clock-meta mt-1">{{ total }} stop{% if total != 1 %}s{% endif %} scheduled</div>
+          {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+          {% if driver_next_route_maps_stops %}
+          <button type="button" class="btn btn-outline-secondary btn-lg" onclick="launchHomeMaps()">🗺️ Navigate</button>
+          {% endif %}
+          <a href="/delivery/driver/route/{{ driver_next_route.id }}" class="btn btn-primary btn-lg">
+            {% if driver_next_route.status == 'in_progress' %}Continue Route{% elif driver_next_route_is_today %}Start Route{% else %}View Route{% endif %} &rarr;
+          </a>
+        </div>
+      </div>
+      {% if driver_active_count > 1 %}
+      <div class="clock-meta mt-2">+{{ driver_active_count - 1 }} more route{% if driver_active_count - 1 != 1 %}s{% endif %} coming up — <a href="/delivery/driver/">view all</a></div>
+      {% endif %}
+    {% elif driver_done_today_count %}
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <div class="fw-bold" style="font-size: 1.1rem; color: var(--text-primary);">✅ All routes completed today</div>
+          <div class="clock-meta mt-1">Nice work — {{ driver_done_today_count }} route{% if driver_done_today_count != 1 %}s{% endif %} finished</div>
+        </div>
+        <a href="/delivery/driver/" class="btn btn-outline-secondary btn-lg">View Routes</a>
+      </div>
+    {% else %}
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <div class="fw-bold" style="font-size: 1.1rem; color: var(--text-primary);">📭 No routes on your schedule</div>
+          <div class="clock-meta mt-1">Check back later or view your schedule</div>
+        </div>
+        <a href="/delivery/driver/" class="btn btn-outline-secondary btn-lg">My Routes</a>
+      </div>
+    {% endif %}
+  </div>
+
+{% else %}
 <!-- Clock / Shift strip -->
 <div class="hero-strip mb-4">
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -185,14 +241,13 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- Quick Actions -->
 <div class="d-flex align-items-center justify-content-between mb-3">
   <h5 class="section-title m-0" data-i18n="quick_actions">Quick Actions</h5>
 </div>
 
-{% set em = enabled_modules or {} %}
-{% set is_driver = user.worker_type == "Driver" %}
 <div class="quick-actions row g-4">
 
   {% if not is_driver and em.get("taskboard", True) %}
@@ -275,7 +330,7 @@
   </div>
   {% endif %}
 
-  {% if em.get("driver_order", True) %}
+  {% if not is_driver and em.get("driver_order", True) %}
   <div class="col-12 col-sm-6 col-lg-4">
     <a href="/modules/driver_order" class="text-decoration-none">
       <div class="card card-driver h-100">
@@ -381,6 +436,22 @@
 
 {% block extra_js %}
 <script>
+  // ── Driver: launch Google Maps directly from the home hero ───
+  const HOME_MAPS_STOPS = {{ driver_next_route_maps_stops | tojson }};
+  const HOME_MAPS_MAX_STOPS_PER_LEG = 10;
+
+  function launchHomeMaps() {
+    if (!HOME_MAPS_STOPS.length) return;
+    for (let i = 0; i < HOME_MAPS_STOPS.length; i += HOME_MAPS_MAX_STOPS_PER_LEG) {
+      const leg = HOME_MAPS_STOPS.slice(i, i + HOME_MAPS_MAX_STOPS_PER_LEG);
+      const destination = encodeURIComponent(leg[leg.length - 1].address);
+      const waypoints = leg.slice(0, -1).map(s => encodeURIComponent(s.address)).join('|');
+      let url = `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${destination}`;
+      if (waypoints) url += `&waypoints=${waypoints}`;
+      window.open(url, '_blank');
+    }
+  }
+
   // ── Geofence: capture location before clock-in (soft mode) ───
   const clockInForm = document.getElementById('clockInForm');
   if (clockInForm) {

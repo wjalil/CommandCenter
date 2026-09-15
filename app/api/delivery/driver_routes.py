@@ -19,6 +19,7 @@ from app.db import get_db
 from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.models.delivery import DeliveryStop, DeliveryRoute, DeliveryRouteStop
+from app.utils.delivery_driver_helpers import next_driver_route, route_date_label, pending_maps_stops
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -56,6 +57,17 @@ async def driver_routes_list(
     todays_routes = [r for r in routes if r.date == today]
     upcoming_routes = [r for r in routes if r.date > today]
 
+    # The route that should be front-and-center — today's if there is one,
+    # otherwise the soonest upcoming route, so a driver checking tonight for
+    # tomorrow's early route sees it immediately instead of "nothing today".
+    next_route = next_driver_route(routes)
+    next_route_label = route_date_label(next_route.date, today) if next_route else None
+    next_route_is_today = bool(next_route and next_route.date == today)
+
+    # Keep the spotlighted route from also appearing in the section below it
+    today_display_routes = [r for r in todays_routes if not next_route or r.id != next_route.id]
+    upcoming_display_routes = [r for r in upcoming_routes if not next_route or r.id != next_route.id]
+
     # Unassigned routes any driver can pick up
     available_result = await db.execute(
         select(DeliveryRoute).where(
@@ -68,12 +80,22 @@ async def driver_routes_list(
     )
     available_routes = available_result.scalars().all()
 
+    # Pending stops (with an address) per route, keyed by route id, for the
+    # one-tap "Navigate" button on each route card.
+    route_maps_stops = {r.id: pending_maps_stops(r) for r in routes}
+
     return templates.TemplateResponse("delivery/driver_routes.html", {
         "request": request,
         "todays_routes": todays_routes,
         "upcoming_routes": upcoming_routes,
+        "today_display_routes": today_display_routes,
+        "upcoming_display_routes": upcoming_display_routes,
         "available_routes": available_routes,
         "today": today,
+        "next_route": next_route,
+        "next_route_label": next_route_label,
+        "next_route_is_today": next_route_is_today,
+        "route_maps_stops": route_maps_stops,
     })
 
 

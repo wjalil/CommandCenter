@@ -5,10 +5,13 @@
 {% set active = 'menus' %}
 {% include "catering/_nav.html" %}
 
-<div class="row mb-4">
+{% set month_names = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] %}
+{% set month_names_short = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] %}
+
+<div class="row mb-3">
   <div class="col-md-8">
     <h2>Monthly Menus</h2>
-    <p class="text-muted">Plan and manage monthly meal calendars, organized by program</p>
+    <p class="text-muted mb-0">Plan and manage monthly meal calendars, organized by program</p>
   </div>
   <div class="col-md-4 text-end">
     <a href="/catering/monthly-menus/create" class="btn btn-primary">+ Create Menu</a>
@@ -16,65 +19,127 @@
 </div>
 
 {% if programs_with_menus %}
-  {% for program, menus in programs_with_menus %}
-  <div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <div>
-        <strong>{{ program.name }}</strong>
-        <span class="text-muted ms-2">{{ program.client_name }}</span>
-      </div>
-      <div class="d-flex align-items-center gap-2">
-        <span class="badge bg-secondary">{{ menus | length }} menu{{ 's' if menus | length != 1 }}</span>
-        <a href="/catering/monthly-menus/create?program_id={{ program.id }}" class="btn btn-sm btn-outline-primary">+ Add Menu</a>
-      </div>
+{% set total_menus = namespace(count=0) %}
+{% set finalized_total = namespace(count=0) %}
+{% set sent_total = namespace(count=0) %}
+{% for program, menus in programs_with_menus %}
+  {% set total_menus.count = total_menus.count + menus|length %}
+  {% set finalized_total.count = finalized_total.count + (menus|selectattr('status','equalto','finalized')|list|length) %}
+  {% set sent_total.count = sent_total.count + (menus|selectattr('status','equalto','sent')|list|length) %}
+{% endfor %}
+
+<div class="mm-stat-strip mb-3">
+  <div class="mm-stat-card">
+    <div class="mm-stat-num">{{ programs_with_menus|length }}</div>
+    <div class="mm-stat-label">Programs</div>
+  </div>
+  <div class="mm-stat-card">
+    <div class="mm-stat-num">{{ total_menus.count }}</div>
+    <div class="mm-stat-label">Total Menus</div>
+  </div>
+  <div class="mm-stat-card">
+    <div class="mm-stat-num text-success">{{ finalized_total.count }}</div>
+    <div class="mm-stat-label">Finalized</div>
+  </div>
+  <div class="mm-stat-card">
+    <div class="mm-stat-num text-primary">{{ sent_total.count }}</div>
+    <div class="mm-stat-label">Sent</div>
+  </div>
+  <div class="mm-stat-card mm-stat-filter">
+    <div class="mm-stat-label mb-1">Search &amp; View</div>
+    <div class="d-flex gap-2 flex-wrap">
+      <input type="text" id="menuSearchInput" class="form-control form-control-sm" style="max-width:180px;" placeholder="Search program...">
+      <select id="menuStatusFilter" class="form-select form-select-sm" style="max-width:130px;">
+        <option value="">All statuses</option>
+        <option value="finalized">Finalized</option>
+        <option value="sent">Sent</option>
+      </select>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="expandAllBtn">Expand All</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="collapseAllBtn">Collapse All</button>
     </div>
-    <div class="card-body p-0">
-      <table class="nice-table mb-0">
-        <thead>
-          <tr>
-            <th>Month</th>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Days</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for menu in menus %}
-          <tr>
-            <td>{{ ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][menu.month] }} {{ menu.year }}</td>
-            <td>
-              {% if menu.menu_type == 'alternative' %}
-              <span class="badge bg-warning text-dark">Alternative</span>
-              {% else %}
-              <span class="badge bg-light text-dark border">Regular</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if menu.status == 'draft' %}
-              <span class="badge bg-secondary">Draft</span>
-              {% elif menu.status == 'finalized' %}
-              <span class="badge bg-success">Finalized</span>
-              {% elif menu.status == 'sent' %}
-              <span class="badge bg-primary">Sent</span>
-              {% endif %}
-            </td>
-            <td>{{ menu.menu_days|length }} days</td>
-            <td>
-              <div class="btn-group btn-group-sm">
-                <a href="/catering/monthly-menus/{{ menu.id }}/calendar" class="btn btn-outline-primary">📅 Calendar</a>
-                <a href="/catering/monthly-menus/{{ menu.id }}/share" class="btn btn-outline-info">📤 Share</a>
-                <a href="/catering/monthly-menus/{{ menu.id }}/duplicate" class="btn btn-outline-success">📋 Duplicate</a>
-                <button type="button" class="btn btn-outline-danger" onclick="confirmDelete('{{ menu.id }}', '{{ program.name }} - {{ ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][menu.month] }} {{ menu.year }} ({{ menu.menu_type | capitalize }})')">🗑️ Delete</button>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  </div>
+</div>
+
+<div id="programMenuAccordion">
+  {% for program, menus in programs_with_menus %}
+  {% set prog_idx = loop.index %}
+  {% set final_n = menus|selectattr('status','equalto','finalized')|list|length %}
+  {% set sent_n = menus|selectattr('status','equalto','sent')|list|length %}
+  <div class="mm-accordion-item program-menu-item" data-program-name="{{ program.name|lower }} {{ program.client_name|lower }}">
+    <h2 class="mm-accordion-header" id="pheading-{{ prog_idx }}">
+      <button class="mm-accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
+              data-bs-toggle="collapse" data-bs-target="#pcollapse-{{ prog_idx }}"
+              aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="pcollapse-{{ prog_idx }}">
+        <span class="mm-prog-info">
+          <span class="mm-prog-name">{{ program.name }}</span>
+          <span class="mm-prog-client d-none d-sm-inline">{{ program.client_name }}</span>
+        </span>
+        <span class="mm-prog-badges">
+          <span class="badge bg-secondary">{{ menus|length }} menu{{ 's' if menus|length != 1 }}</span>
+          {% if final_n %}<span class="badge bg-light text-success border">{{ final_n }} finalized</span>{% endif %}
+          {% if sent_n %}<span class="badge bg-light text-primary border">{{ sent_n }} sent</span>{% endif %}
+        </span>
+        <span class="mm-chevron" aria-hidden="true"></span>
+      </button>
+    </h2>
+    <div id="pcollapse-{{ prog_idx }}" class="mm-accordion-collapse collapse {% if loop.first %}show{% endif %}"
+         aria-labelledby="pheading-{{ prog_idx }}">
+      <div class="mm-accordion-body">
+        <div class="d-flex justify-content-end px-3 pt-3">
+          <a href="/catering/monthly-menus/create?program_id={{ program.id }}" class="btn btn-sm btn-outline-primary">+ Add Menu</a>
+        </div>
+        <table class="nice-table mb-0 mm-menu-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Days</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for menu in menus|sort(attribute='year,month', reverse=true) %}
+            <tr class="menu-row" data-status="{{ menu.status }}" data-year="{{ menu.year }}" data-month="{{ menu.month }}">
+              <td>
+                {{ month_names[menu.month] }} {{ menu.year }}
+                <span class="badge bg-info text-dark ms-1 mm-current-badge" hidden>Current</span>
+              </td>
+              <td>
+                {% if menu.menu_type == 'alternative' %}
+                <span class="badge bg-warning text-dark">Alternative</span>
+                {% else %}
+                <span class="badge bg-light text-dark border">Regular</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if menu.status == 'finalized' %}
+                <span class="badge bg-success">Finalized</span>
+                {% elif menu.status == 'sent' %}
+                <span class="badge bg-primary">Sent</span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>{{ menu.menu_days|length }} days</td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  <a href="/catering/monthly-menus/{{ menu.id }}/calendar" class="btn btn-outline-primary">📅 Calendar</a>
+                  <a href="/catering/monthly-menus/{{ menu.id }}/share" class="btn btn-outline-info">📤 Share</a>
+                  <a href="/catering/monthly-menus/{{ menu.id }}/duplicate" class="btn btn-outline-success">📋 Duplicate</a>
+                  <button type="button" class="btn btn-outline-danger" onclick="confirmDelete('{{ menu.id }}', '{{ program.name }} - {{ month_names_short[menu.month] }} {{ menu.year }} ({{ menu.menu_type | capitalize }})')">🗑️ Delete</button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
   {% endfor %}
+</div>
+<div id="noResultsMessage" class="alert alert-secondary" hidden>No programs or menus match your search.</div>
 {% else %}
 <div class="alert alert-info">
   <h5>No Monthly Menus Yet</h5>
@@ -86,6 +151,139 @@
 <!-- Delete confirmation form -->
 <form id="deleteForm" method="POST" style="display: none;"></form>
 
+<style>
+.mm-stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.mm-stat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.7rem 1.1rem;
+  box-shadow: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.07));
+  flex: 1 1 100px;
+}
+.mm-stat-filter {
+  flex: 3 1 320px;
+}
+.mm-stat-num {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #1e293b;
+}
+.mm-stat-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+.program-menu-item.mm-hidden {
+  display: none;
+}
+.mm-menu-table tr.mm-row-hidden {
+  display: none;
+}
+.mm-current-badge {
+  font-size: 0.65rem;
+  vertical-align: middle;
+}
+
+/* Program accordion */
+#programMenuAccordion .mm-accordion-item {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.07));
+  margin-bottom: 0.85rem;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+#programMenuAccordion .mm-accordion-item:hover {
+  box-shadow: var(--shadow, 0 2px 10px rgba(0,0,0,.08));
+}
+#programMenuAccordion .mm-accordion-header {
+  margin: 0;
+}
+#programMenuAccordion .mm-accordion-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+#programMenuAccordion .mm-accordion-button:hover {
+  background: #f8fafc;
+}
+#programMenuAccordion .mm-accordion-button:not(.collapsed) {
+  background: var(--accent-soft, rgba(20,184,166,0.08));
+}
+#programMenuAccordion .mm-accordion-button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent, #14b8a6);
+}
+#programMenuAccordion .mm-prog-info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+#programMenuAccordion .mm-prog-name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #1e293b;
+  white-space: nowrap;
+}
+#programMenuAccordion .mm-prog-client {
+  color: #64748b;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#programMenuAccordion .mm-prog-badges {
+  margin-left: auto;
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+#programMenuAccordion .mm-chevron {
+  flex: none;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-right: 2px solid #94a3b8;
+  border-bottom: 2px solid #94a3b8;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  margin-left: 0.25rem;
+}
+#programMenuAccordion .mm-accordion-button:not(.collapsed) .mm-chevron {
+  transform: rotate(-135deg);
+  border-color: var(--accent, #14b8a6);
+}
+#programMenuAccordion .mm-accordion-collapse {
+  transition: height 0.2s ease;
+}
+#programMenuAccordion .mm-accordion-body {
+  border-top: 1px solid #f1f5f9;
+}
+@media (max-width: 576px) {
+  #programMenuAccordion .mm-prog-badges {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+  #programMenuAccordion .mm-accordion-button {
+    flex-wrap: wrap;
+  }
+}
+</style>
+
 <script>
 function confirmDelete(menuId, menuName) {
   if (confirm(`Are you sure you want to delete "${menuName}"?\n\nThis will permanently delete all menu days and cannot be undone.`)) {
@@ -94,5 +292,77 @@ function confirmDelete(menuId, menuName) {
     form.submit();
   }
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+  const programItems = Array.from(document.querySelectorAll('.program-menu-item'));
+  const searchInput = document.getElementById('menuSearchInput');
+  const statusFilter = document.getElementById('menuStatusFilter');
+  const noResultsMessage = document.getElementById('noResultsMessage');
+
+  // Mark today's month/year on each menu row
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+  document.querySelectorAll('.menu-row').forEach(function (row) {
+    if (parseInt(row.dataset.year, 10) === currentYear && parseInt(row.dataset.month, 10) === currentMonth) {
+      const badge = row.querySelector('.mm-current-badge');
+      if (badge) badge.hidden = false;
+    }
+  });
+
+  function applyFilters() {
+    const query = (searchInput.value || '').trim().toLowerCase();
+    const status = statusFilter.value;
+    let anyVisible = false;
+
+    programItems.forEach(function (item) {
+      const nameMatch = !query || item.dataset.programName.includes(query);
+      const rows = Array.from(item.querySelectorAll('.menu-row'));
+      let rowsVisible = 0;
+
+      rows.forEach(function (row) {
+        const statusMatch = !status || row.dataset.status === status;
+        const visible = nameMatch && statusMatch;
+        row.classList.toggle('mm-row-hidden', !visible);
+        if (visible) rowsVisible++;
+      });
+
+      const showProgram = rowsVisible > 0;
+      item.classList.toggle('mm-hidden', !showProgram);
+      if (showProgram) anyVisible = true;
+
+      // auto-expand programs that match an active search/filter so results are visible
+      if (showProgram && (query || status)) {
+        const collapseEl = item.querySelector('.mm-accordion-collapse');
+        if (collapseEl && !collapseEl.classList.contains('show')) {
+          new bootstrap.Collapse(collapseEl, { show: true });
+        }
+      }
+    });
+
+    noResultsMessage.hidden = anyVisible;
+  }
+
+  searchInput.addEventListener('input', applyFilters);
+  statusFilter.addEventListener('change', applyFilters);
+
+  document.getElementById('expandAllBtn').addEventListener('click', function () {
+    programItems.forEach(function (item) {
+      const collapseEl = item.querySelector('.mm-accordion-collapse');
+      if (collapseEl && !collapseEl.classList.contains('show')) {
+        new bootstrap.Collapse(collapseEl, { show: true });
+      }
+    });
+  });
+
+  document.getElementById('collapseAllBtn').addEventListener('click', function () {
+    programItems.forEach(function (item) {
+      const collapseEl = item.querySelector('.mm-accordion-collapse');
+      if (collapseEl && collapseEl.classList.contains('show')) {
+        new bootstrap.Collapse(collapseEl, { hide: true });
+      }
+    });
+  });
+});
 </script>
 {% endblock %}
