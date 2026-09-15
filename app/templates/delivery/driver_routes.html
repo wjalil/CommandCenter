@@ -343,7 +343,7 @@
       <button type="button" class="btn btn-outline-secondary" onclick="launchMapsForRoute('{{ next_route.id }}')">🗺️ Navigate</button>
       {% endif %}
       <a href="/delivery/driver/route/{{ next_route.id }}" class="btn btn-primary">
-        {% if next_route.status == 'in_progress' %}Continue Route{% elif next_route_is_today %}Start Route{% else %}View Route{% endif %} &rarr;
+        {% if next_route.status == 'in_progress' %}Continue Route{% else %}View Route{% endif %} &rarr;
       </a>
     </div>
   </div>

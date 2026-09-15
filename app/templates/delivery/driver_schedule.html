@@ -1,0 +1,117 @@
+{% extends "worker_base.html" %}
+{% block title %}My Schedule{% endblock %}
+{% block nav_title %}🗓️ My Schedule{% endblock %}
+
+{% block extra_css %}
+  .sched-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.1rem;
+  }
+  .sched-month { font-size: 1.25rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em; }
+  .sched-nav { display: flex; gap: 0.4rem; }
+
+  .cal-dow-row, .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+  }
+  .cal-dow-row { margin-bottom: 5px; }
+  .cal-dow {
+    font-size: 0.63rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+
+  .cal-day {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    min-height: 74px;
+    padding: 5px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .cal-day.outside { background: transparent; border-color: transparent; }
+  .cal-day.outside .cal-daynum { color: var(--text-muted); opacity: 0.5; }
+  .cal-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .cal-daynum { font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); }
+  .cal-day.today .cal-daynum { color: var(--accent-hover); }
+
+  .cal-route-pill {
+    display: block;
+    padding: 1.5px 5px;
+    border-radius: 5px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.5;
+  }
+  .cal-route-pill.assigned    { background: rgba(20,184,166,0.14);  color: #0d9488; }
+  .cal-route-pill.draft       { background: rgba(20,184,166,0.14);  color: #0d9488; }
+  .cal-route-pill.in-progress { background: rgba(245,158,11,0.16);  color: #b45309; }
+  .cal-route-pill.completed   { background: rgba(16,185,129,0.14);  color: #059669; }
+  .cal-more-count { font-size: 0.58rem; font-weight: 700; color: var(--text-secondary); padding-left: 5px; }
+
+  .legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.1rem; font-size: 0.75rem; color: var(--text-secondary); }
+  .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.35rem; }
+
+  @media (max-width: 575.98px) {
+    .cal-day { min-height: 56px; padding: 3px; }
+    .cal-route-pill { font-size: 0.55rem; }
+  }
+{% endblock %}
+
+{% block content %}
+
+<a href="/delivery/driver/" class="btn btn-outline-secondary btn-sm mb-3">‹ My Routes</a>
+
+<div class="sched-header">
+  <div class="sched-month">{{ month_start.strftime('%B %Y') }}</div>
+  <div class="sched-nav">
+    <a href="?month={{ prev_month.strftime('%Y-%m') }}" class="btn btn-outline-secondary btn-sm">‹ Prev</a>
+    <a href="?month={{ today.strftime('%Y-%m') }}" class="btn btn-outline-secondary btn-sm">Today</a>
+    <a href="?month={{ next_month.strftime('%Y-%m') }}" class="btn btn-outline-secondary btn-sm">Next ›</a>
+  </div>
+</div>
+
+<div class="cal-dow-row">
+  {% for dow in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}
+  <div class="cal-dow">{{ dow }}</div>
+  {% endfor %}
+</div>
+
+<div class="cal-grid">
+  {% for week in weeks %}
+    {% for day in week %}
+    {% set day_routes = routes_by_day.get(day.isoformat(), []) %}
+    <div class="cal-day {% if day.month != month_start.month %}outside{% endif %} {% if day == today %}today{% endif %}">
+      <div class="cal-daynum">{{ day.day }}</div>
+      {% for r in day_routes[:2] %}
+      <a href="/delivery/driver/route/{{ r.id }}" class="cal-route-pill {{ r.status|replace('_','-') }}" title="{{ r.name }}">{{ r.name }}</a>
+      {% endfor %}
+      {% if day_routes|length > 2 %}
+      <div class="cal-more-count">+{{ day_routes|length - 2 }} more</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% endfor %}
+</div>
+
+<div class="legend">
+  <span><span class="legend-dot" style="background:#0d9488;"></span>Ready</span>
+  <span><span class="legend-dot" style="background:#b45309;"></span>In progress</span>
+  <span><span class="legend-dot" style="background:#059669;"></span>Completed</span>
+</div>
+
+{% endblock %}

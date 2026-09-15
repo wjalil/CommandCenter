@@ -173,12 +173,14 @@
           <button type="button" class="btn btn-outline-secondary btn-lg" onclick="launchHomeMaps()">🗺️ Navigate</button>
           {% endif %}
           <a href="/delivery/driver/route/{{ driver_next_route.id }}" class="btn btn-primary btn-lg">
-            {% if driver_next_route.status == 'in_progress' %}Continue Route{% elif driver_next_route_is_today %}Start Route{% else %}View Route{% endif %} &rarr;
+            {% if driver_next_route.status == 'in_progress' %}Continue Route{% else %}View Route{% endif %} &rarr;
           </a>
         </div>
       </div>
       {% if driver_active_count > 1 %}
-      <div class="clock-meta mt-2">+{{ driver_active_count - 1 }} more route{% if driver_active_count - 1 != 1 %}s{% endif %} coming up — <a href="/delivery/driver/">view all</a></div>
+      <a href="/delivery/driver/" class="btn btn-outline-secondary btn-sm mt-3">
+        View all {{ driver_active_count }} routes
+      </a>
       {% endif %}
     {% elif driver_done_today_count %}
       <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -266,15 +268,21 @@
   </div>
   {% endif %}
 
-  <!-- View Schedule — always shown -->
+  <!-- View Schedule — always shown; for drivers this is a calendar of
+       their assigned routes, not generic shifts. -->
   <div class="col-12 col-sm-6 col-lg-4">
-    <a href="/worker/shifts" class="text-decoration-none">
+    <a href="{% if is_driver %}/delivery/driver/schedule{% else %}/worker/shifts{% endif %}" class="text-decoration-none">
       <div class="card card-schedule h-100">
         <div class="card-body qa-body">
           <div class="qa-ico">🗓️</div>
           <div class="qa-text">
+            {% if is_driver %}
+            <h5 data-i18n="view_schedule">My Route Calendar</h5>
+            <p data-i18n="view_schedule_sub">See your upcoming routes by day</p>
+            {% else %}
             <h5 data-i18n="view_schedule">View Schedule</h5>
             <p data-i18n="view_schedule_sub">See all your assigned shifts</p>
+            {% endif %}
           </div>
         </div>
       </div>

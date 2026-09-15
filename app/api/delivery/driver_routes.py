@@ -12,6 +12,8 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from typing import Optional
 from datetime import date, datetime
+from collections import defaultdict
+import calendar
 import uuid
 import os
 
@@ -96,6 +98,67 @@ async def driver_routes_list(
         "next_route_label": next_route_label,
         "next_route_is_today": next_route_is_today,
         "route_maps_stops": route_maps_stops,
+    })
+
+
+@router.get("/schedule")
+async def driver_schedule(
+    request: Request,
+    month: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Calendar view of this driver's assigned routes, by month"""
+    tenant_id = request.state.tenant_id
+    today = date.today()
+
+    if month:
+        try:
+            year, mon = (int(p) for p in month.split("-"))
+            month_start = date(year, mon, 1)
+        except (ValueError, TypeError):
+            month_start = date(today.year, today.month, 1)
+    else:
+        month_start = date(today.year, today.month, 1)
+
+    if month_start.month == 12:
+        next_month = date(month_start.year + 1, 1, 1)
+    else:
+        next_month = date(month_start.year, month_start.month + 1, 1)
+    if month_start.month == 1:
+        prev_month = date(month_start.year - 1, 12, 1)
+    else:
+        prev_month = date(month_start.year, month_start.month - 1, 1)
+
+    result = await db.execute(
+        select(DeliveryRoute).where(
+            DeliveryRoute.tenant_id == tenant_id,
+            DeliveryRoute.assigned_driver_id == user.id,
+            DeliveryRoute.date >= month_start,
+            DeliveryRoute.date < next_month,
+        ).options(
+            selectinload(DeliveryRoute.route_stops)
+        ).order_by(DeliveryRoute.date)
+    )
+    routes = result.scalars().all()
+
+    routes_by_day = defaultdict(list)
+    for r in routes:
+        routes_by_day[r.date.isoformat()].append(r)
+
+    # Sunday-first month grid, padded with the trailing/leading days of
+    # neighboring months so every week row has 7 days.
+    cal = calendar.Calendar(firstweekday=6)
+    weeks = cal.monthdatescalendar(month_start.year, month_start.month)
+
+    return templates.TemplateResponse("delivery/driver_schedule.html", {
+        "request": request,
+        "month_start": month_start,
+        "prev_month": prev_month,
+        "next_month": next_month,
+        "weeks": weeks,
+        "routes_by_day": routes_by_day,
+        "today": today,
     })
 
 
