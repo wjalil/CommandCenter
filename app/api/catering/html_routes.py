@@ -42,6 +42,7 @@ from app.crud.catering import (
     food_component as food_component_crud,
     cacfp_rules
 )
+from app.api.catering.production_routes import _serving_programs_for_date
 from app.schemas.catering import (
     CateringProgramCreate,
     CateringMealItemCreate,
@@ -63,12 +64,30 @@ async def catering_dashboard(
 ):
     """Catering dashboard - main landing page"""
     tenant_id = request.state.tenant_id
+    today = date.today()
 
     # Get counts
-    program_count = len(await program_crud.get_programs(db, tenant_id, active_only=True))
+    programs = await program_crud.get_programs(db, tenant_id, active_only=True)
+    program_count = len(programs)
     meal_item_count = len(await meal_item_crud.get_meal_items(db, tenant_id))
-    menu_count = len(await menu_crud.get_monthly_menus(db, tenant_id))
-    invoice_count = len(await invoice_crud.get_invoices(db, tenant_id))
+    monthly_menus = await menu_crud.get_monthly_menus(db, tenant_id)
+    menu_count = len(monthly_menus)
+    invoices = await invoice_crud.get_invoices(db, tenant_id)
+    invoice_count = len(invoices)
+
+    # Today's production: how many active programs are actually serving today
+    # (same service-day + holiday filter the production sheet uses)
+    serving_today = await _serving_programs_for_date(db, tenant_id, today)
+
+    # Master calendar gap check: active programs with no menu for the current month yet
+    programs_with_menu_this_month = {
+        m.program_id for m in monthly_menus
+        if m.month == today.month and m.year == today.year and m.menu_type == "regular"
+    }
+    programs_missing_menu = len([p for p in programs if p.id not in programs_with_menu_this_month])
+
+    # Invoices still in draft (not yet finalized/sent)
+    draft_invoice_count = len([i for i in invoices if i.status == "draft"])
 
     return templates.TemplateResponse("catering/dashboard.html", {
         "request": request,
@@ -76,6 +95,10 @@ async def catering_dashboard(
         "meal_item_count": meal_item_count,
         "menu_count": menu_count,
         "invoice_count": invoice_count,
+        "today_label": f"{today.strftime('%A, %B')} {today.day}",
+        "serving_today_count": len(serving_today),
+        "programs_missing_menu": programs_missing_menu,
+        "draft_invoice_count": draft_invoice_count,
     })
 
 

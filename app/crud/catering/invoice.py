@@ -149,14 +149,33 @@ async def generate_invoice_from_menu_day(db: AsyncSession, menu_day_id: str, ten
     )
     existing_invoice = existing_result.scalar_one_or_none()
 
-    # Get per-meal counts (fall back to legacy total_children if not set)
-    breakfast_count = program.breakfast_count if program.breakfast_count is not None else program.total_children
-    breakfast_vegan = program.breakfast_vegan_count or 0
-    lunch_count = program.lunch_count if program.lunch_count is not None else program.total_children
-    lunch_vegan = program.lunch_vegan_count or 0
-    snack_count = program.snack_count if program.snack_count is not None else program.total_children
-    am_snack_count = program.am_snack_count if program.am_snack_count is not None else program.total_children
-    pm_snack_count = program.pm_snack_count if program.pm_snack_count is not None else program.total_children
+    # Get per-meal counts — a same-day headcount edited on the Production Sheet
+    # (CateringDailyCount) takes precedence over the program's standing count, which
+    # itself falls back to legacy total_children if not set. This is what makes the
+    # invoice reflect what the kitchen actually confirmed rather than the plan.
+    from . import daily_count as daily_count_crud
+    daily_overrides = await daily_count_crud.get_counts_for_program_date(db, program.id, menu_day.service_date)
+
+    def _count(slot: str, program_field: str) -> int:
+        override = daily_overrides.get(slot)
+        if override:
+            return override.count
+        value = getattr(program, program_field)
+        return value if value is not None else program.total_children
+
+    def _vegan(slot: str, program_field: str) -> int:
+        override = daily_overrides.get(slot)
+        if override:
+            return override.vegan_count
+        return getattr(program, program_field) or 0
+
+    breakfast_count = _count("breakfast", "breakfast_count")
+    breakfast_vegan = _vegan("breakfast", "breakfast_vegan_count")
+    lunch_count = _count("lunch", "lunch_count")
+    lunch_vegan = _vegan("lunch", "lunch_vegan_count")
+    snack_count = _count("snack", "snack_count")
+    am_snack_count = _count("am_snack", "am_snack_count")
+    pm_snack_count = _count("pm_snack", "pm_snack_count")
 
     # Check if using component-first mode
     has_components = menu_day.components and len(menu_day.components) > 0

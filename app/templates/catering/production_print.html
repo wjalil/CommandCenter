@@ -282,6 +282,30 @@
       {% endfor %}
       {% endif %}
 
+      {% if day.produce_components %}
+      <div class="slot-block">
+        <div class="slot-title" style="background: #16A34A;">🍎 Produce</div>
+        <table class="item-table">
+          {% for comp in day.produce_components %}
+          <tr>
+            <td>
+              <div class="item-name">{{ comp.name }}</div>
+              {% if comp.program_breakdown|length > 1 %}
+              <div class="item-breakdown">
+                {% for pb in comp.program_breakdown %}{{ pb.name }}: {{ pb.count }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+              </div>
+              {% endif %}
+            </td>
+            <td class="item-count-cell">
+              <span class="item-count-label">Make</span>
+              <span class="item-count">{{ comp.total_lb }} lb</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endif %}
+
       {% if day.vegan_total > 0 %}
       <div class="slot-block">
         <div class="slot-title vegan">Vegan Meals</div>
@@ -304,7 +328,7 @@
       </div>
       {% endif %}
 
-      {% if not day.prep_by_slot and day.vegan_total == 0 %}
+      {% if not day.prep_by_slot and not day.produce_components and day.vegan_total == 0 %}
       <div class="empty-col-note">No menu assigned for this day.</div>
       {% endif %}
     </div>
@@ -326,8 +350,8 @@
           <span class="style-badge individual">Individualized</span>
           {% endif %}
           <div>
-            {% for mb in pd.meal_breakdown %}
-            <span class="meal-pill" style="background: {{ mb.color }};">{% if mb.vegan %}{{ mb.label }}: {{ mb.regular }} Regular, {{ mb.vegan }} Vegan{% else %}{{ mb.count }} {{ mb.label }}{% endif %}</span>
+            {% for pkg in pd.packaging %}
+            <span class="meal-pill" style="background: {{ pkg.color }};">{% if pkg.vegan %}{{ pkg.label }}: {{ pkg.regular }} Regular, {{ pkg.vegan }} Vegan{% else %}{{ pkg.count }} {{ pkg.label }}{% endif %}</span>
             {% endfor %}
           </div>
           {% if pd.program.special_instructions %}

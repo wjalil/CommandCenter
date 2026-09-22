@@ -728,32 +728,53 @@
       {% endif %}
 
       {% if enabled_modules.get("catering_modules", True) %}
+
+      {% if enabled_modules.get("catering", True) %}
       <div class="card">
         <div class="card-header">
           <div class="card-icon orange"><i data-lucide="utensils"></i></div>
           <div class="card-header-text">
-            <div class="label">Catering Modules</div>
-            <div class="title">Delivery &amp; Invoicing</div>
+            <div class="label">Catering</div>
+            <div class="title">Programs &amp; Menus</div>
           </div>
         </div>
         <div class="card-body">
+          <p style="font-size: 0.79rem; color: var(--text-muted); margin-bottom: 0.75rem;">CACFP menu planning, production &amp; client billing.</p>
           <ul class="nav-link-list">
-            {% if enabled_modules.get("catering", True) %}
             <li>
-              <a href="/catering">
-                <i data-lucide="utensils"></i>CACFP Menu Builder
-                <span class="badge badge-new">New</span>
-              </a>
-              <div class="link-meta">Programs, menus, invoices</div>
+              <a href="/catering"><i data-lucide="layout-dashboard"></i>Catering Dashboard</a>
+              <div class="link-meta">Programs, menus, invoices &amp; more</div>
             </li>
-            {% endif %}
+            <li>
+              <a href="/catering/production">
+                <i data-lucide="clipboard-check"></i>Production Sheet
+                <span class="badge badge-daily">Daily</span>
+              </a>
+            </li>
+            <li>
+              <a href="/catering/portal-requests"><i data-lucide="inbox"></i>Client Requests</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if enabled_modules.get("delivery", True) or enabled_modules.get("driver_order", True) %}
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon blue"><i data-lucide="truck"></i></div>
+          <div class="card-header-text">
+            <div class="label">Delivery</div>
+            <div class="title">Routes &amp; Drivers</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <p style="font-size: 0.79rem; color: var(--text-muted); margin-bottom: 0.75rem;">Route planning, driver assignments &amp; delivery tracking. Related to Catering — see that card for client programs.</p>
+          <ul class="nav-link-list">
             {% if enabled_modules.get("delivery", True) %}
             <li>
-              <a href="/delivery/admin/">
-                <i data-lucide="truck"></i>Delivery Routes
-                <span class="badge badge-new">New</span>
-              </a>
-              <div class="link-meta">Manage routes, stops &amp; drivers</div>
+              <a href="/delivery/admin/"><i data-lucide="truck"></i>Delivery Dashboard</a>
+              <div class="link-meta">Routes, stops &amp; drivers</div>
             </li>
             {% endif %}
             {% if enabled_modules.get("driver_order", True) %}
@@ -765,47 +786,11 @@
               <div class="link-meta">Fridge photo + driver notes</div>
             </li>
             {% endif %}
-            {% if enabled_modules.get("taskboard", True) %}
-            <li>
-              <a href="/admin/taskboard">
-                <i data-lucide="clipboard-list"></i>Task Board
-                <span class="badge badge-admin">Admin</span>
-              </a>
-            </li>
-            {% endif %}
-            {% if enabled_modules.get("catering", True) %}
-            <li>
-              <a href="/catering/master-calendar">
-                <i data-lucide="calendar-range"></i>Master Calendar
-              </a>
-              <div class="link-meta">Every program's menu, searchable, one view</div>
-            </li>
-            <li>
-              <a href="/catering/weekly-ingredients/">
-                <i data-lucide="shopping-cart"></i>Catering Shopping List
-              </a>
-              <div class="link-meta">CACFP ingredient quantities, by program &amp; day</div>
-            </li>
-            <li>
-              <a href="/catering/invoices">
-                <i data-lucide="receipt"></i>Invoices
-              </a>
-              <div class="link-meta">Generate &amp; view catering invoices</div>
-            </li>
-            <li>
-              <a href="/catering/production">
-                <i data-lucide="clipboard-check"></i>Production Sheet
-                <span class="badge badge-daily">Daily</span>
-              </a>
-              <div class="link-meta">Kitchen prep &amp; supply checks</div>
-            </li>
-            {% endif %}
           </ul>
         </div>
-        <div class="card-footer" style="font-size: 0.72rem; color: var(--text-muted);">
-          Modules auto-assigned to relevant shifts.
-        </div>
       </div>
+      {% endif %}
+
       {% endif %}
 
       {% if enabled_modules.get("auto_shop") %}

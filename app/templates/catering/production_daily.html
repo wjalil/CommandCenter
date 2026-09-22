@@ -29,25 +29,45 @@
   </div>
 </div>
 
-<!-- Day Chips -->
-<div class="prod-week-row mb-4" id="weekRow">
-  {% for d in week_dates %}
-  {% set d_iso = d.isoformat() %}
-  {% set is_sel = d_iso in selected_iso %}
-  <button class="prod-day-chip {% if is_sel %}active{% endif %}"
-          data-date="{{ d_iso }}"
-          onclick="toggleDay('{{ d_iso }}')">
-    <span class="prod-day-name">{{ d.strftime('%a') }}</span>
-    <span class="prod-day-num">{{ d.day }}</span>
+<!-- Day Chips + Batch Prep Mode -->
+<div class="prod-day-row mb-4">
+  <div class="prod-week-row" id="weekRow">
+    {% for d in week_dates %}
+    {% set d_iso = d.isoformat() %}
+    {% set is_sel = d_iso in selected_iso %}
+    <button class="prod-day-chip {% if is_sel %}active{% endif %}"
+            data-date="{{ d_iso }}"
+            onclick="toggleDay('{{ d_iso }}')">
+      <span class="prod-day-name">{{ d.strftime('%a') }}</span>
+      <span class="prod-day-num">{{ d.day }}</span>
+    </button>
+    {% endfor %}
+  </div>
+  <button type="button" id="batchModeToggle" class="prod-batch-toggle {% if is_batch_mode %}active{% endif %}"
+          title="Combine prep quantities across several days — for batch-cooking ahead" onclick="toggleBatchMode()">
+    <span class="prod-batch-dot"></span> Batch Prep Mode
   </button>
-  {% endfor %}
 </div>
+
+{% if request.query_params.get('message') %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  {{ request.query_params.get('message') }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
 
 {% if user.role != 'worker' %}
 <div class="prod-manifest-banner mb-3">
   <span>📋 Driver manifests: <strong>{{ manifests_released_count }}/{{ manifests_total_routes }}</strong> routes released for {{ primary_date.strftime('%b') }} {{ primary_date.day }}</span>
   <a href="/catering/production/manifest/builder?date_str={{ primary_date.isoformat() }}">Build Manifests &rarr;</a>
 </div>
+{% if serving_programs %}
+{% set primary_label = primary_date.strftime('%b') ~ ' ' ~ primary_date.day %}
+<form method="post" action="/catering/production/generate-invoices" class="mb-3" onsubmit="return confirm('Generate/update invoices for every program serving {{ primary_label }}, using each program\'s current (possibly edited) headcount?');">
+  <input type="hidden" name="date_str" value="{{ primary_date.isoformat() }}">
+  <button type="submit" class="btn btn-outline-success btn-sm">🧾 Generate Invoices for {{ primary_date.strftime('%b') }} {{ primary_date.day }}</button>
+</form>
+{% endif %}
 {% endif %}
 
 {% if not serving_programs %}
@@ -59,158 +79,236 @@
 {% else %}
 
 <!-- Programs serving on primary date -->
-<div class="prod-chips mb-4">
+<div class="prod-chips mb-3">
   <span class="prod-chips-label">Serving {{ primary_date.strftime('%a') }} {{ primary_date.day }}</span>
   {% for p in serving_programs %}
   <span class="prod-chip">{{ p.name }}</span>
   {% endfor %}
 </div>
 
-<div class="row g-4">
+<!-- ==================== MODE SWITCH ==================== -->
+{% set produce_count = produce_components | length %}
+{% set prep_total_items = (prep_components | length) + produce_count %}
+<div class="prod-mode-switch mb-4">
+  <button type="button" class="prod-mode-btn active" data-mode="prep" onclick="setMode('prep')">
+    <span class="prod-mode-icon">🍳</span>
+    <span class="prod-mode-text">
+      <span class="prod-mode-label">Daily Kitchen Prep</span>
+      <span class="prod-mode-sub">{{ prep_total_items }} item{{ 's' if prep_total_items != 1 }} to prep</span>
+    </span>
+  </button>
+  <button type="button" class="prod-mode-btn" data-mode="packaging" onclick="setMode('packaging')">
+    <span class="prod-mode-icon">📦</span>
+    <span class="prod-mode-text">
+      <span class="prod-mode-label">Packaging</span>
+      <span class="prod-mode-sub">{{ manifests_released_count }}/{{ manifests_total_routes }} routes released</span>
+    </span>
+  </button>
+</div>
 
-  <!-- ==================== KITCHEN PREP ==================== -->
-  <div class="col-12 col-lg-6">
-    <div class="prod-card h-100">
-      <div class="prod-card-header">
-        <div class="prod-card-title">
-          <span class="prod-card-icon">🍳</span>
-          Kitchen Prep
-        </div>
-        {% set total_items = prep_components | length %}
-        {% set num_sel = selected_dates | length %}
-        <div class="d-flex align-items-center gap-2">
-          <span class="prod-count-badge">{{ total_items }} item{{ 's' if total_items != 1 }}{% if num_sel > 1 %} · {{ num_sel }} days{% endif %}</span>
-          <div class="prod-unit-toggle" id="unitToggle">
-            <button type="button" class="prod-unit-btn active" data-unit="oz" onclick="setWeightUnit('oz')">oz</button>
-            <button type="button" class="prod-unit-btn" data-unit="lb" onclick="setWeightUnit('lb')">lb</button>
-          </div>
-        </div>
+<!-- ==================== KITCHEN PREP PANEL ==================== -->
+<div id="prepPanel" class="prod-mode-panel">
+  <div class="prod-card">
+    <div class="prod-card-header">
+      <div class="prod-card-title">
+        <span class="prod-card-icon">🍳</span>
+        Kitchen Prep
       </div>
-      <div class="prod-card-body p-0">
-        {% if prep_by_slot %}
-        {% set slot_icons = {
-          "breakfast": "🥞",
-          "lunch": "🥪",
-          "snack": "🍎",
-          "am_snack": "☀️",
-          "pm_snack": "🌙",
-          "other": "🍽️"
-        } %}
-        {% set ns = namespace(item_index=0) %}
-        {% for group in prep_by_slot %}
-        <div class="prod-slot-section" style="--slot-color: {{ group.color }};">
-          <div class="prod-slot-group-header">
-            <span>{{ slot_icons.get(group.slot, '🍽️') }} {{ group.slot_label }}</span>
-            <span class="prod-slot-count">{{ group['items'] | length }}</span>
-          </div>
-          <ul class="prod-prep-list">
-            {% for comp in group['items'] %}
-            {% set ns.item_index = ns.item_index + 1 %}
-            {% set key = 'prep||' + comp.name %}
-            <li class="prod-prep-item prep-item"
-                data-key="{{ key }}"
-                data-check-type="prep"
-                data-reference-key="{{ comp.name }}">
-              <div class="prod-prep-row">
-                <label class="prod-prep-label" for="prep-{{ ns.item_index }}">
-                  <input class="prod-check-input prod-check"
-                         type="checkbox"
-                         id="prep-{{ ns.item_index }}"
-                         data-check-type="prep"
-                         data-reference-key="{{ comp.name }}">
-                  <span class="prod-check-box"></span>
-                  <span class="prod-prep-content">
-                    <span class="comp-name prod-prep-name">{{ comp.name }}</span>
-                    <span class="prod-prep-meta">
-                      <span class="prod-measure" data-oz="{{ comp.total_oz }}" data-lb="{{ comp.total_lb }}">{{ comp.total_oz }} oz</span>
-                      <span class="prod-measure-sep">·</span>
-                      <button class="prod-breakdown-btn" type="button"
-                              onclick="toggleBreakdown(this)" aria-expanded="false">
-                        {{ comp.total_count }} servings
-                        <span class="prod-breakdown-caret">▾</span>
-                      </button>
-                      {% for badge in comp.slot_badges %}<span class="prod-slot-badge" style="background:{{ badge.color }};">{{ badge.label }}</span>{% endfor %}
-                    </span>
-                  </span>
-                </label>
-                <small class="check-time prod-check-time"></small>
-              </div>
-              {% if comp.program_breakdown | length > 0 %}
-              <div class="prod-breakdown-panel" hidden>
-                {% for pb in comp.program_breakdown %}
-                <div class="prod-breakdown-row">
-                  <span class="prod-bd-name">{{ pb.name }}</span>
-                  <span class="prod-bd-count">{{ pb.count }} svgs</span>
-                  <span class="prod-bd-oz" data-oz="{{ pb.oz }}" data-lb="{{ pb.lb }}">{{ pb.oz }} oz</span>
-                </div>
-                {% endfor %}
-              </div>
-              {% endif %}
-            </li>
-            {% endfor %}
-          </ul>
+      {% set num_sel = selected_dates | length %}
+      <div class="d-flex align-items-center gap-2">
+        <span class="prod-count-badge">{{ prep_components | length }} item{{ 's' if (prep_components|length) != 1 }}{% if num_sel > 1 %} · {{ num_sel }} days combined{% endif %}</span>
+        <div class="prod-unit-toggle" id="unitToggle">
+          <button type="button" class="prod-unit-btn active" data-unit="oz" onclick="setWeightUnit('oz')">oz</button>
+          <button type="button" class="prod-unit-btn" data-unit="lb" onclick="setWeightUnit('lb')">lb</button>
         </div>
-        {% endfor %}
-        {% else %}
-        <div class="prod-empty-inline">
-          No menu assigned. Assign meals in the calendar to see prep items.
-        </div>
-        {% endif %}
-        {% if vegan_total > 0 %}
-        <div class="prod-slot-section">
-          <div class="prod-slot-group-header">
-            <span>🌱 Vegan</span>
-            <span class="prod-slot-count">{{ vegan_total }}</span>
-          </div>
-          <ul class="prod-prep-list">
-            <li class="prod-prep-item prep-item">
-              <div class="prod-prep-row">
-                <span class="prod-prep-content">
-                  <span class="comp-name prod-prep-name">Vegan meals</span>
-                  <span class="prod-prep-meta">
-                    <button class="prod-breakdown-btn" type="button"
-                            onclick="toggleBreakdown(this)" aria-expanded="false">
-                      {{ vegan_total }} total
-                      <span class="prod-breakdown-caret">▾</span>
-                    </button>
-                  </span>
-                </span>
-              </div>
-              <div class="prod-breakdown-panel" hidden>
-                {% for vb in vegan_breakdown %}
-                <div class="prod-breakdown-row">
-                  <span class="prod-bd-name">{{ vb.name }}</span>
-                  <span class="prod-bd-count">{{ vb.count }} vegan</span>
-                </div>
-                {% endfor %}
-              </div>
-            </li>
-          </ul>
-        </div>
-        {% endif %}
       </div>
     </div>
-  </div>
-
-  <!-- ==================== PROGRAM DELIVERIES ==================== -->
-  <div class="col-12 col-lg-6">
-    <div class="d-flex flex-column gap-3">
-      {% for group in route_groups %}
-      <div class="prod-route-group">
-        <div class="prod-route-header" style="--route-color: {{ group.color }};">
-          <span class="prod-route-badge" style="background: {{ group.color }};">{{ group.route_code }}</span>
+    <div class="prod-card-body p-0">
+      {% if prep_by_slot %}
+      {% set slot_icons = {
+        "breakfast": "🥞",
+        "lunch": "🥪",
+        "snack": "🍎",
+        "am_snack": "☀️",
+        "pm_snack": "🌙",
+        "other": "🍽️"
+      } %}
+      {% set ns = namespace(item_index=0) %}
+      {% for group in prep_by_slot %}
+      <div class="prod-slot-section" style="--slot-color: {{ group.color }};">
+        <div class="prod-slot-group-header">
+          <span>{{ slot_icons.get(group.slot, '🍽️') }} {{ group.slot_label }}</span>
+          <span class="prod-slot-count">{{ group['items'] | length }}</span>
         </div>
-        <div class="d-flex flex-column gap-3 mt-2">
-        {% for pd in group.programs %}
-      <div class="prod-card" style="border-left: 4px solid {{ group.color }};">
+        <ul class="prod-prep-list">
+          {% for comp in group['items'] %}
+          {% set ns.item_index = ns.item_index + 1 %}
+          {% set key = 'prep||' + comp.name %}
+          <li class="prod-prep-item prep-item"
+              data-key="{{ key }}"
+              data-check-type="prep"
+              data-reference-key="{{ comp.name }}">
+            <div class="prod-prep-row">
+              <label class="prod-prep-label" for="prep-{{ ns.item_index }}">
+                <input class="prod-check-input prod-check"
+                       type="checkbox"
+                       id="prep-{{ ns.item_index }}"
+                       data-check-type="prep"
+                       data-reference-key="{{ comp.name }}">
+                <span class="prod-check-box"></span>
+                <span class="prod-prep-content">
+                  <span class="comp-name prod-prep-name">{{ comp.name }}</span>
+                  <span class="prod-prep-meta">
+                    <span class="prod-measure" data-oz="{{ comp.total_oz }}" data-lb="{{ comp.total_lb }}">{{ comp.total_oz }} oz</span>
+                    <span class="prod-measure-sep">·</span>
+                    <button class="prod-breakdown-btn" type="button"
+                            onclick="toggleBreakdown(this)" aria-expanded="false">
+                      {{ comp.total_count }} servings
+                      <span class="prod-breakdown-caret">▾</span>
+                    </button>
+                    {% for badge in comp.slot_badges %}<span class="prod-slot-badge" style="background:{{ badge.color }};">{{ badge.label }}</span>{% endfor %}
+                  </span>
+                </span>
+              </label>
+              <small class="check-time prod-check-time"></small>
+            </div>
+            {% if comp.program_breakdown | length > 0 %}
+            <div class="prod-breakdown-panel" hidden>
+              {% for pb in comp.program_breakdown %}
+              <div class="prod-breakdown-row">
+                <span class="prod-bd-name">{{ pb.name }}</span>
+                <span class="prod-bd-count">{{ pb.count }} svgs</span>
+                <span class="prod-bd-oz" data-oz="{{ pb.oz }}" data-lb="{{ pb.lb }}">{{ pb.oz }} oz</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="prod-empty-inline">
+        No menu assigned. Assign meals in the calendar to see prep items.
+      </div>
+      {% endif %}
+
+      {% if produce_components %}
+      <div class="prod-slot-section prod-produce-section" style="--slot-color: #16A34A;">
+        <div class="prod-slot-group-header">
+          <span>🍎 Produce</span>
+          <span class="prod-slot-count">{{ produce_components | length }}</span>
+        </div>
+        <ul class="prod-prep-list">
+          {% for comp in produce_components %}
+          {% set ns.item_index = ns.item_index + 1 %}
+          {% set key = 'prep||' + comp.name %}
+          <li class="prod-prep-item prep-item"
+              data-key="{{ key }}"
+              data-check-type="prep"
+              data-reference-key="{{ comp.name }}">
+            <div class="prod-prep-row">
+              <label class="prod-prep-label" for="prep-{{ ns.item_index }}">
+                <input class="prod-check-input prod-check"
+                       type="checkbox"
+                       id="prep-{{ ns.item_index }}"
+                       data-check-type="prep"
+                       data-reference-key="{{ comp.name }}">
+                <span class="prod-check-box"></span>
+                <span class="prod-prep-content">
+                  <span class="comp-name prod-prep-name">{{ comp.name }}</span>
+                  <span class="prod-prep-meta">
+                    <span class="prod-measure" data-oz="{{ comp.total_oz }}" data-lb="{{ comp.total_lb }}">{{ comp.total_oz }} oz</span>
+                    <span class="prod-measure-sep">·</span>
+                    <button class="prod-breakdown-btn" type="button"
+                            onclick="toggleBreakdown(this)" aria-expanded="false">
+                      {{ comp.total_count }} servings
+                      <span class="prod-breakdown-caret">▾</span>
+                    </button>
+                    {% for badge in comp.slot_badges %}<span class="prod-slot-badge" style="background:{{ badge.color }};">{{ badge.label }}</span>{% endfor %}
+                  </span>
+                </span>
+              </label>
+              <small class="check-time prod-check-time"></small>
+            </div>
+            {% if comp.program_breakdown | length > 0 %}
+            <div class="prod-breakdown-panel" hidden>
+              {% for pb in comp.program_breakdown %}
+              <div class="prod-breakdown-row">
+                <span class="prod-bd-name">{{ pb.name }}</span>
+                <span class="prod-bd-count">{{ pb.count }} svgs</span>
+                <span class="prod-bd-oz" data-oz="{{ pb.oz }}" data-lb="{{ pb.lb }}">{{ pb.oz }} oz</span>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {% if vegan_total > 0 %}
+      <div class="prod-slot-section">
+        <div class="prod-slot-group-header">
+          <span>🌱 Vegan</span>
+          <span class="prod-slot-count">{{ vegan_total }}</span>
+        </div>
+        <ul class="prod-prep-list">
+          <li class="prod-prep-item prep-item">
+            <div class="prod-prep-row">
+              <span class="prod-prep-content">
+                <span class="comp-name prod-prep-name">Vegan meals</span>
+                <span class="prod-prep-meta">
+                  <button class="prod-breakdown-btn" type="button"
+                          onclick="toggleBreakdown(this)" aria-expanded="false">
+                    {{ vegan_total }} total
+                    <span class="prod-breakdown-caret">▾</span>
+                  </button>
+                </span>
+              </span>
+            </div>
+            <div class="prod-breakdown-panel" hidden>
+              {% for vb in vegan_breakdown %}
+              <div class="prod-breakdown-row">
+                <span class="prod-bd-name">{{ vb.name }}</span>
+                <span class="prod-bd-count">{{ vb.count }} vegan</span>
+              </div>
+              {% endfor %}
+            </div>
+          </li>
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PACKAGING PANEL ==================== -->
+<div id="packagingPanel" class="prod-mode-panel" hidden>
+  <div class="pkg-style-filter mb-3" id="pkgStyleFilter">
+    <button type="button" class="pkg-filter-btn active" data-style-filter="all" onclick="setStyleFilter('all')">All</button>
+    <button type="button" class="pkg-filter-btn" data-style-filter="family_style" onclick="setStyleFilter('family_style')">🍽️ Family Style</button>
+    <button type="button" class="pkg-filter-btn" data-style-filter="individual" onclick="setStyleFilter('individual')">🍱 Individualized</button>
+  </div>
+  <div class="d-flex flex-column gap-3">
+    {% for group in route_groups %}
+    <div class="prod-route-group" data-route-group>
+      <div class="prod-route-header" style="--route-color: {{ group.color }};">
+        <span class="prod-route-badge" style="background: {{ group.color }};">{{ group.route_code }}</span>
+      </div>
+      <div class="d-flex flex-column gap-3 mt-2">
+      {% for pd in group.programs %}
+      <div class="prod-card" style="border-left: 4px solid {{ group.color }};" data-service-style="{{ pd.program.meal_service_style or 'unspecified' }}">
         <div class="prod-card-header">
           <div class="prod-card-title">
-            <span class="prod-card-icon">🚚</span>
+            <span class="prod-card-icon">📦</span>
             {{ pd.program.name }}
             {% if pd.program.meal_service_style == 'family_style' %}
-            <span class="prod-style-badge family">Family Style</span>
+            <span class="prod-style-badge family">🍽️ Family Style</span>
             {% elif pd.program.meal_service_style == 'individual' %}
-            <span class="prod-style-badge individual">Individualized</span>
+            <span class="prod-style-badge individual">🍱 Individualized</span>
             {% endif %}
             {% if not pd.has_menu %}
             <span class="prod-warn-badge">No menu</span>
@@ -227,25 +325,47 @@
             </a>
           </div>
           {% endif %}
-          {% if pd.meal_breakdown %}
-          <div class="prod-meal-pills mb-2">
-            {% for mb in pd.meal_breakdown %}
-            <span class="prod-meal-pill prod-meal-pill-check {% if mb.checked %}is-checked{% endif %}"
-                  style="background: {{ mb.color }};"
-                  data-check-type="{{ mb.slot }}"
-                  data-program-id="{{ pd.program.id }}"
-                  title="Check off to add {{ mb.label }} to the driver manifest"
-                  onclick="toggleMealPill(this)">
-              <span class="prod-meal-pill-check-icon">{% if mb.checked %}✓{% endif %}</span>
-              {% if mb.vegan %}{{ mb.label }}: {{ mb.regular }} Regular, {{ mb.vegan }} Vegan{% else %}{{ mb.count }} {{ mb.label }}{% endif %}
-            </span>
-            {% endfor %}
-          </div>
-          {% endif %}
           {% if pd.program.special_instructions %}
           <div class="prod-special-note mb-2">📝 {{ pd.program.special_instructions }}</div>
           {% endif %}
-          <div class="prod-supply-grid">
+
+          {% for pkg in pd.packaging %}
+          <div class="pkg-slot" style="--slot-color: {{ pkg.color }};">
+            <div class="pkg-slot-header">
+              <span class="pkg-slot-badge" style="background: {{ pkg.color }};">{{ pkg.label }}</span>
+              <span class="count-edit-chip" data-program-id="{{ pd.program.id }}" data-slot="{{ pkg.slot }}"
+                    data-count="{{ pkg.count }}" data-vegan="{{ pkg.vegan }}">
+                <span class="count-edit-display">{% if pkg.vegan %}{{ pkg.regular }} Reg · {{ pkg.vegan }} Vegan{% else %}{{ pkg.count }}{% endif %}</span>
+                {% if pkg.is_override %}<span class="prod-count-edited-dot" title="Today's count was edited">●</span>{% endif %}
+                {% if user.role != 'worker' %}
+                <button type="button" class="prod-count-edit-btn" title="Edit today's count" onclick="startEditCount(event, this)">&#9998;</button>
+                {% endif %}
+              </span>
+              <span class="pkg-progress {% if pkg.all_checked %}all-done{% endif %}">{{ pkg.checked_count }}/{{ pkg.total_components }} packed</span>
+            </div>
+            {% if pkg.pack_note %}
+            <div class="pkg-note">📦 {{ pkg.pack_note }}</div>
+            {% endif %}
+            <ul class="pkg-component-list">
+              {% for comp in pkg.components %}
+              <li class="pkg-component-item {% if comp.checked %}is-done{% endif %}">
+                <label class="pkg-component-label">
+                  <input type="checkbox" class="pkg-check-input"
+                         {% if comp.checked %}checked{% endif %}
+                         data-program-id="{{ pd.program.id }}"
+                         data-slot="{{ pkg.slot }}"
+                         data-component="{{ comp.name }}"
+                         onchange="togglePackagingComponent(this)">
+                  <span class="pkg-check-box"></span>
+                  <span class="pkg-component-name">{{ comp.name }}</span>
+                </label>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endfor %}
+
+          <div class="prod-supply-grid mt-2">
             {% for supply in supply_types %}
             {% set sc = pd.supply_checks[supply] %}
             {% set supply_key = supply + '|' + pd.program.id + '|' %}
@@ -310,14 +430,13 @@
           </div>
         </div>
       </div>
-        {% endfor %}
-        </div>
-      </div>
       {% endfor %}
+      </div>
     </div>
+    {% endfor %}
   </div>
-
 </div>
+
 {% endif %}
 
 <!-- Produce Selection Modal -->
@@ -430,11 +549,18 @@
 .prod-empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
 .prod-empty-text { color: var(--text-secondary, #64748b); font-size: 0.95rem; }
 
-/* ── Week day chips ──────────────────────────── */
+/* ── Day chips + batch mode ───────────────────── */
+.prod-day-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
 .prod-week-row {
   display: flex;
   gap: 0.4rem;
   flex-wrap: wrap;
+  flex: 1;
 }
 .prod-day-chip {
   flex: 1;
@@ -474,6 +600,75 @@
   font-size: 1rem;
   font-weight: 700;
   line-height: 1;
+}
+.prod-batch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  border: 1.5px solid rgba(148,163,184,0.3);
+  background: var(--surface, #fff);
+  color: var(--text-secondary, #64748b);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s;
+}
+.prod-batch-toggle:hover { border-color: rgba(124,58,237,0.4); }
+.prod-batch-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: rgba(148,163,184,0.4);
+  transition: all 0.18s;
+}
+.prod-batch-toggle.active {
+  background: rgba(124,58,237,0.1);
+  border-color: rgba(124,58,237,0.4);
+  color: #7c3aed;
+}
+.prod-batch-toggle.active .prod-batch-dot {
+  background: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.2);
+}
+
+/* ── Mode switch ──────────────────────────────── */
+.prod-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.prod-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-radius: 14px;
+  border: 2px solid rgba(148,163,184,0.25);
+  background: var(--surface, #fff);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.prod-mode-btn:hover { border-color: rgba(20,184,166,0.4); transform: translateY(-1px); }
+.prod-mode-icon { font-size: 1.8rem; line-height: 1; }
+.prod-mode-text { display: flex; flex-direction: column; gap: 0.15rem; }
+.prod-mode-label { font-size: 1rem; font-weight: 800; color: var(--text-primary, #1e293b); letter-spacing: -0.01em; }
+.prod-mode-sub { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary, #64748b); }
+.prod-mode-btn.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent, #14b8a6), var(--accent-hover, #0d9488));
+  box-shadow: 0 6px 18px rgba(20,184,166,0.3);
+}
+.prod-mode-btn.active .prod-mode-label,
+.prod-mode-btn.active .prod-mode-sub { color: #fff; }
+.prod-mode-panel[hidden] { display: none; }
+
+@media (max-width: 560px) {
+  .prod-mode-switch { grid-template-columns: 1fr; }
 }
 
 /* ── Slot group headers ──────────────────────── */
@@ -610,39 +805,94 @@
 .prod-style-badge.family { background: #FEF3C7; color: #92400E; }
 .prod-style-badge.individual { background: #DBEAFE; color: #1E40AF; }
 
-/* ── Meal count pills ────────────────────────── */
-.prod-meal-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.prod-meal-pill {
-  display: inline-block;
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.15rem 0.55rem;
+/* ── Packaging: family style / individualized filter ─────── */
+.pkg-style-filter {
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.3rem;
   border-radius: 999px;
+  background: rgba(148,163,184,0.1);
+  border: 1px solid rgba(148,163,184,0.2);
 }
-.prod-meal-pill-check {
+.pkg-filter-btn {
+  border: none;
+  background: transparent;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.pkg-filter-btn:hover { color: var(--text-primary, #1e293b); }
+.pkg-filter-btn.active {
+  background: var(--surface, #fff);
+  color: var(--text-primary, #1e293b);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+@media (max-width: 480px) {
+  .pkg-style-filter { display: flex; overflow-x: auto; }
+}
+
+/* ── Count-edit chip (shared by Packaging slot headers) ──── */
+.count-edit-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  cursor: pointer;
-  opacity: 0.55;
-  border: 1.5px solid transparent;
-  transition: all 0.12s;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
 }
-.prod-meal-pill-check:hover { opacity: 0.8; }
-.prod-meal-pill-check.is-checked { opacity: 1; border-color: rgba(255,255,255,0.7); box-shadow: 0 0 0 1px rgba(0,0,0,0.08); }
-.prod-meal-pill-check-icon {
+.count-edit-display { white-space: nowrap; }
+.prod-count-edited-dot {
+  font-size: 0.5rem;
+  line-height: 1;
+  color: #d97706;
+}
+.prod-count-edit-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 0.9rem;
-  height: 0.9rem;
+  border: none;
+  background: rgba(148,163,184,0.15);
+  color: var(--text-secondary, #64748b);
   border-radius: 4px;
-  border: 1.5px solid rgba(255,255,255,0.8);
+  width: 1.15rem;
+  height: 1.15rem;
   font-size: 0.65rem;
   line-height: 1;
+  padding: 0;
+  cursor: pointer;
   flex-shrink: 0;
 }
+.prod-count-edit-btn:hover { background: rgba(20,184,166,0.15); color: var(--accent, #14b8a6); }
+.prod-count-edit-input {
+  width: 3.1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  border: 1px solid rgba(148,163,184,0.4);
+  padding: 0.05rem 0.3rem;
+  color: #1e293b;
+}
+.prod-count-edit-save, .prod-count-edit-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  margin-left: 0.1rem;
+}
+.prod-count-edit-save { background: rgba(16,185,129,0.15); color: #16a34a; }
+.prod-count-edit-cancel { background: rgba(148,163,184,0.15); color: var(--text-secondary, #64748b); }
 .prod-special-note {
   font-size: 0.78rem;
   font-style: italic;
@@ -825,6 +1075,93 @@
   color: var(--text-secondary, #94a3b8);
 }
 
+/* ── Packaging: per-slot itemized build-out ──────────────── */
+.pkg-slot {
+  border: 1px solid rgba(148,163,184,0.2);
+  border-left: 4px solid var(--slot-color, #94a3b8);
+  border-radius: 10px;
+  margin-bottom: 0.7rem;
+  overflow: hidden;
+}
+.pkg-slot-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.75rem;
+  background: rgba(248,250,252,0.7);
+}
+.pkg-slot-badge {
+  display: inline-block;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+}
+.pkg-progress {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(148,163,184,0.15);
+  color: var(--text-secondary, #64748b);
+}
+.pkg-progress.all-done {
+  background: rgba(16,185,129,0.15);
+  color: #059669;
+}
+.pkg-note {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #92400e;
+  background: rgba(245,158,11,0.08);
+  padding: 0.35rem 0.75rem;
+  border-top: 1px solid rgba(245,158,11,0.15);
+  border-bottom: 1px solid rgba(245,158,11,0.15);
+}
+.pkg-component-list { list-style: none; margin: 0; padding: 0.25rem 0; }
+.pkg-component-item { padding: 0 0.5rem; }
+.pkg-component-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.25rem;
+  cursor: pointer;
+  margin: 0;
+}
+.pkg-check-input { display: none; }
+.pkg-check-box {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 5px;
+  border: 2px solid rgba(148,163,184,0.4);
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.15s;
+}
+.pkg-check-box::after {
+  content: '';
+  position: absolute;
+  left: 0.28rem;
+  top: 0.08rem;
+  width: 0.32rem;
+  height: 0.16rem;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) scale(0);
+  transition: transform 0.12s;
+}
+.pkg-check-input:checked + .pkg-check-box {
+  background: linear-gradient(135deg, var(--accent-emerald, #10b981), var(--accent, #14b8a6));
+  border-color: transparent;
+}
+.pkg-check-input:checked + .pkg-check-box::after { transform: rotate(-45deg) scale(1); }
+.pkg-component-name { font-size: 0.83rem; font-weight: 600; color: var(--text-primary, #1e293b); }
+.pkg-component-item.is-done .pkg-component-name { color: var(--text-secondary, #94a3b8); text-decoration: line-through; }
+
 /* ── Supply grid ─────────────────────────────── */
 .prod-supply-grid {
   display: grid;
@@ -916,6 +1253,74 @@ document.body.appendChild(document.getElementById('produceModal'));
 const SERVICE_DATE = "{{ primary_date.isoformat() }}";
 const ANCHOR_DATE = "{{ anchor_date.isoformat() }}";
 const SELECTED_DATES = new Set({{ selected_iso | tojson }});
+let batchMode = {{ 'true' if is_batch_mode else 'false' }};
+
+const TOGGLE_URL = "/catering/production/toggle";
+const PRODUCE_SAVE_URL = "/catering/production/produce-save";
+const COUNT_SAVE_URL = "/catering/production/count-save";
+
+/* ── Mode switch (Kitchen Prep <-> Packaging) ────────────── */
+function setMode(mode) {
+  document.querySelectorAll('.prod-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.getElementById('prepPanel').hidden = mode !== 'prep';
+  document.getElementById('packagingPanel').hidden = mode !== 'packaging';
+  try { localStorage.setItem('prod_mode', mode); } catch (e) {}
+}
+(function restoreMode() {
+  let saved = 'prep';
+  try { saved = localStorage.getItem('prod_mode') || 'prep'; } catch (e) {}
+  setMode(saved);
+})();
+
+/* ── Packaging: family style / individualized filter ─────── */
+function setStyleFilter(styleFilter) {
+  document.querySelectorAll('.pkg-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.styleFilter === styleFilter));
+
+  document.querySelectorAll('#packagingPanel .prod-card[data-service-style]').forEach(card => {
+    const matches = styleFilter === 'all' || card.dataset.serviceStyle === styleFilter;
+    card.hidden = !matches;
+  });
+
+  document.querySelectorAll('#packagingPanel [data-route-group]').forEach(group => {
+    const anyVisible = Array.from(group.querySelectorAll('.prod-card[data-service-style]')).some(card => !card.hidden);
+    group.hidden = !anyVisible;
+  });
+
+  try { localStorage.setItem('prod_pkg_style_filter', styleFilter); } catch (e) {}
+}
+(function restoreStyleFilter() {
+  let saved = 'all';
+  try { saved = localStorage.getItem('prod_pkg_style_filter') || 'all'; } catch (e) {}
+  setStyleFilter(saved);
+})();
+
+/* ── Day navigation + Batch Prep Mode ────────────────────── */
+function toggleBatchMode() {
+  batchMode = !batchMode;
+  if (!batchMode) {
+    const params = new URLSearchParams({ date_str: ANCHOR_DATE, selected: SERVICE_DATE });
+    window.location.href = '/catering/production?' + params.toString();
+    return;
+  }
+  document.getElementById('batchModeToggle').classList.add('active');
+}
+
+function toggleDay(dateStr) {
+  if (!batchMode) {
+    const params = new URLSearchParams({ date_str: ANCHOR_DATE, selected: dateStr });
+    window.location.href = '/catering/production?' + params.toString();
+    return;
+  }
+  if (SELECTED_DATES.has(dateStr)) {
+    if (SELECTED_DATES.size === 1) return; // keep at least one selected
+    SELECTED_DATES.delete(dateStr);
+  } else {
+    SELECTED_DATES.add(dateStr);
+  }
+  const sorted = Array.from(SELECTED_DATES).sort();
+  const params = new URLSearchParams({ date_str: ANCHOR_DATE, selected: sorted.join(',') });
+  window.location.href = '/catering/production?' + params.toString();
+}
 
 function toggleBreakdown(btn) {
   const li = btn.closest('.prep-item');
@@ -942,20 +1347,6 @@ function setWeightUnit(unit) {
   try { saved = localStorage.getItem('prod_weight_unit') || 'oz'; } catch (e) {}
   if (saved === 'lb') setWeightUnit('lb');
 })();
-
-function toggleDay(dateStr) {
-  if (SELECTED_DATES.has(dateStr)) {
-    if (SELECTED_DATES.size === 1) return; // keep at least one selected
-    SELECTED_DATES.delete(dateStr);
-  } else {
-    SELECTED_DATES.add(dateStr);
-  }
-  const sorted = Array.from(SELECTED_DATES).sort();
-  const params = new URLSearchParams({ date_str: ANCHOR_DATE, selected: sorted.join(',') });
-  window.location.href = '/catering/production?' + params.toString();
-}
-const TOGGLE_URL = "/catering/production/toggle";
-const PRODUCE_SAVE_URL = "/catering/production/produce-save";
 
 let produceModal = null;
 let activeProduceCard = null;
@@ -1059,10 +1450,15 @@ async function toggleSupply(card) {
   }
 }
 
-async function toggleMealPill(pill) {
-  const checkType = pill.dataset.checkType;
-  const programId = pill.dataset.programId;
-  const icon = pill.querySelector('.prod-meal-pill-check-icon');
+/* ── Packaging: per-component checkbox ───────────────────── */
+async function togglePackagingComponent(checkbox) {
+  const programId = checkbox.dataset.programId;
+  const slot = checkbox.dataset.slot;
+  const component = checkbox.dataset.component;
+  const checked = checkbox.checked;
+  const li = checkbox.closest('.pkg-component-item');
+  const slotEl = checkbox.closest('.pkg-slot');
+  const progressEl = slotEl.querySelector('.pkg-progress');
 
   try {
     const resp = await fetch(TOGGLE_URL, {
@@ -1070,15 +1466,87 @@ async function toggleMealPill(pill) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         date: SERVICE_DATE,
-        check_type: checkType,
+        check_type: slot,
         program_id: programId,
+        reference_key: component,
       })
     });
     const data = await resp.json();
-    pill.classList.toggle('is-checked', data.checked);
-    icon.textContent = data.checked ? '✓' : '';
+    checkbox.checked = data.checked;
+    li.classList.toggle('is-done', data.checked);
+
+    const total = slotEl.querySelectorAll('.pkg-check-input').length;
+    const done = slotEl.querySelectorAll('.pkg-check-input:checked').length;
+    if (progressEl) {
+      progressEl.textContent = done + '/' + total + ' packed';
+      progressEl.classList.toggle('all-done', done === total);
+    }
   } catch (e) {
+    checkbox.checked = !checked;
     console.error('Toggle failed', e);
+  }
+}
+
+/* ── Count-edit chip (shared: Packaging slot headers) ────── */
+function startEditCount(event, btn) {
+  event.stopPropagation();
+  const chip = btn.closest('.count-edit-chip');
+  if (chip.querySelector('.prod-count-edit-input')) return;
+
+  const displayEl = chip.querySelector('.count-edit-display');
+  const currentCount = parseInt(chip.dataset.count, 10) || 0;
+  const currentVegan = parseInt(chip.dataset.vegan, 10) || 0;
+  const hasVegan = currentVegan > 0;
+  displayEl.dataset.originalHtml = displayEl.innerHTML;
+
+  let html = `<input type="number" min="0" class="prod-count-edit-input prod-count-edit-total" value="${currentCount}" onclick="event.stopPropagation()">`;
+  if (hasVegan) {
+    html += ` <input type="number" min="0" class="prod-count-edit-input prod-count-edit-vegan" value="${currentVegan}" title="Vegan portion" onclick="event.stopPropagation()">`;
+  }
+  html += ` <button type="button" class="prod-count-edit-save" onclick="saveEditCount(event, this)">&#10003;</button>`;
+  html += ` <button type="button" class="prod-count-edit-cancel" onclick="cancelEditCount(event, this)">&times;</button>`;
+  displayEl.innerHTML = html;
+  chip.querySelector('.prod-count-edit-total').focus();
+}
+
+function cancelEditCount(event, btn) {
+  event.stopPropagation();
+  const chip = btn.closest('.count-edit-chip');
+  const displayEl = chip.querySelector('.count-edit-display');
+  displayEl.innerHTML = displayEl.dataset.originalHtml;
+}
+
+async function saveEditCount(event, btn) {
+  event.stopPropagation();
+  const chip = btn.closest('.count-edit-chip');
+  const displayEl = chip.querySelector('.count-edit-display');
+  const totalInput = chip.querySelector('.prod-count-edit-total');
+  const veganInput = chip.querySelector('.prod-count-edit-vegan');
+  const count = parseInt(totalInput.value, 10);
+  const veganCount = veganInput ? (parseInt(veganInput.value, 10) || 0) : 0;
+
+  if (isNaN(count) || count < 0 || veganCount < 0 || veganCount > count) {
+    alert("Enter a valid count (vegan count can't exceed the total).");
+    return;
+  }
+
+  try {
+    const resp = await fetch(COUNT_SAVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        date: SERVICE_DATE,
+        program_id: chip.dataset.programId,
+        slot: chip.dataset.slot,
+        count: count,
+        vegan_count: veganCount,
+      })
+    });
+    if (!resp.ok) throw new Error('save failed');
+    location.reload();
+  } catch (e) {
+    alert('Could not save the count — please try again.');
+    displayEl.innerHTML = displayEl.dataset.originalHtml;
   }
 }
 

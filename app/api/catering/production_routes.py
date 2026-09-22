@@ -32,9 +32,12 @@ from app.models.catering import (
     DailyManifest,
     DailyManifestStop,
     DailyManifestItem,
+    CateringDailyCount,
 )
 from app.models.catering.food_component import FoodComponent
 from app.models.catering.cacfp_rules import CACFPComponentType
+from app.crud.catering import daily_count as daily_count_crud
+from app.crud.catering import invoice as invoice_crud
 import uuid as _uuid
 
 router = APIRouter()
@@ -104,6 +107,32 @@ def _group_programs_by_route(programs_data: list) -> list:
     if "" in groups:
         result.append({"route_code": "Unassigned", "color": "#94A3B8", "programs": groups[""]})
     return result
+
+
+def _effective_slot_counts(program, overrides_for_program: dict) -> tuple[dict, dict]:
+    """Per-slot (count, vegan) dicts for one program on one date — uses today's
+    CateringDailyCount override when present, else the program's standing count.
+    Single source of truth for kitchen-prep quantities, the delivery pill counts,
+    and (via crud.catering.invoice) invoice generation, so editing a headcount on
+    the Production Sheet flows through everywhere that count is used."""
+    counts = {
+        "breakfast": program.breakfast_count if program.breakfast_count is not None else program.total_children,
+        "lunch": program.lunch_count if program.lunch_count is not None else program.total_children,
+        "snack": program.snack_count if program.snack_count is not None else program.total_children,
+        "am_snack": program.am_snack_count if program.am_snack_count is not None else program.total_children,
+        "pm_snack": program.pm_snack_count if program.pm_snack_count is not None else program.total_children,
+    }
+    vegan = {
+        "breakfast": program.breakfast_vegan_count or 0,
+        "lunch": program.lunch_vegan_count or 0,
+        "snack": 0,
+        "am_snack": 0,
+        "pm_snack": 0,
+    }
+    for slot, override in (overrides_for_program or {}).items():
+        counts[slot] = override.count
+        vegan[slot] = override.vegan_count
+    return counts, vegan
 
 
 async def _build_production_data(db: AsyncSession, tenant_id: int, service_date: date):
@@ -191,9 +220,38 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             if menu_day:
                 program_menu_days[program.id] = menu_day
 
-    # Aggregate components across all programs
+    # Same-day headcount overrides edited on the Production Sheet (falls back to
+    # each program's standing count where no override exists for a slot).
+    daily_count_overrides = await daily_count_crud.get_counts_for_date(db, tenant_id, service_date)
+
+    # Food components whose CACFP type contains "fruit" — pulled out of the
+    # per-slot Kitchen Prep buckets into their own standalone Produce section,
+    # since fruit is prepped/portioned separately from the rest of a meal.
+    produce_result = await db.execute(
+        select(FoodComponent.name)
+        .join(FoodComponent.component_type)
+        .where(
+            FoodComponent.tenant_id == tenant_id,
+            CACFPComponentType.name.ilike("%fruit%"),
+        )
+        .order_by(FoodComponent.name)
+    )
+    produce_items = [row[0] for row in produce_result.all()]
+    produce_set = set(produce_items)
+
+    def _accumulate(agg: dict, name: str, qty_oz: float, meal_count: int, slot: str, program_name: str):
+        agg[name]["total_oz"] += qty_oz * meal_count
+        agg[name]["total_count"] += meal_count
+        agg[name]["slots"].add(slot)
+        pb = agg[name]["program_breakdown"].setdefault(program_name, {"count": 0, "oz": 0.0})
+        pb["count"] += meal_count
+        pb["oz"] += qty_oz * meal_count
+
+    # Aggregate components across all programs — produce goes to its own bucket,
+    # everything else to the regular kitchen-prep bucket.
     # program_breakdown is a dict {program_name: {count, oz}} during aggregation
     component_agg: dict = defaultdict(lambda: {"total_oz": 0.0, "total_count": 0, "slots": set(), "program_breakdown": {}})
+    produce_agg: dict = defaultdict(lambda: {"total_oz": 0.0, "total_count": 0, "slots": set(), "program_breakdown": {}})
 
     for program in serving_programs:
         menu_day = program_menu_days.get(program.id)
@@ -207,13 +265,7 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
         )
         meal_types_lower = [mt.lower().replace(" ", "_") for mt in meal_types]
 
-        counts = {
-            "breakfast": program.breakfast_count if program.breakfast_count is not None else program.total_children,
-            "lunch": program.lunch_count if program.lunch_count is not None else program.total_children,
-            "snack": program.snack_count if program.snack_count is not None else program.total_children,
-            "am_snack": program.am_snack_count if program.am_snack_count is not None else program.total_children,
-            "pm_snack": program.pm_snack_count if program.pm_snack_count is not None else program.total_children,
-        }
+        counts, _ = _effective_slot_counts(program, daily_count_overrides.get(program.id))
 
         slots_with_components = {
             comp.meal_slot for comp in menu_day.components
@@ -236,12 +288,8 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             qty_oz = float(comp.quantity or comp.food_component.default_portion_oz or 0)
             meal_count = counts.get(slot, program.total_children) or 0
             name = comp.food_component.name
-            component_agg[name]["total_oz"] += qty_oz * meal_count
-            component_agg[name]["total_count"] += meal_count
-            component_agg[name]["slots"].add(slot)
-            pb = component_agg[name]["program_breakdown"].setdefault(program.name, {"count": 0, "oz": 0.0})
-            pb["count"] += meal_count
-            pb["oz"] += qty_oz * meal_count
+            target = produce_agg if name in produce_set else component_agg
+            _accumulate(target, name, qty_oz, meal_count, slot, program.name)
 
         for slot, meal_item in slot_items.items():
             if slot in slots_with_components:
@@ -254,35 +302,36 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
                     continue
                 name = mc.food_component.name
                 item_oz = float(mc.portion_oz or 0)
-                component_agg[name]["total_oz"] += item_oz * meal_count
-                component_agg[name]["total_count"] += meal_count
-                component_agg[name]["slots"].add(slot)
-                pb = component_agg[name]["program_breakdown"].setdefault(program.name, {"count": 0, "oz": 0.0})
-                pb["count"] += meal_count
-                pb["oz"] += item_oz * meal_count
+                target = produce_agg if name in produce_set else component_agg
+                _accumulate(target, name, item_oz, meal_count, slot, program.name)
 
-    # Sort components and convert sets to sorted label lists
-    slot_order = list(SLOT_LABELS.keys())
-    prep_components = []
-    for name, data in sorted(component_agg.items()):
-        slots_sorted = sorted(data["slots"], key=lambda s: slot_order.index(s) if s in slot_order else 99)
-        prep_components.append({
-            "name": name,
-            "total_oz": round(data["total_oz"], 1),
-            "total_lb": round(data["total_oz"] / 16, 2),
-            "total_count": data["total_count"],
-            "slots": slots_sorted,
-            "slot_labels": [SLOT_LABELS.get(s, s) for s in slots_sorted],
-            "slot_badges": [
-                {"slot": s, "label": SLOT_LABELS.get(s, s), "color": SLOT_COLORS.get(s, SLOT_COLORS["other"])}
-                for s in slots_sorted
-            ],
-            "primary_slot": slots_sorted[0] if slots_sorted else "other",
-            "program_breakdown": [
-                {"name": pname, "count": vals["count"], "oz": round(vals["oz"], 1), "lb": round(vals["oz"] / 16, 2)}
-                for pname, vals in sorted(data["program_breakdown"].items())
-            ],
-        })
+    def _format_agg(agg: dict) -> list:
+        """Sort an aggregation bucket and convert its slot sets into sorted label lists."""
+        slot_order = list(SLOT_LABELS.keys())
+        formatted = []
+        for name, data in sorted(agg.items()):
+            slots_sorted = sorted(data["slots"], key=lambda s: slot_order.index(s) if s in slot_order else 99)
+            formatted.append({
+                "name": name,
+                "total_oz": round(data["total_oz"], 1),
+                "total_lb": round(data["total_oz"] / 16, 2),
+                "total_count": data["total_count"],
+                "slots": slots_sorted,
+                "slot_labels": [SLOT_LABELS.get(s, s) for s in slots_sorted],
+                "slot_badges": [
+                    {"slot": s, "label": SLOT_LABELS.get(s, s), "color": SLOT_COLORS.get(s, SLOT_COLORS["other"])}
+                    for s in slots_sorted
+                ],
+                "primary_slot": slots_sorted[0] if slots_sorted else "other",
+                "program_breakdown": [
+                    {"name": pname, "count": vals["count"], "oz": round(vals["oz"], 1), "lb": round(vals["oz"] / 16, 2)}
+                    for pname, vals in sorted(data["program_breakdown"].items())
+                ],
+            })
+        return formatted
+
+    prep_components = _format_agg(component_agg)
+    produce_components = _format_agg(produce_agg)
 
     # Load today's driver manifests — one per top-level route (e.g. "R1"), each
     # containing one "stop" per program on that route, each stop holding its own items.
@@ -304,18 +353,6 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
         .options(selectinload(DailyManifestStop.items))
     )
     stop_by_program: dict = {s.program_id: s for s in stops_result.scalars().all()}
-
-    # Load produce items: food components whose CACFP type contains "fruit"
-    produce_result = await db.execute(
-        select(FoodComponent.name)
-        .join(FoodComponent.component_type)
-        .where(
-            FoodComponent.tenant_id == tenant_id,
-            CACFPComponentType.name.ilike("%fruit%"),
-        )
-        .order_by(FoodComponent.name)
-    )
-    produce_items = [row[0] for row in produce_result.all()]
 
     # Load today's production logs
     logs_result = await db.execute(
@@ -362,38 +399,37 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             else (program.meal_types_required or [])
         )
         meal_types_lower = [mt.lower().replace(" ", "_") for mt in meal_types]
+
+        # Per-meal-type counts + vegan sub-counts for the route delivery sheet —
+        # reflects today's edited headcount (CateringDailyCount) where set.
+        slot_counts, slot_vegan = _effective_slot_counts(program, daily_count_overrides.get(program.id))
         total_meals = max(
-            [
-                v
-                for k, v in {
-                    "breakfast": program.breakfast_count,
-                    "lunch": program.lunch_count,
-                    "snack": program.snack_count,
-                    "am_snack": program.am_snack_count,
-                    "pm_snack": program.pm_snack_count,
-                }.items()
-                if k in meal_types_lower and v is not None
-            ],
+            [v for k, v in slot_counts.items() if k in meal_types_lower and v is not None],
             default=program.total_children or 0,
         )
 
-        # Per-meal-type counts + vegan sub-counts for the route delivery sheet
-        slot_counts = {
-            "breakfast": program.breakfast_count if program.breakfast_count is not None else program.total_children,
-            "lunch": program.lunch_count if program.lunch_count is not None else program.total_children,
-            "snack": program.snack_count if program.snack_count is not None else program.total_children,
-            "am_snack": program.am_snack_count if program.am_snack_count is not None else program.total_children,
-            "pm_snack": program.pm_snack_count if program.pm_snack_count is not None else program.total_children,
-        }
-        slot_vegan = {"breakfast": program.breakfast_vegan_count or 0, "lunch": program.lunch_vegan_count or 0}
-        meal_breakdown = []
+        # Packaging: every required meal slot broken into its individual, checkable
+        # components — the itemized, "exactly what's going into this" build-out that
+        # both drives the driver manifest (see _sync_manifest_component) and doubles
+        # as the per-program headcount display (replacing the old single-pill count).
+        menu_day = program_menu_days.get(program.id)
+        packaging_slots = []
         for slot in SLOT_ORDER:
             if slot not in meal_types_lower:
                 continue
             slot_total = slot_counts.get(slot) or 0
             slot_veg = slot_vegan.get(slot, 0)
-            slot_log = checked_items.get((slot, program.id, ""))
-            meal_breakdown.append({
+
+            component_names = _slot_component_names_from_menu_day(menu_day, slot) if menu_day else []
+            if not component_names:
+                component_names = [SLOT_DISPLAY.get(slot, slot.replace("_", " ").title())]
+            components = [
+                {"name": name, "checked": (slot, program.id, name) in checked_items}
+                for name in component_names
+            ]
+            checked_count = sum(1 for c in components if c["checked"])
+
+            packaging_slots.append({
                 "slot": slot,
                 "label": SLOT_DISPLAY.get(slot, slot.title()),
                 "count": slot_total,
@@ -404,9 +440,13 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
                 # whoever is portioning meals.
                 "regular": max(slot_total - slot_veg, 0),
                 "color": SLOT_COLORS.get(slot, SLOT_COLORS["other"]),
-                # Checking this pill adds it to the day's driver manifest — see MEAL_SLOT_TYPES.
-                "checked": slot_log is not None,
-                "checked_at": slot_log.checked_at if slot_log else None,
+                "pack_note": getattr(program, PACK_NOTE_FIELDS[slot], None) if slot in PACK_NOTE_FIELDS else None,
+                "components": components,
+                "checked_count": checked_count,
+                "total_components": len(components),
+                "all_checked": checked_count == len(components) and len(components) > 0,
+                # Whether today's count has been edited away from the program's standing count.
+                "is_override": slot in (daily_count_overrides.get(program.id) or {}),
             })
 
         supply_checks = {}
@@ -457,7 +497,7 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             "program": program,
             "meal_types": meal_types,
             "total_meals": total_meals,
-            "meal_breakdown": meal_breakdown,
+            "packaging": packaging_slots,
             "has_menu": program.id in program_menu_days,
             "supply_checks": supply_checks,
             "route_group_code": route_group_code,
@@ -482,6 +522,7 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
     return {
         "serving_programs": serving_programs,
         "prep_components": prep_components,
+        "produce_components": produce_components,
         "checked_items": checked_items,
         "programs_data": programs_data,
         "route_groups": _group_programs_by_route(programs_data),
@@ -510,6 +551,33 @@ def _sort_key_for_comp(comp):
         return (SLOT_ORDER.index(slot), comp["name"])
     except ValueError:
         return (99, comp["name"])
+
+
+def _merge_component_lists(base: list, extras: list) -> list:
+    """Combine one formatted component list (from _format_agg) with any number of
+    others from additional days — used by Batch Prep Mode to total prep quantities
+    across several selected service dates."""
+    merged: dict = {comp["name"]: {**comp} for comp in base}
+    for extra_list in extras:
+        for comp in extra_list:
+            if comp["name"] in merged:
+                m = merged[comp["name"]]
+                m["total_oz"] = round(m["total_oz"] + comp["total_oz"], 1)
+                m["total_count"] += comp["total_count"]
+                for lbl in comp["slot_labels"]:
+                    if lbl not in m["slot_labels"]:
+                        m["slot_labels"].append(lbl)
+                bd = {p["name"]: {**p} for p in m["program_breakdown"]}
+                for p in comp["program_breakdown"]:
+                    if p["name"] in bd:
+                        bd[p["name"]]["count"] += p["count"]
+                        bd[p["name"]]["oz"] = round(bd[p["name"]]["oz"] + p["oz"], 1)
+                    else:
+                        bd[p["name"]] = {**p}
+                m["program_breakdown"] = sorted(bd.values(), key=lambda x: x["name"])
+            else:
+                merged[comp["name"]] = {**comp, "program_breakdown": [{**p} for p in comp["program_breakdown"]]}
+    return sorted(merged.values(), key=_sort_key_for_comp)
 
 
 def _group_comps_by_slot(comps: list) -> list:
@@ -578,32 +646,21 @@ async def production_daily_view(
     # Build production data for primary date (delivery + checked states)
     data = await _build_production_data(db, tenant_id, primary_date)
 
-    # Aggregate prep components across all selected dates
-    if len(selected_dates) > 1:
-        merged: dict = {comp["name"]: {**comp} for comp in data["prep_components"]}
-        for d in selected_dates[1:]:
-            extra = await _build_production_data(db, tenant_id, d)
-            for comp in extra["prep_components"]:
-                if comp["name"] in merged:
-                    m = merged[comp["name"]]
-                    m["total_oz"] = round(m["total_oz"] + comp["total_oz"], 1)
-                    m["total_count"] += comp["total_count"]
-                    for lbl in comp["slot_labels"]:
-                        if lbl not in m["slot_labels"]:
-                            m["slot_labels"].append(lbl)
-                    bd = {p["name"]: {**p} for p in m["program_breakdown"]}
-                    for p in comp["program_breakdown"]:
-                        if p["name"] in bd:
-                            bd[p["name"]]["count"] += p["count"]
-                            bd[p["name"]]["oz"] = round(bd[p["name"]]["oz"] + p["oz"], 1)
-                        else:
-                            bd[p["name"]] = {**p}
-                    m["program_breakdown"] = sorted(bd.values(), key=lambda x: x["name"])
-                else:
-                    merged[comp["name"]] = {**comp, "program_breakdown": [{**p} for p in comp["program_breakdown"]]}
-        data["prep_components"] = sorted(merged.values(), key=_sort_key_for_comp)
+    # Batch Prep Mode: combine prep quantities across several selected days (e.g.
+    # summer batch-cooking a week at once). Off by default — a single selected date
+    # (the normal case) just sorts and moves on, no merging.
+    is_batch_mode = len(selected_dates) > 1
+    if is_batch_mode:
+        extra_data = [await _build_production_data(db, tenant_id, d) for d in selected_dates[1:]]
+        data["prep_components"] = _merge_component_lists(
+            data["prep_components"], [d["prep_components"] for d in extra_data]
+        )
+        data["produce_components"] = _merge_component_lists(
+            data["produce_components"], [d["produce_components"] for d in extra_data]
+        )
     else:
         data["prep_components"] = sorted(data["prep_components"], key=_sort_key_for_comp)
+        data["produce_components"] = sorted(data["produce_components"], key=_sort_key_for_comp)
 
     checked_keys = [
         {
@@ -627,6 +684,7 @@ async def production_daily_view(
             "primary_date": primary_date,
             "selected_dates": selected_dates,
             "selected_iso": selected_iso,
+            "is_batch_mode": is_batch_mode,
             "week_dates": week_dates,
             "prev_week_anchor": prev_week_anchor,
             "next_week_anchor": next_week_anchor,
@@ -634,6 +692,7 @@ async def production_daily_view(
             "serving_programs": data["serving_programs"],
             "prep_components": data["prep_components"],
             "prep_by_slot": _group_comps_by_slot(data["prep_components"]),
+            "produce_components": data["produce_components"],
             "programs_data": data["programs_data"],
             "route_groups": data["route_groups"],
             "checked_keys_json": json.dumps(checked_keys),
@@ -675,6 +734,7 @@ async def production_print_view(
         day_sheets.append({
             "date": d,
             "prep_by_slot": _group_comps_by_slot(data["prep_components"]),
+            "produce_components": sorted(data["produce_components"], key=lambda c: c["name"]),
             "vegan_total": data["vegan_total"],
             "vegan_breakdown": data["vegan_breakdown"],
             "serving_programs": data["serving_programs"],
@@ -747,13 +807,18 @@ async def toggle_production_check(
     result = await db.execute(query)
     existing = result.scalar_one_or_none()
 
-    manifest_source = check_type if check_type in MEAL_SLOT_TYPES or check_type in SIMPLE_SUPPLY_LABELS else None
+    async def _sync_manifest(checked: bool):
+        if not program_id:
+            return
+        if check_type in MEAL_SLOT_TYPES and reference_key:
+            await _sync_manifest_component(db, tenant_id, program_id, service_date, check_type, reference_key, checked=checked)
+        elif check_type in SIMPLE_SUPPLY_LABELS:
+            await _sync_manifest_checkbox(db, tenant_id, program_id, service_date, check_type, checked=checked)
 
     if existing:
         await db.delete(existing)
         await db.commit()
-        if manifest_source and program_id:
-            await _sync_manifest_checkbox(db, tenant_id, program_id, service_date, manifest_source, checked=False)
+        await _sync_manifest(checked=False)
         return JSONResponse({"checked": False, "checked_at": ""})
     else:
         now = datetime.utcnow()
@@ -769,8 +834,7 @@ async def toggle_production_check(
         )
         db.add(new_log)
         await db.commit()
-        if manifest_source and program_id:
-            await _sync_manifest_checkbox(db, tenant_id, program_id, service_date, manifest_source, checked=True)
+        await _sync_manifest(checked=True)
         return JSONResponse({"checked": True, "checked_at": now.strftime("%b %d %H:%M")})
 
 
@@ -838,6 +902,127 @@ async def save_produce_selection(
         "checked_at": now.strftime("%b %d %H:%M"),
         "items": sorted(items),
     })
+
+
+@router.post("/production/count-save")
+async def save_daily_count(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Edit a program's headcount for one meal slot on one service date — the
+    source invoices and kitchen-prep quantities read from (falls back to the
+    program's standing count when no override exists).
+    Body: {date, program_id, slot, count, vegan_count}
+    Returns: {count, vegan_count, regular, total_meals} for that program/date.
+    """
+    tenant_id = request.state.tenant_id
+    body = await request.json()
+
+    date_str = body.get("date")
+    program_id = body.get("program_id")
+    slot = body.get("slot")
+
+    if not date_str or not program_id or slot not in MEAL_SLOT_TYPES:
+        return JSONResponse({"error": "date, program_id and a valid slot are required"}, status_code=400)
+
+    try:
+        service_date = date.fromisoformat(date_str)
+        count = int(body.get("count"))
+        vegan_count = int(body.get("vegan_count") or 0)
+    except (ValueError, TypeError):
+        return JSONResponse({"error": "invalid count"}, status_code=400)
+
+    if count < 0 or vegan_count < 0 or vegan_count > count:
+        return JSONResponse({"error": "counts must be non-negative and vegan count can't exceed the total"}, status_code=400)
+
+    program = await db.get(CateringProgram, program_id)
+    if not program or program.tenant_id != tenant_id:
+        return JSONResponse({"error": "program not found"}, status_code=404)
+
+    await daily_count_crud.set_count(
+        db, tenant_id, program_id, service_date, slot, count, vegan_count, user_id=user.id,
+    )
+
+    overrides = await daily_count_crud.get_counts_for_program_date(db, program_id, service_date)
+    slot_counts, slot_vegan = _effective_slot_counts(program, overrides)
+    meal_types = (
+        json.loads(program.meal_types_required)
+        if isinstance(program.meal_types_required, str)
+        else (program.meal_types_required or [])
+    )
+    meal_types_lower = [mt.lower().replace(" ", "_") for mt in meal_types]
+    total_meals = max(
+        [v for k, v in slot_counts.items() if k in meal_types_lower and v is not None],
+        default=program.total_children or 0,
+    )
+
+    return JSONResponse({
+        "count": slot_counts[slot],
+        "vegan_count": slot_vegan[slot],
+        "regular": max(slot_counts[slot] - slot_vegan[slot], 0),
+        "total_meals": total_meals,
+    })
+
+
+async def _menu_day_for_program_date(db: AsyncSession, program_id: str, service_date: date):
+    """The monthly menu day for one program on one date, or None — used to check
+    whether a menu exists before generating that day's invoice from it."""
+    result = await db.execute(
+        select(CateringMonthlyMenu)
+        .where(
+            CateringMonthlyMenu.program_id == program_id,
+            CateringMonthlyMenu.month == service_date.month,
+            CateringMonthlyMenu.year == service_date.year,
+            CateringMonthlyMenu.menu_type == "regular",
+        )
+        .options(selectinload(CateringMonthlyMenu.menu_days))
+    )
+    monthly_menu = result.scalar_one_or_none()
+    if not monthly_menu:
+        return None
+    return next((d for d in monthly_menu.menu_days if d.service_date == service_date), None)
+
+
+@router.post("/production/generate-invoices")
+async def generate_invoices_from_production(
+    request: Request,
+    date_str: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Generate/update today's invoices for every serving program, straight from
+    the kitchen — reading each program's (possibly edited) daily headcount rather
+    than the planned monthly-menu count. Triggered from the Production Sheet."""
+    tenant_id = request.state.tenant_id
+    try:
+        service_date = date.fromisoformat(date_str)
+    except ValueError:
+        return RedirectResponse(url="/catering/production", status_code=303)
+
+    serving_programs = await _serving_programs_for_date(db, tenant_id, service_date)
+
+    generated = 0
+    skipped = 0
+    for program in serving_programs:
+        menu_day = await _menu_day_for_program_date(db, program.id, service_date)
+        if not menu_day:
+            skipped += 1
+            continue
+        invoice = await invoice_crud.generate_invoice_from_menu_day(db, menu_day.id, tenant_id)
+        if invoice:
+            generated += 1
+        else:
+            skipped += 1
+
+    msg = f"{generated} invoice(s) generated/updated"
+    if skipped:
+        msg += f", {skipped} skipped (no menu set for that day)"
+
+    return RedirectResponse(
+        url=f"/catering/production?date_str={service_date.isoformat()}&message={msg}",
+        status_code=303,
+    )
 
 
 async def _get_or_create_manifest(db: AsyncSession, tenant_id: int, route_code: str, service_date: date) -> DailyManifest:
@@ -913,35 +1098,13 @@ async def _stop_item_count(db: AsyncSession, stop_id: str) -> int:
     return result.scalar() or 0
 
 
-async def _slot_food_names(db: AsyncSession, program_id: str, service_date: date, slot: str) -> list:
-    """Actual food item names scheduled for one meal slot of one program's menu on a date
-    (e.g. slot='snack' -> ['Pretzels', 'Yogurt']). Mirrors the same override-vs-fallback
-    lookup used for kitchen prep aggregation, just scoped to a single program+slot."""
-    menu_result = await db.execute(
-        select(CateringMonthlyMenu)
-        .where(
-            CateringMonthlyMenu.program_id == program_id,
-            CateringMonthlyMenu.month == service_date.month,
-            CateringMonthlyMenu.year == service_date.year,
-            CateringMonthlyMenu.menu_type == "regular",
-        )
-        .options(
-            selectinload(CateringMonthlyMenu.menu_days)
-                .selectinload(CateringMenuDay.components)
-                .selectinload(MenuDayComponent.food_component),
-            selectinload(CateringMonthlyMenu.menu_days)
-                .selectinload(getattr(CateringMenuDay, f"{slot}_item"))
-                .selectinload(CateringMealItem.components)
-                .selectinload(CateringMealComponent.food_component),
-        )
-    )
-    monthly_menu = menu_result.scalar_one_or_none()
-    if not monthly_menu:
-        return []
-    menu_day = next((d for d in monthly_menu.menu_days if d.service_date == service_date), None)
+def _slot_component_names_from_menu_day(menu_day, slot: str) -> list:
+    """Actual food item names scheduled for one meal slot on an already-loaded menu
+    day (e.g. slot='snack' -> ['Pretzels', 'Yogurt']) — same override-vs-fallback
+    lookup used for kitchen prep aggregation, scoped to one slot, reading off an
+    object already in memory rather than re-querying."""
     if not menu_day:
         return []
-
     names, seen = [], set()
     comps = [c for c in menu_day.components if c.meal_slot == slot and not c.is_vegan and c.food_component]
     if comps:
@@ -961,33 +1124,19 @@ async def _slot_food_names(db: AsyncSession, program_id: str, service_date: date
 
 
 async def _sync_manifest_checkbox(db: AsyncSession, tenant_id: int, program_id: str, service_date: date, source: str, checked: bool):
-    """Add/remove the manifest line(s) for a single production-sheet checkbox, under
-    this program's stop within its route's manifest.
-
-    - milk/juice: one plain line ("Milk").
-    - breakfast/lunch: one bulk line from the program's pack note if set (e.g.
-      "5 trays breakfast"), else falls through to the menu-derived case below.
-    - snack/am_snack/pm_snack (or breakfast/lunch with no pack note): one line
-      per actual food item on that day's menu for that slot.
-    """
+    """Add/remove the manifest line for a simple supply checkbox (milk/juice) — one
+    plain line, e.g. "Milk" — under this program's stop within its route's manifest.
+    Meal slots (breakfast/lunch/snack/am_snack/pm_snack) are handled per-component
+    by _sync_manifest_component instead."""
     program = await db.get(CateringProgram, program_id)
     if not program:
         return
 
+    label = SIMPLE_SUPPLY_LABELS.get(source)
+    if label is None:
+        return
+
     if checked:
-        labels = None
-        if source in SIMPLE_SUPPLY_LABELS:
-            labels = [SIMPLE_SUPPLY_LABELS[source]]
-        elif source in PACK_NOTE_FIELDS:
-            note = getattr(program, PACK_NOTE_FIELDS[source], None)
-            if note:
-                labels = [note]
-
-        if labels is None:
-            labels = await _slot_food_names(db, program_id, service_date, source)
-            if not labels:
-                labels = [SLOT_DISPLAY.get(source, source.replace("_", " ").title())]
-
         stop = await _get_or_create_stop(db, tenant_id, program, service_date)
         existing_result = await db.execute(
             select(DailyManifestItem.id).where(
@@ -997,14 +1146,13 @@ async def _sync_manifest_checkbox(db: AsyncSession, tenant_id: int, program_id: 
         )
         if existing_result.scalar_one_or_none() is None:
             next_order = await _stop_item_count(db, stop.id)
-            for offset, label in enumerate(labels):
-                db.add(DailyManifestItem(
-                    id=str(_uuid.uuid4()),
-                    stop_id=stop.id,
-                    source=source,
-                    label=label,
-                    sort_order=next_order + offset,
-                ))
+            db.add(DailyManifestItem(
+                id=str(_uuid.uuid4()),
+                stop_id=stop.id,
+                source=source,
+                label=label,
+                sort_order=next_order,
+            ))
             await db.commit()
     else:
         route_code = _route_group_key(program.route_code) or "Unassigned"
@@ -1030,6 +1178,82 @@ async def _sync_manifest_checkbox(db: AsyncSession, tenant_id: int, program_id: 
         for existing_item in item_result.scalars().all():
             await db.delete(existing_item)
         await db.commit()
+
+
+async def _sync_manifest_component(db: AsyncSession, tenant_id: int, program_id: str, service_date: date, slot: str, component_name: str, checked: bool):
+    """Add/remove one specific ingredient's line on the manifest when its packaging
+    checkbox is toggled on the Packaging screen — the fine-grained sibling of
+    _sync_manifest_checkbox, giving every component its own checkable manifest line
+    instead of one bulk line per meal slot.
+
+    Also keeps the program's bulk pack-note line (e.g. "5 trays breakfast") in sync:
+    present once at least one component for that slot+stop is checked (packing has
+    started), removed again once none are — so it reads as a live packing-unit
+    reminder, not a blanket substitute for the itemized lines.
+    """
+    program = await db.get(CateringProgram, program_id)
+    if not program:
+        return
+
+    stop = await _get_or_create_stop(db, tenant_id, program, service_date)
+
+    existing_result = await db.execute(
+        select(DailyManifestItem).where(
+            DailyManifestItem.stop_id == stop.id,
+            DailyManifestItem.source == slot,
+            DailyManifestItem.label == component_name,
+        )
+    )
+    existing_item = existing_result.scalar_one_or_none()
+
+    if checked and not existing_item:
+        next_order = await _stop_item_count(db, stop.id)
+        db.add(DailyManifestItem(
+            id=str(_uuid.uuid4()),
+            stop_id=stop.id,
+            source=slot,
+            label=component_name,
+            sort_order=next_order,
+        ))
+        await db.flush()
+    elif not checked and existing_item:
+        await db.delete(existing_item)
+        await db.flush()
+
+    pack_note_field = PACK_NOTE_FIELDS.get(slot)
+    if pack_note_field:
+        note = getattr(program, pack_note_field, None)
+        if note:
+            packnote_source = f"{slot}_packnote"
+            count_result = await db.execute(
+                select(func.count()).select_from(DailyManifestItem).where(
+                    DailyManifestItem.stop_id == stop.id,
+                    DailyManifestItem.source == slot,
+                )
+            )
+            any_checked = (count_result.scalar() or 0) > 0
+
+            packnote_result = await db.execute(
+                select(DailyManifestItem).where(
+                    DailyManifestItem.stop_id == stop.id,
+                    DailyManifestItem.source == packnote_source,
+                )
+            )
+            packnote_item = packnote_result.scalar_one_or_none()
+
+            if any_checked and not packnote_item:
+                next_order = await _stop_item_count(db, stop.id)
+                db.add(DailyManifestItem(
+                    id=str(_uuid.uuid4()),
+                    stop_id=stop.id,
+                    source=packnote_source,
+                    label=note,
+                    sort_order=next_order,
+                ))
+            elif not any_checked and packnote_item:
+                await db.delete(packnote_item)
+
+    await db.commit()
 
 
 async def _sync_manifest_produce(db: AsyncSession, tenant_id: int, program_id: str, service_date: date, items: list):

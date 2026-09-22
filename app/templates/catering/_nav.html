@@ -30,6 +30,13 @@
   <a class="cat-nav-link {% if active == 'production' %}active{% endif %}" href="/catering/production">
     <i data-lucide="chef-hat"></i>Production
   </a>
+  <a class="cat-nav-link {% if active == 'cacfp_reference' %}active{% endif %}" href="/catering/cacfp-reference">
+    <i data-lucide="bar-chart-2"></i>CACFP Reference
+  </a>
+  <span class="cat-nav-divider"></span>
+  <a class="cat-nav-link cat-nav-external" href="/delivery/admin/">
+    <i data-lucide="truck"></i>Delivery
+  </a>
 </nav>
 
 <style>
@@ -69,5 +76,18 @@
   background: rgba(20,184,166,0.12);
   color: var(--accent, #14b8a6);
   font-weight: 600;
+}
+.cat-nav-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.2rem 0.15rem;
+  background: var(--border, #e2e8f0);
+}
+.cat-nav-external {
+  color: var(--text-muted, #94a3b8);
+}
+.cat-nav-external:hover {
+  background: rgba(59,130,246,0.1);
+  color: #3b82f6;
 }
 </style>

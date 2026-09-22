@@ -1,56 +1,55 @@
 {% extends "base.html" %}
 
-{% block title %}Shopping List - {{ month_name }} {{ year }}{% endblock %}
+{% block title %}Shopping List - {{ range_start.strftime('%b %d') }}{% if range_end != range_start %} to {{ range_end.strftime('%b %d') }}{% endif %}{% endblock %}
 
 {% block content %}
 {% set active = 'shopping' %}
 {% include "catering/_nav.html" %}
 
+{% set qs_base = 'start_date=' + range_start.isoformat() + '&end_date=' + range_end.isoformat() + (('&program_id=' + selected_program_id) if selected_program_id else '') %}
+
 <div class="container-fluid">
 
   <!-- Header -->
   <div class="row mb-3">
-    <div class="col-md-6">
+    <div class="col-md-7">
       <h2>Shopping List</h2>
       <p class="text-muted mb-0">
-        {{ month_name }} {{ year }} &middot; {{ total_ingredients }} unique ingredients
+        {{ range_start.strftime('%b %d') }}{% if range_end != range_start %} &ndash; {{ range_end.strftime('%b %d, %Y') }}{% else %}, {{ range_start.strftime('%Y') }}{% endif %}
+        &middot; {{ total_ingredients }} ingredient{% if total_ingredients != 1 %}s{% endif %}
         {% if programs_included %}
           across {{ programs_included|length }} program{% if programs_included|length > 1 %}s{% endif %}
         {% endif %}
       </p>
     </div>
-    <div class="col-md-6 text-end">
+    <div class="col-md-5 text-end">
       <button class="btn btn-outline-primary btn-sm" onclick="window.print()">Print</button>
     </div>
   </div>
 
-  <!-- Filters -->
+  <!-- Range picker -->
   <div class="card mb-3">
     <div class="card-body py-2">
-      <form method="GET" class="row g-2 align-items-center">
-        <div class="col-auto">
-          <label class="col-form-label">Month:</label>
+      <form method="GET" class="wsl-range-bar" id="wslRangeForm">
+        <input type="hidden" name="view" value="{{ view }}">
+        <div class="wsl-range-field">
+          <label>From</label>
+          <input type="date" name="start_date" id="wslStartDate" class="form-control form-control-sm" value="{{ range_start.isoformat() }}">
         </div>
-        <div class="col-auto">
-          <select name="month" class="form-select form-select-sm">
-            {% for m in range(1, 13) %}
-              <option value="{{ m }}" {% if m == month %}selected{% endif %}>
-                {{ ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m-1] }}
-              </option>
-            {% endfor %}
-          </select>
+        <div class="wsl-range-field">
+          <label>To</label>
+          <input type="date" name="end_date" id="wslEndDate" class="form-control form-control-sm" value="{{ range_end.isoformat() }}">
         </div>
-        <div class="col-auto">
-          <select name="year" class="form-select form-select-sm">
-            {% for y in range(year - 1, year + 3) %}
-              <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
-            {% endfor %}
-          </select>
+        <div class="wsl-quick-range">
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="wslQuickRange(0)">Today</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="wslQuickRange(2)">3 days</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="wslQuickRange(6)">7 days</button>
+          <span class="wsl-quick-sep"></span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" title="Previous period" onclick="wslShiftRange(-1)">&larr;</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" title="Next period" onclick="wslShiftRange(1)">&rarr;</button>
         </div>
-        <div class="col-auto">
-          <label class="col-form-label">Program:</label>
-        </div>
-        <div class="col-auto">
+        <div class="wsl-range-field ms-auto">
+          <label>Program</label>
           <select name="program_id" class="form-select form-select-sm">
             <option value="">All Programs</option>
             {% for prog in all_programs %}
@@ -60,9 +59,7 @@
             {% endfor %}
           </select>
         </div>
-        <div class="col-auto">
-          <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Apply</button>
       </form>
     </div>
   </div>
@@ -78,7 +75,20 @@
   </div>
   {% endif %}
 
-  <!-- Toolbar: search + unit toggle -->
+  <!-- View switcher -->
+  <div class="wsl-view-switch mb-3" role="tablist">
+    <a class="wsl-view-tab {% if view == 'category' %}active{% endif %}" href="?{{ qs_base }}&view=category">
+      <i data-lucide="shopping-basket"></i> By Category
+    </a>
+    <a class="wsl-view-tab {% if view == 'day' %}active{% endif %}" href="?{{ qs_base }}&view=day">
+      <i data-lucide="calendar-days"></i> By Day
+    </a>
+    <a class="wsl-view-tab {% if view == 'program' %}active{% endif %}" href="?{{ qs_base }}&view=program">
+      <i data-lucide="users"></i> By Program
+    </a>
+  </div>
+
+  <!-- Toolbar: search + meal filter + unit toggle -->
   <div class="wsl-toolbar mb-3">
     <div class="wsl-search">
       <i data-lucide="search" class="wsl-search-icon"></i>
@@ -86,105 +96,192 @@
       <button type="button" id="wslSearchClear" class="wsl-search-clear" onclick="wslClearSearch()" hidden>&times;</button>
     </div>
     <span id="wslSearchCount" class="wsl-search-count"></span>
+    <div class="wsl-slot-chips" id="wslSlotChips">
+      <button type="button" class="wsl-chip active" data-slot="all" onclick="wslToggleSlotChip(this)">All meals</button>
+      <button type="button" class="wsl-chip" data-slot="breakfast" onclick="wslToggleSlotChip(this)">Breakfast</button>
+      <button type="button" class="wsl-chip" data-slot="lunch" onclick="wslToggleSlotChip(this)">Lunch</button>
+      <button type="button" class="wsl-chip" data-slot="snack" onclick="wslToggleSlotChip(this)">Snack</button>
+      <button type="button" class="wsl-chip" data-slot="am_snack" onclick="wslToggleSlotChip(this)">AM Snack</button>
+      <button type="button" class="wsl-chip" data-slot="pm_snack" onclick="wslToggleSlotChip(this)">PM Snack</button>
+    </div>
     <div class="wsl-unit-toggle" id="wslUnitToggle">
       <button type="button" class="wsl-unit-btn active" data-unit="oz" onclick="wslSetUnit('oz')">oz</button>
       <button type="button" class="wsl-unit-btn" data-unit="lb" onclick="wslSetUnit('lb')">lb</button>
     </div>
   </div>
 
-  <!-- Meal Filter Tabs -->
-  <div class="row mb-3">
-    <div class="col-12">
-      <div class="btn-group" role="group" aria-label="Meal filter">
-        <input type="radio" class="btn-check" name="mealFilter" id="filterAll" value="all" checked onchange="wslApplyMealFilter()">
-        <label class="btn btn-outline-primary" for="filterAll">All</label>
-
-        <input type="radio" class="btn-check" name="mealFilter" id="filterBreakfast" value="breakfast" onchange="wslApplyMealFilter()">
-        <label class="btn btn-outline-primary" for="filterBreakfast">Breakfast</label>
-
-        <input type="radio" class="btn-check" name="mealFilter" id="filterLunch" value="lunch" onchange="wslApplyMealFilter()">
-        <label class="btn btn-outline-primary" for="filterLunch">Lunch</label>
-
-        <input type="radio" class="btn-check" name="mealFilter" id="filterSnack" value="snack" onchange="wslApplyMealFilter()">
-        <label class="btn btn-outline-primary" for="filterSnack">Snack</label>
-
-        <input type="radio" class="btn-check" name="mealFilter" id="filterAmSnack" value="am_snack" onchange="wslApplyMealFilter()">
-        <label class="btn btn-outline-primary" for="filterAmSnack">AM Snack</label>
-
-        <input type="radio" class="btn-check" name="mealFilter" id="filterPmSnack" value="pm_snack" onchange="wslApplyMealFilter()">
-        <label class="btn btn-outline-primary" for="filterPmSnack">PM Snack</label>
-      </div>
-    </div>
-  </div>
-
-  {% if not weeks %}
-    <div class="alert alert-info">
-      No menu items have been assigned for this period. Create menus and add items to see the shopping list.
-    </div>
-  {% else %}
-    <!-- Weeks -->
-    {% for week in weeks %}
-      <div class="wsl-week-card {% if week.is_past %}wsl-collapsed{% endif %}">
-        <button type="button" class="wsl-week-header" onclick="wslToggleWeek(this)">
-          <span class="wsl-week-caret">&#9656;</span>
-          <strong>Week of {{ week.week_start.strftime('%B %d') }} - {{ week.week_end.strftime('%B %d') }}</strong>
-          {% if week.is_past %}<span class="wsl-week-tag">Past</span>{% endif %}
-          <span class="wsl-week-count" data-total="{{ week.ingredients|length }}">{{ week.ingredients|length }} items</span>
-        </button>
-
-        <ul class="wsl-item-list">
-          {% for ing in week.ingredients %}
-          {% set by_slot = {"all": {"oz": ing.total_oz, "lb": ing.total_lb, "count": ing.total_count, "days": ing.days}} %}
-          {% for slot, v in ing.by_slot.items() %}{% set _ = by_slot.update({slot: v}) %}{% endfor %}
-          <li class="wsl-item" data-name="{{ ing.name|lower }}" data-slots='{{ by_slot|tojson }}'>
-            <label class="wsl-item-row">
-              <input type="checkbox" class="wsl-check"
-                     data-week-start="{{ week.week_start.isoformat() }}"
-                     data-ingredient-name="{{ ing.name }}"
-                     {% if ing.checked %}checked{% endif %}
-                     onchange="wslToggleCheck(this)">
-              <span class="wsl-check-box"></span>
-              <span class="wsl-item-content">
-                <span class="wsl-item-name">{{ ing.name }}</span>
-                <span class="wsl-item-meta">
-                  <span class="wsl-measure" data-oz="{{ ing.total_oz }}" data-lb="{{ ing.total_lb }}">{{ ing.total_oz }} oz</span>
-                  <span class="wsl-meta-sep">&middot;</span>
-                  {% if ing.program_breakdown|length > 0 %}
-                  <button type="button" class="wsl-breakdown-btn" onclick="wslToggleBreakdown(event, this)" aria-expanded="false">
+  {% if view == 'category' %}
+    {% if not by_category %}
+      <div class="alert alert-info">No menu items in this range. Adjust the dates or create menus to see the shopping list.</div>
+    {% else %}
+      {% for cat in by_category %}
+        <div class="wsl-section-card">
+          <button type="button" class="wsl-section-header" onclick="wslToggleSection(this)">
+            <span class="wsl-section-caret">&#9656;</span>
+            <span class="wsl-section-dot" style="background:{{ cat.color }};"></span>
+            <strong>{{ cat.name }}</strong>
+            <span class="wsl-section-count" data-total="{{ cat.ingredients|length }}">{{ cat.ingredients|length }} items</span>
+          </button>
+          <ul class="wsl-item-list">
+            {% for ing in cat.ingredients %}
+            <li class="wsl-item" data-name="{{ ing.name|lower }}" data-slots='{{ ing.slot_filter|tojson }}'>
+              <label class="wsl-item-row">
+                <input type="checkbox" class="wsl-check"
+                       data-range-start="{{ range_start.isoformat() }}"
+                       data-ingredient-name="{{ ing.name }}"
+                       {% if ing.checked %}checked{% endif %}
+                       onchange="wslToggleCheck(this)">
+                <span class="wsl-check-box"></span>
+                <span class="wsl-item-content">
+                  <span class="wsl-item-name">{{ ing.name }}</span>
+                  <span class="wsl-item-meta">
+                    <span class="wsl-measure" data-oz="{{ ing.total_oz }}" data-lb="{{ ing.total_lb }}">{{ ing.total_oz }} oz</span>
+                    <span class="wsl-meta-sep">&middot;</span>
+                    {% if ing.program_breakdown|length > 0 %}
+                    <button type="button" class="wsl-breakdown-btn" onclick="wslToggleBreakdown(event, this)" aria-expanded="false">
+                      <span class="wsl-count-text">{{ ing.total_count }} servings</span>
+                      <span class="wsl-breakdown-caret">&#9662;</span>
+                    </button>
+                    {% else %}
                     <span class="wsl-count-text">{{ ing.total_count }} servings</span>
-                    <span class="wsl-breakdown-caret">&#9662;</span>
-                  </button>
-                  {% else %}
-                  <span class="wsl-count-text">{{ ing.total_count }} servings</span>
+                    {% endif %}
+                    {% for badge in ing.slot_badges %}<span class="wsl-slot-badge" style="background:{{ badge.color }};">{{ badge.label }}</span>{% endfor %}
+                  </span>
+                  {% if ing.days|length > 1 %}
+                  <span class="wsl-day-badges">
+                    {% for d in ing.days %}<span class="wsl-day-badge" title="{{ d.count }} servings on {{ d.label }} {{ d.day_num }}">{{ d.label }} {{ d.day_num }}</span>{% endfor %}
+                  </span>
                   {% endif %}
-                  {% for badge in ing.slot_badges %}<span class="wsl-slot-badge" style="background:{{ badge.color }};">{{ badge.label }}</span>{% endfor %}
                 </span>
-                <span class="wsl-day-badges">
-                  {% for d in ing.days %}<span class="wsl-day-badge" title="{{ d.count }} servings on {{ d.label }} {{ d.day_num }}">{{ d.label }} {{ d.day_num }}</span>{% endfor %}
-                </span>
-              </span>
-            </label>
-            {% if ing.program_breakdown|length > 0 %}
-            <div class="wsl-breakdown-panel" hidden>
-              {% for pb in ing.program_breakdown %}
-              <div class="wsl-breakdown-row">
-                <span class="wsl-bd-name">{{ pb.name }}</span>
-                <span class="wsl-bd-count">{{ pb.count }} svgs</span>
-                <span class="wsl-bd-oz" data-oz="{{ pb.oz }}" data-lb="{{ pb.lb }}">{{ pb.oz }} oz</span>
+              </label>
+              {% if ing.program_breakdown|length > 0 %}
+              <div class="wsl-breakdown-panel" hidden>
+                {% for pb in ing.program_breakdown %}
+                <div class="wsl-breakdown-row">
+                  <span class="wsl-bd-name">{{ pb.name }}</span>
+                  <span class="wsl-bd-count">{{ pb.count }} svgs</span>
+                  <span class="wsl-bd-oz" data-oz="{{ pb.oz }}" data-lb="{{ pb.lb }}">{{ pb.oz }} oz</span>
+                </div>
+                {% endfor %}
               </div>
-              {% endfor %}
-            </div>
-            {% endif %}
-          </li>
-          {% endfor %}
-        </ul>
-      </div>
-    {% endfor %}
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+  {% elif view == 'day' %}
+    {% if not by_day %}
+      <div class="alert alert-info">No menu items in this range.</div>
+    {% else %}
+      {% for day in by_day %}
+        <div class="wsl-section-card {% if not day.ingredients or day.is_past %}wsl-collapsed{% endif %} {% if day.is_today %}wsl-section-today{% endif %}">
+          <button type="button" class="wsl-section-header" onclick="wslToggleSection(this)">
+            <span class="wsl-section-caret">&#9656;</span>
+            <strong>{{ day.weekday }}, {{ day.month_label }} {{ day.day_num }}</strong>
+            {% if day.is_today %}<span class="wsl-section-tag wsl-today-tag">Today</span>{% endif %}
+            <span class="wsl-section-count" data-total="{{ day.ingredients|length }}">{{ day.ingredients|length }} items</span>
+          </button>
+          {% if day.ingredients %}
+          <ul class="wsl-item-list">
+            {% for ing in day.ingredients %}
+            <li class="wsl-item" data-name="{{ ing.name|lower }}" data-slots='{{ ing.slot_filter|tojson }}'>
+              <label class="wsl-item-row">
+                <input type="checkbox" class="wsl-check"
+                       data-range-start="{{ range_start.isoformat() }}"
+                       data-ingredient-name="{{ ing.name }}"
+                       {% if ing.checked %}checked{% endif %}
+                       onchange="wslToggleCheck(this)">
+                <span class="wsl-check-box"></span>
+                <span class="wsl-item-content">
+                  <span class="wsl-item-name">{{ ing.name }}<span class="wsl-item-category">{{ ing.category }}</span></span>
+                  <span class="wsl-item-meta">
+                    <span class="wsl-measure" data-oz="{{ ing.oz }}" data-lb="{{ ing.lb }}">{{ ing.oz }} oz</span>
+                    <span class="wsl-meta-sep">&middot;</span>
+                    <span class="wsl-count-text">{{ ing.count }} servings</span>
+                    {% for badge in ing.slot_badges %}<span class="wsl-slot-badge" style="background:{{ badge.color }};">{{ badge.label }}</span>{% endfor %}
+                  </span>
+                </span>
+              </label>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="wsl-section-empty-msg">Nothing needed this day.</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% endif %}
+
+  {% elif view == 'program' %}
+    {% if not by_program %}
+      <div class="alert alert-info">No menu items in this range.</div>
+    {% else %}
+      {% for prog in by_program %}
+        <div class="wsl-section-card">
+          <button type="button" class="wsl-section-header" onclick="wslToggleSection(this)">
+            <span class="wsl-section-caret">&#9656;</span>
+            <strong>{{ prog.name }}</strong>
+            <span class="wsl-section-count" data-total="{{ prog.ingredients|length }}">{{ prog.ingredients|length }} items</span>
+          </button>
+          <ul class="wsl-item-list">
+            {% for ing in prog.ingredients %}
+            <li class="wsl-item" data-name="{{ ing.name|lower }}" data-slots='{{ ing.slot_filter|tojson }}'>
+              <label class="wsl-item-row">
+                <input type="checkbox" class="wsl-check"
+                       data-range-start="{{ range_start.isoformat() }}"
+                       data-ingredient-name="{{ ing.name }}"
+                       {% if ing.checked %}checked{% endif %}
+                       onchange="wslToggleCheck(this)">
+                <span class="wsl-check-box"></span>
+                <span class="wsl-item-content">
+                  <span class="wsl-item-name">{{ ing.name }}<span class="wsl-item-category">{{ ing.category }}</span></span>
+                  <span class="wsl-item-meta">
+                    <span class="wsl-measure" data-oz="{{ ing.oz }}" data-lb="{{ ing.lb }}">{{ ing.oz }} oz</span>
+                    <span class="wsl-meta-sep">&middot;</span>
+                    <span class="wsl-count-text">{{ ing.count }} servings</span>
+                    {% for badge in ing.slot_badges %}<span class="wsl-slot-badge" style="background:{{ badge.color }};">{{ badge.label }}</span>{% endfor %}
+                  </span>
+                </span>
+              </label>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endfor %}
+    {% endif %}
   {% endif %}
 
 </div>
 
 <style>
+.wsl-range-bar { display: flex; align-items: flex-end; gap: 0.9rem; flex-wrap: wrap; }
+.wsl-range-field { display: flex; flex-direction: column; gap: 0.2rem; }
+.wsl-range-field label { font-size: 0.7rem; font-weight: 700; color: var(--text-secondary, #64748b); text-transform: uppercase; letter-spacing: 0.03em; }
+.ms-auto { margin-left: auto; }
+.wsl-quick-range { display: flex; align-items: center; gap: 0.35rem; padding-bottom: 0.1rem; }
+.wsl-quick-sep { width: 1px; height: 1.4rem; background: var(--border, #e2e8f0); margin: 0 0.15rem; }
+
+.wsl-view-switch { display: flex; gap: 0.4rem; border-bottom: 1px solid var(--border, #e2e8f0); padding-bottom: 0.75rem; }
+.wsl-view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary, #64748b);
+  background: var(--bg, #f1f5f9);
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.wsl-view-tab:hover { color: var(--text-primary, #0f172a); background: var(--border, #e2e8f0); }
+.wsl-view-tab.active { background: var(--accent, #14b8a6); color: #fff; }
+.wsl-view-tab i { width: 15px; height: 15px; }
+
 .wsl-toolbar {
   display: flex;
   align-items: center;
@@ -195,7 +292,7 @@
   position: relative;
   flex: 1;
   min-width: 220px;
-  max-width: 360px;
+  max-width: 320px;
 }
 .wsl-search-icon {
   position: absolute;
@@ -235,6 +332,21 @@
 .wsl-search-clear:hover { color: var(--text-primary, #0f172a); }
 .wsl-search-count { font-size: 0.78rem; font-weight: 600; color: var(--accent, #14b8a6); }
 
+.wsl-slot-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.wsl-chip {
+  border: 1.5px solid var(--border, #e2e8f0);
+  background: var(--surface, #fff);
+  color: var(--text-secondary, #64748b);
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.wsl-chip:hover { border-color: var(--accent, #14b8a6); color: var(--accent, #14b8a6); }
+.wsl-chip.active { background: var(--accent, #14b8a6); border-color: var(--accent, #14b8a6); color: #fff; }
+
 .wsl-unit-toggle {
   margin-left: auto;
   display: inline-flex;
@@ -253,15 +365,16 @@
 }
 .wsl-unit-btn.active { background: var(--accent, #14b8a6); color: #fff; }
 
-.wsl-week-card {
+.wsl-section-card {
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e2e8f0);
   border-radius: var(--radius, 10px);
   box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.07));
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.1rem;
   overflow: hidden;
 }
-.wsl-week-header {
+.wsl-section-card.wsl-section-today { border-color: var(--accent, #14b8a6); }
+.wsl-section-header {
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -277,17 +390,19 @@
   cursor: pointer;
   text-align: left;
 }
-.wsl-week-caret {
+.wsl-section-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; flex-shrink: 0; }
+.wsl-section-caret {
   flex-shrink: 0;
   display: inline-block;
   font-size: 0.75rem;
   color: var(--text-secondary, #64748b);
   transition: transform 0.15s;
 }
-.wsl-week-card.wsl-collapsed .wsl-week-caret { transform: rotate(-90deg); }
-.wsl-week-card.wsl-collapsed .wsl-week-header { border-bottom: none; }
-.wsl-week-card.wsl-collapsed .wsl-item-list { display: none; }
-.wsl-week-tag {
+.wsl-section-card.wsl-collapsed .wsl-section-caret { transform: rotate(-90deg); }
+.wsl-section-card.wsl-collapsed .wsl-section-header { border-bottom: none; }
+.wsl-section-card.wsl-collapsed .wsl-item-list,
+.wsl-section-card.wsl-collapsed .wsl-section-empty-msg { display: none; }
+.wsl-section-tag {
   font-size: 0.66rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -297,8 +412,9 @@
   background: var(--bg, #f1f5f9);
   color: var(--text-secondary, #64748b);
 }
-.wsl-week-header strong { flex: 1; }
-.wsl-week-count {
+.wsl-today-tag { background: var(--accent, #14b8a6); color: #fff; }
+.wsl-section-header strong { flex: 1; }
+.wsl-section-count {
   font-size: 0.72rem;
   font-weight: 600;
   padding: 0.15rem 0.6rem;
@@ -306,6 +422,7 @@
   background: var(--bg, #f1f5f9);
   color: var(--text-secondary, #64748b);
 }
+.wsl-section-empty-msg { padding: 0.75rem 1.125rem; font-size: 0.8rem; color: var(--text-muted, #94a3b8); font-style: italic; }
 .wsl-item-list { list-style: none; margin: 0; padding: 0; }
 .wsl-item {
   border-bottom: 1px solid var(--border, #e2e8f0);
@@ -354,6 +471,14 @@
 }
 .wsl-item-content { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 0; }
 .wsl-item-name { font-size: 0.875rem; font-weight: 600; color: var(--text-primary, #0f172a); }
+.wsl-item-category {
+  margin-left: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 .wsl-item-meta {
   display: flex;
   align-items: center;
@@ -409,20 +534,46 @@
 .wsl-bd-name { font-weight: 600; color: var(--text-primary, #0f172a); flex: 1; }
 
 @media print {
-  .btn, .cat-nav, nav, .wsl-toolbar, .card.mb-3, .btn-group { display: none !important; }
-  .wsl-week-card { break-inside: avoid; box-shadow: none; }
-  .wsl-week-card.wsl-collapsed .wsl-item-list { display: block !important; }
-  .wsl-week-caret { display: none; }
+  .btn, .cat-nav, nav, .wsl-toolbar, .card.mb-3, .wsl-view-switch { display: none !important; }
+  .wsl-section-card { break-inside: avoid; box-shadow: none; }
+  .wsl-section-card.wsl-collapsed .wsl-item-list,
+  .wsl-section-card.wsl-collapsed .wsl-section-empty-msg { display: block !important; }
+  .wsl-section-caret { display: none; }
 }
 </style>
 
 <script>
-document.querySelectorAll('input[name="mealFilter"]').forEach(function(radio) {
-  radio.addEventListener('change', wslApplyMealFilter);
-});
+function wslFmtDate(d) {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + day;
+}
+
+function wslQuickRange(spanDays) {
+  const today = new Date();
+  const end = new Date(today);
+  end.setDate(end.getDate() + spanDays);
+  document.getElementById('wslStartDate').value = wslFmtDate(today);
+  document.getElementById('wslEndDate').value = wslFmtDate(end);
+  document.getElementById('wslRangeForm').submit();
+}
+
+function wslShiftRange(direction) {
+  const startInput = document.getElementById('wslStartDate');
+  const endInput = document.getElementById('wslEndDate');
+  const start = new Date(startInput.value + 'T00:00:00');
+  const end = new Date(endInput.value + 'T00:00:00');
+  const spanMs = end.getTime() - start.getTime();
+  const shiftMs = (spanMs + 24 * 60 * 60 * 1000) * direction;
+  start.setTime(start.getTime() + shiftMs);
+  end.setTime(end.getTime() + shiftMs);
+  startInput.value = wslFmtDate(start);
+  endInput.value = wslFmtDate(end);
+  document.getElementById('wslRangeForm').submit();
+}
 
 function wslToggleCheck(checkbox) {
-  const weekStart = checkbox.dataset.weekStart;
+  const rangeStart = checkbox.dataset.rangeStart;
   const ingredientName = checkbox.dataset.ingredientName;
   const wasChecked = checkbox.checked;
   checkbox.disabled = true;
@@ -430,7 +581,7 @@ function wslToggleCheck(checkbox) {
   fetch('/catering/weekly-ingredients/toggle', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ week_start: weekStart, ingredient_name: ingredientName })
+    body: JSON.stringify({ range_start: rangeStart, ingredient_name: ingredientName })
   })
   .then(function(r) { if (!r.ok) throw new Error('save failed'); return r.json(); })
   .then(function(data) { checkbox.checked = data.checked; })
@@ -447,48 +598,73 @@ function wslEsc(s) {
   });
 }
 
-function wslApplyMealFilter() {
-  const filter = document.querySelector('input[name="mealFilter"]:checked').value;
+function wslGetActiveSlots() {
+  const specific = Array.from(document.querySelectorAll('.wsl-chip[data-slot]:not([data-slot="all"]).active'))
+    .map(function(c) { return c.dataset.slot; });
+  return specific.length ? specific : null;
+}
+
+function wslToggleSlotChip(btn) {
+  const allChip = document.querySelector('.wsl-chip[data-slot="all"]');
+  if (btn.dataset.slot === 'all') {
+    document.querySelectorAll('.wsl-chip').forEach(function(c) { c.classList.toggle('active', c === btn); });
+  } else {
+    btn.classList.toggle('active');
+    const anySpecific = Array.from(document.querySelectorAll('.wsl-chip[data-slot]:not([data-slot="all"])'))
+      .some(function(c) { return c.classList.contains('active'); });
+    allChip.classList.toggle('active', !anySpecific);
+  }
+  wslApplyFilters();
+}
+
+function wslApplyFilters() {
+  const activeSlots = wslGetActiveSlots();
+  const unit = document.querySelector('.wsl-unit-btn.active').dataset.unit;
+
   document.querySelectorAll('.wsl-item').forEach(function(item) {
     let data;
     try { data = JSON.parse(item.dataset.slots); } catch (e) { data = {}; }
-    const key = filter === 'all' ? 'all' : filter;
-    const values = data[key];
-    if (!values) {
-      item.classList.add('wsl-hidden');
-      return;
-    }
-    item.classList.remove('wsl-hidden');
-    const measure = item.querySelector('.wsl-measure');
-    measure.dataset.oz = values.oz;
-    measure.dataset.lb = values.lb;
-    const unit = document.querySelector('.wsl-unit-btn.active').dataset.unit;
-    measure.textContent = values[unit] + ' ' + unit;
-    const countText = item.querySelector('.wsl-count-text');
-    if (countText) countText.textContent = values.count + ' servings';
 
-    const dayBadges = item.querySelector('.wsl-day-badges');
-    if (dayBadges) {
-      const days = values.days || [];
-      dayBadges.innerHTML = days.map(function(d) {
-        return '<span class="wsl-day-badge" title="' + d.count + ' servings on ' + wslEsc(d.label) + ' ' + d.day_num + '">' +
-               wslEsc(d.label) + ' ' + d.day_num + '</span>';
-      }).join('');
+    let oz = 0, lb = 0, count = 0, visible = true;
+    if (!activeSlots) {
+      const v = data.all;
+      if (!v) { visible = false; }
+      else { oz = v.oz; lb = v.lb; count = v.count; }
+    } else {
+      let matched = 0;
+      activeSlots.forEach(function(s) {
+        const v = data[s];
+        if (v) { oz += v.oz; lb += v.lb; count += v.count; matched++; }
+      });
+      if (matched === 0) visible = false;
     }
+
+    item.classList.toggle('wsl-hidden', !visible);
+    if (!visible) return;
+
+    const measure = item.querySelector('.wsl-measure');
+    if (measure) {
+      measure.dataset.oz = oz;
+      measure.dataset.lb = lb;
+      measure.textContent = (unit === 'oz' ? Math.round(oz * 10) / 10 : Math.round(lb * 100) / 100) + ' ' + unit;
+    }
+    const countText = item.querySelector('.wsl-count-text');
+    if (countText) countText.textContent = count + ' servings';
   });
-  wslUpdateWeekCounts();
+
+  wslUpdateSectionCounts();
   wslApplySearch();
 }
 
-function wslToggleWeek(btn) {
-  btn.closest('.wsl-week-card').classList.toggle('wsl-collapsed');
+function wslToggleSection(btn) {
+  btn.closest('.wsl-section-card').classList.toggle('wsl-collapsed');
 }
 
-function wslUpdateWeekCounts() {
-  document.querySelectorAll('.wsl-week-card').forEach(function(card) {
+function wslUpdateSectionCounts() {
+  document.querySelectorAll('.wsl-section-card').forEach(function(card) {
     const visible = card.querySelectorAll('.wsl-item:not(.wsl-hidden):not(.wsl-search-miss)').length;
-    const badge = card.querySelector('.wsl-week-count');
-    badge.textContent = visible + ' item' + (visible === 1 ? '' : 's');
+    const badge = card.querySelector('.wsl-section-count');
+    if (badge) badge.textContent = visible + ' item' + (visible === 1 ? '' : 's');
   });
 }
 
@@ -496,10 +672,7 @@ function wslSetUnit(unit) {
   document.querySelectorAll('.wsl-unit-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.unit === unit);
   });
-  document.querySelectorAll('.wsl-measure, .wsl-bd-oz').forEach(function(el) {
-    const val = el.dataset[unit];
-    if (val !== undefined) el.textContent = val + ' ' + unit;
-  });
+  wslApplyFilters();
 }
 
 function wslToggleBreakdown(evt, btn) {
@@ -523,7 +696,7 @@ function wslApplySearch() {
     if (isTextMatch && !item.classList.contains('wsl-hidden')) matches++;
   });
   document.getElementById('wslSearchCount').textContent = q ? (matches + ' match' + (matches === 1 ? '' : 'es')) : '';
-  wslUpdateWeekCounts();
+  wslUpdateSectionCounts();
 }
 
 function wslClearSearch() {

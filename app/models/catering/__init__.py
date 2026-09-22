@@ -9,6 +9,7 @@ from .production_log import ProductionDailyLog
 from .client_account import CateringClientAccount
 from .portal_request import ClientPortalRequest
 from .daily_manifest import DailyManifest, DailyManifestStop, DailyManifestItem
+from .daily_count import CateringDailyCount
 
 __all__ = [
     "CACFPAgeGroup",
@@ -28,4 +29,5 @@ __all__ = [
     "ClientPortalRequest",
     "DailyManifest",
     "DailyManifestItem",
+    "CateringDailyCount",
 ]
