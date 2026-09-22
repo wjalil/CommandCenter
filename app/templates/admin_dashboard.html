@@ -654,22 +654,16 @@
         <i data-lucide="clock"></i>
         <span class="label">Time Clock</span>
       </a>
-      {% if enabled_modules.get("taskboard", True) %}
-      <a href="/admin/taskboard" class="quick-action-btn">
-        <i data-lucide="clipboard-list"></i>
-        <span class="label">Task Board</span>
+      {% if enabled_modules.get("catering", True) %}
+      <a href="/catering/production/manifest/builder" class="quick-action-btn">
+        <i data-lucide="truck"></i>
+        <span class="label">Daily Manifest</span>
       </a>
       {% endif %}
       {% if enabled_modules.get("vending", True) %}
       <a href="/admin/vending-logs" class="quick-action-btn">
         <i data-lucide="camera"></i>
         <span class="label">Vending Log</span>
-      </a>
-      {% endif %}
-      {% if enabled_modules.get("shopping", True) %}
-      <a href="/shopping/view" class="quick-action-btn">
-        <i data-lucide="shopping-cart"></i>
-        <span class="label">Supply Cart</span>
       </a>
       {% endif %}
       {% if enabled_modules.get("catering", True) %}
@@ -750,6 +744,9 @@
                 <i data-lucide="clipboard-check"></i>Production Sheet
                 <span class="badge badge-daily">Daily</span>
               </a>
+            </li>
+            <li>
+              <a href="/catering/production/manifest/builder"><i data-lucide="truck"></i>Daily Manifest</a>
             </li>
             <li>
               <a href="/catering/portal-requests"><i data-lucide="inbox"></i>Client Requests</a>

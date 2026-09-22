@@ -21,6 +21,10 @@
     {% endif %}
     <a href="/catering/production?date_str={{ next_week_anchor }}" class="prod-nav-btn">&#8594;</a>
     {% if user.role != 'worker' %}
+    <a href="/catering/master-calendar?month={{ anchor_date.month }}&year={{ anchor_date.year }}"
+       class="prod-nav-btn prod-nav-calendar">
+      &#128197; Master Calendar
+    </a>
     <a href="/catering/production/print?month={{ anchor_date.month }}&year={{ anchor_date.year }}"
        class="prod-nav-btn prod-nav-print" target="_blank">
       &#128424; View / Print Monthly Sheet
@@ -318,11 +322,15 @@
         </div>
         <div class="prod-card-body">
           {% if user.role != 'worker' and pd.route_group_code %}
-          <div class="mb-2">
+          <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
             <a href="/catering/production/manifest/builder?date_str={{ primary_date.isoformat() }}"
                class="prod-manifest-link {% if pd.manifest_status == 'released' %}is-released{% elif pd.manifest_status == 'draft' %}is-draft{% endif %}">
               {% if pd.manifest_status == 'released' %}✓ {{ pd.route_group_code }} Manifest Released{% elif pd.manifest_status == 'draft' %}📋 {{ pd.route_group_code }} Draft ({{ pd.manifest_item_count }} item{{ 's' if pd.manifest_item_count != 1 }} this stop) — Finish &amp; Release{% else %}📋 Build {{ pd.route_group_code }} Manifest{% endif %}
             </a>
+            {% if pd.manifest_status == 'released' %}
+            <a href="/catering/production/manifest/driver/view/{{ pd.route_group_code }}?date_str={{ primary_date.isoformat() }}"
+               target="_blank" class="prod-manifest-link is-view">👀 View Manifest</a>
+            {% endif %}
           </div>
           {% endif %}
           {% if pd.program.special_instructions %}
@@ -539,6 +547,18 @@
   border-color: #059669;
   color: #059669;
   background: rgba(16,185,129,0.08);
+}
+.prod-nav-calendar {
+  min-width: unset;
+  padding: 0 0.9rem;
+  margin-left: 0.25rem;
+  border-color: rgba(124,58,237,0.35);
+  color: #7c3aed;
+}
+.prod-nav-calendar:hover {
+  border-color: #7c3aed;
+  color: #7c3aed;
+  background: rgba(124,58,237,0.08);
 }
 
 /* ── Empty state ─────────────────────────────── */
@@ -909,11 +929,19 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.5rem;
-  background: rgba(20,184,166,0.06);
+  background: var(--surface, #fff);
   border: 1px solid rgba(20,184,166,0.25);
+  border-left: 4px solid var(--accent, #14b8a6);
   border-radius: var(--radius, 10px);
   padding: 0.6rem 0.9rem;
   font-size: 0.82rem;
+  /* Stays visible while scrolling through a long Packaging list, so "build/release
+     the manifest" is never more than a glance away — pinned just under the app's
+     own sticky top nav (56px) rather than requiring a scroll back to page top. */
+  position: sticky;
+  top: 56px;
+  z-index: 40;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.07);
 }
 .prod-manifest-banner a { color: var(--accent, #14b8a6); font-weight: 600; text-decoration: none; }
 .prod-manifest-banner a:hover { text-decoration: underline; }
@@ -931,6 +959,7 @@
 .prod-manifest-link:hover { text-decoration: underline; }
 .prod-manifest-link.is-draft { background: rgba(239,68,68,0.13); color: #b91c1c; font-weight: 700; }
 .prod-manifest-link.is-released { background: rgba(16,185,129,0.12); color: #059669; }
+.prod-manifest-link.is-view { background: rgba(37,99,235,0.1); color: #2563eb; font-weight: 700; }
 
 /* ── Prep list ───────────────────────────────── */
 .prod-prep-list { list-style: none; padding: 0; margin: 0; }
@@ -1139,20 +1168,20 @@
   border-radius: 5px;
   border: 2px solid rgba(148,163,184,0.4);
   flex-shrink: 0;
-  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.15s;
 }
 .pkg-check-box::after {
   content: '';
-  position: absolute;
-  left: 0.28rem;
-  top: 0.08rem;
-  width: 0.32rem;
-  height: 0.16rem;
+  width: 0.34rem;
+  height: 0.18rem;
   border-left: 2px solid #fff;
   border-bottom: 2px solid #fff;
   transform: rotate(-45deg) scale(0);
   transition: transform 0.12s;
+  margin-top: -0.08rem;
 }
 .pkg-check-input:checked + .pkg-check-box {
   background: linear-gradient(135deg, var(--accent-emerald, #10b981), var(--accent, #14b8a6));

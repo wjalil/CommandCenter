@@ -33,6 +33,8 @@
     <span class="mb-route-stop-count">{{ card.stops|length }} stop{{ 's' if card.stops|length != 1 }}</span>
     {% if manifest.status == 'released' %}
     <span class="mb-status mb-status-released">✓ Released</span>
+    <a href="/catering/production/manifest/driver/view/{{ manifest.route_code }}?date_str={{ service_date.isoformat() }}"
+       target="_blank" class="mb-view-link" onclick="event.stopPropagation()">👀 View Manifest</a>
     {% else %}
     <span class="mb-status mb-status-draft">Draft</span>
     {% endif %}
@@ -83,6 +85,8 @@
       <form action="/catering/production/manifest/{{ manifest.id }}/reopen" method="POST">
         <button type="submit" class="btn btn-outline-warning btn-sm">Reopen for Editing</button>
       </form>
+      <a href="/catering/production/manifest/driver/view/{{ manifest.route_code }}?date_str={{ service_date.isoformat() }}"
+         target="_blank" class="btn btn-outline-primary btn-sm">👀 View Manifest</a>
       <span class="text-muted" style="font-size:0.78rem;">Drivers can see this route's manifest.</span>
       {% else %}
       <form action="/catering/production/manifest/{{ manifest.id }}/release" method="POST">
@@ -125,6 +129,11 @@
 .mb-status { font-size: 0.72rem; font-weight: 700; padding: 0.25rem 0.65rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
 .mb-status-draft { background: rgba(239,68,68,0.13); color: #b91c1c; }
 .mb-status-released { background: rgba(16,185,129,0.12); color: #059669; }
+.mb-view-link {
+  font-size: 0.72rem; font-weight: 700; padding: 0.25rem 0.65rem; border-radius: 999px;
+  background: rgba(37,99,235,0.1); color: #2563eb; text-decoration: none;
+}
+.mb-view-link:hover { background: rgba(37,99,235,0.18); text-decoration: none; }
 
 .mb-route-body { border-top: 1px solid var(--border, #e2e8f0); padding: 1rem 1.1rem; }
 .mb-stop { padding: 0.8rem 0; border-bottom: 1px solid var(--border, #f1f5f9); }

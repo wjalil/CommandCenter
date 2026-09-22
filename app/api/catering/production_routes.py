@@ -420,7 +420,11 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             slot_total = slot_counts.get(slot) or 0
             slot_veg = slot_vegan.get(slot, 0)
 
+            # Produce is packed via the dedicated Produce supply check below, not as
+            # a breakfast/lunch ingredient line — CACFP requires it be served, but
+            # from a packaging standpoint it doesn't belong on this checklist.
             component_names = _slot_component_names_from_menu_day(menu_day, slot) if menu_day else []
+            component_names = [n for n in component_names if n not in produce_set]
             if not component_names:
                 component_names = [SLOT_DISPLAY.get(slot, slot.replace("_", " ").title())]
             components = [
@@ -1181,77 +1185,81 @@ async def _sync_manifest_checkbox(db: AsyncSession, tenant_id: int, program_id: 
 
 
 async def _sync_manifest_component(db: AsyncSession, tenant_id: int, program_id: str, service_date: date, slot: str, component_name: str, checked: bool):
-    """Add/remove one specific ingredient's line on the manifest when its packaging
-    checkbox is toggled on the Packaging screen — the fine-grained sibling of
-    _sync_manifest_checkbox, giving every component its own checkable manifest line
-    instead of one bulk line per meal slot.
+    """Sync the manifest when a packaging checkbox is toggled on the Packaging screen.
 
-    Also keeps the program's bulk pack-note line (e.g. "5 trays breakfast") in sync:
-    present once at least one component for that slot+stop is checked (packing has
-    started), removed again once none are — so it reads as a live packing-unit
-    reminder, not a blanket substitute for the itemized lines.
+    Breakfast/Lunch (slots with a pack-note field): the manifest only ever carries
+    the single bulk pack-note line (e.g. "5 trays breakfast") — individual
+    ingredient checks stay on the Packaging screen for the kitchen's own tracking,
+    they never become separate manifest lines, since a driver doesn't need an
+    ingredient-level breakdown for a pre-packed tray. The pack-note line is present
+    once at least one ingredient for that slot is checked, removed once none are.
+
+    Snack/AM snack/PM snack (no pack note): unchanged — each ingredient is its own
+    manifest line, since these are handed out as individual items, not bulk trays.
     """
     program = await db.get(CateringProgram, program_id)
     if not program:
         return
 
     stop = await _get_or_create_stop(db, tenant_id, program, service_date)
-
-    existing_result = await db.execute(
-        select(DailyManifestItem).where(
-            DailyManifestItem.stop_id == stop.id,
-            DailyManifestItem.source == slot,
-            DailyManifestItem.label == component_name,
-        )
-    )
-    existing_item = existing_result.scalar_one_or_none()
-
-    if checked and not existing_item:
-        next_order = await _stop_item_count(db, stop.id)
-        db.add(DailyManifestItem(
-            id=str(_uuid.uuid4()),
-            stop_id=stop.id,
-            source=slot,
-            label=component_name,
-            sort_order=next_order,
-        ))
-        await db.flush()
-    elif not checked and existing_item:
-        await db.delete(existing_item)
-        await db.flush()
-
     pack_note_field = PACK_NOTE_FIELDS.get(slot)
+
     if pack_note_field:
         note = getattr(program, pack_note_field, None)
-        if note:
-            packnote_source = f"{slot}_packnote"
-            count_result = await db.execute(
-                select(func.count()).select_from(DailyManifestItem).where(
-                    DailyManifestItem.stop_id == stop.id,
-                    DailyManifestItem.source == slot,
-                )
-            )
-            any_checked = (count_result.scalar() or 0) > 0
+        if not note:
+            return
 
-            packnote_result = await db.execute(
-                select(DailyManifestItem).where(
-                    DailyManifestItem.stop_id == stop.id,
-                    DailyManifestItem.source == packnote_source,
-                )
+        checked_count_result = await db.execute(
+            select(func.count()).select_from(ProductionDailyLog).where(
+                ProductionDailyLog.tenant_id == tenant_id,
+                ProductionDailyLog.service_date == service_date,
+                ProductionDailyLog.check_type == slot,
+                ProductionDailyLog.program_id == program_id,
             )
-            packnote_item = packnote_result.scalar_one_or_none()
+        )
+        any_checked = (checked_count_result.scalar() or 0) > 0
 
-            if any_checked and not packnote_item:
-                next_order = await _stop_item_count(db, stop.id)
-                db.add(DailyManifestItem(
-                    id=str(_uuid.uuid4()),
-                    stop_id=stop.id,
-                    source=packnote_source,
-                    label=note,
-                    sort_order=next_order,
-                ))
-            elif not any_checked and packnote_item:
-                await db.delete(packnote_item)
+        packnote_source = f"{slot}_packnote"
+        packnote_result = await db.execute(
+            select(DailyManifestItem).where(
+                DailyManifestItem.stop_id == stop.id,
+                DailyManifestItem.source == packnote_source,
+            )
+        )
+        packnote_item = packnote_result.scalar_one_or_none()
+
+        if any_checked and not packnote_item:
+            next_order = await _stop_item_count(db, stop.id)
+            db.add(DailyManifestItem(
+                id=str(_uuid.uuid4()),
+                stop_id=stop.id,
+                source=packnote_source,
+                label=note,
+                sort_order=next_order,
+            ))
+        elif not any_checked and packnote_item:
+            await db.delete(packnote_item)
+    else:
+        existing_result = await db.execute(
+            select(DailyManifestItem).where(
+                DailyManifestItem.stop_id == stop.id,
+                DailyManifestItem.source == slot,
+                DailyManifestItem.label == component_name,
+            )
+        )
+        existing_item = existing_result.scalar_one_or_none()
+
+        if checked and not existing_item:
+            next_order = await _stop_item_count(db, stop.id)
+            db.add(DailyManifestItem(
+                id=str(_uuid.uuid4()),
+                stop_id=stop.id,
+                source=slot,
+                label=component_name,
+                sort_order=next_order,
+            ))
+        elif not checked and existing_item:
+            await db.delete(existing_item)
 
     await db.commit()
 
