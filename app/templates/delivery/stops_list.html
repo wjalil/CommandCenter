@@ -32,7 +32,10 @@
   <tbody>
     {% for stop in stops %}
     <tr>
-      <td><strong>{{ stop.name }}</strong></td>
+      <td>
+        <strong>{{ stop.name }}</strong>
+        {% if stop.catering_program_id %}<br><span class="badge" style="background:#7c3aed;" title="Synced from the catering program">🍽 Catering program</span>{% endif %}
+      </td>
       <td>{{ stop.address or '-' }}</td>
       <td>
         {% if stop.contact_name %}{{ stop.contact_name }}{% endif %}
@@ -53,7 +56,7 @@
                 data-bs-target="#editStopModal{{ stop.id }}">
           Edit
         </button>
-        {% if stop.is_active %}
+        {% if stop.is_active and not stop.catering_program_id %}
         <form action="/delivery/admin/stops/{{ stop.id }}/delete" method="POST" style="display:inline;">
           <button type="submit" class="btn btn-sm btn-outline-danger"
                   onclick="return confirm('Deactivate this stop?')">
@@ -74,31 +77,40 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+              {% set linked = stop.catering_program_id %}
+              {% if linked %}
+              <div class="alert alert-light small py-2">
+                Name, address, contact and active status come from the catering program —
+                <a href="/catering/programs/{{ stop.catering_program_id }}/edit">edit the program</a> to change them. Notes (gate codes, dock instructions) are yours to edit here.
+              </div>
+              {% endif %}
               <div class="mb-3">
                 <label class="form-label">Name *</label>
-                <input type="text" name="name" class="form-control" value="{{ stop.name }}" required>
+                <input type="text" name="name" class="form-control" value="{{ stop.name }}" required {% if linked %}readonly{% endif %}>
               </div>
               <div class="mb-3">
                 <label class="form-label">Address</label>
-                <input type="text" name="address" class="form-control" value="{{ stop.address or '' }}">
+                <input type="text" name="address" class="form-control" value="{{ stop.address or '' }}" {% if linked %}readonly{% endif %}>
               </div>
               <div class="mb-3">
                 <label class="form-label">Contact Name</label>
-                <input type="text" name="contact_name" class="form-control" value="{{ stop.contact_name or '' }}">
+                <input type="text" name="contact_name" class="form-control" value="{{ stop.contact_name or '' }}" {% if linked %}readonly{% endif %}>
               </div>
               <div class="mb-3">
                 <label class="form-label">Contact Phone</label>
-                <input type="text" name="contact_phone" class="form-control" value="{{ stop.contact_phone or '' }}">
+                <input type="text" name="contact_phone" class="form-control" value="{{ stop.contact_phone or '' }}" {% if linked %}readonly{% endif %}>
               </div>
               <div class="mb-3">
                 <label class="form-label">Notes</label>
                 <textarea name="notes" class="form-control" rows="2">{{ stop.notes or '' }}</textarea>
               </div>
+              {% if not linked %}
               <div class="form-check">
                 <input type="checkbox" name="is_active" class="form-check-input" id="active{{ stop.id }}"
                        {% if stop.is_active %}checked{% endif %}>
                 <label class="form-check-label" for="active{{ stop.id }}">Active</label>
               </div>
+              {% endif %}
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

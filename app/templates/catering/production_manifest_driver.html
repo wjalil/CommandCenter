@@ -21,7 +21,7 @@
 {% for stop in stops %}
 <div class="dm-stop-card">
   <div class="dm-stop-header">
-    {% if stop.program.route_code %}<span class="dm-stop-code">{{ stop.program.route_code }}</span>{% endif %}
+    <span class="dm-stop-code">Stop {{ loop.index }}</span>
     <span class="dm-stop-name">{{ stop.program.name if stop.program else 'Unknown Program' }}</span>
   </div>
   {% if stop.special_instructions %}

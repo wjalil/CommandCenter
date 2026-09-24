@@ -53,9 +53,17 @@ async def create_program(db: AsyncSession, program: CateringProgramCreate):
         )
         db.add(program_holiday)
 
+    await db.flush()
+    await _sync_delivery_stop(db, new_program)
     await db.commit()
     await db.refresh(new_program)
     return new_program
+
+
+async def _sync_delivery_stop(db: AsyncSession, program: CateringProgram):
+    """Keep the program's mirrored delivery stop in step (see services/catering/delivery_link.py)."""
+    from app.services.catering.delivery_link import sync_program_delivery_stop  # local: avoids an import cycle via services/__init__
+    await sync_program_delivery_stop(db, program)
 
 
 async def get_programs(db: AsyncSession, tenant_id: int, active_only: bool = False):
@@ -124,15 +132,25 @@ async def update_program(db: AsyncSession, program_id: str, tenant_id: int, upda
             )
             db.add(program_holiday)
 
+    await db.flush()
+    await _sync_delivery_stop(db, program)
     await db.commit()
     await db.refresh(program)
     return program
 
 
 async def delete_program(db: AsyncSession, program_id: str, tenant_id: int):
-    """Delete a program"""
+    """Delete a program. Its delivery stop is kept (past delivery routes point at
+    it) but deactivated and unlinked."""
     program = await get_program(db, program_id, tenant_id)
     if program:
+        from app.models.delivery import DeliveryStop
+        stop = (await db.execute(
+            select(DeliveryStop).where(DeliveryStop.catering_program_id == program.id)
+        )).scalar_one_or_none()
+        if stop:
+            stop.is_active = False
+            stop.catering_program_id = None
         await db.delete(program)
         await db.commit()
     return program

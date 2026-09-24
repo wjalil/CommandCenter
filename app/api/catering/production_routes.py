@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func
+from sqlalchemy import func, delete as sa_delete
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from collections import defaultdict
@@ -38,12 +38,30 @@ from app.models.catering.food_component import FoodComponent
 from app.models.catering.cacfp_rules import CACFPComponentType
 from app.crud.catering import daily_count as daily_count_crud
 from app.crud.catering import invoice as invoice_crud
+from app.services.catering.delivery_link import (
+    parse_route_code,
+    ensure_program_delivery_stops,
+    catering_route_templates,
+    template_day_for,
+    delivery_route_for_manifest,
+    sync_delivery_route_for_manifest,
+    sync_delivery_routes_from,
+    retire_delivery_route_for_manifest,
+)
 import uuid as _uuid
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
-SUPPLY_TYPES = ["produce", "milk", "juice"]
+# Multi-select supply cards on the Packaging screen — every selected option
+# (e.g. "Apple", "Milk", "Water") becomes its own line on the driver manifest.
+SUPPLY_TYPES = ["produce", "beverage"]
+BEVERAGE_OPTIONS = ["Milk", "Juice", "Water"]
+# Milk/Juice used to be separate single checkboxes; their old logs/manifest lines
+# are read (and replaced) as a one-item Beverage selection.
+LEGACY_BEVERAGE_TYPES = {"milk": "Milk", "juice": "Juice"}
+# Keeps supply lines below the meal lines on a stop, produce before beverages.
+SUPPLY_SORT_BASE = {"produce": 1000, "beverage": 2000}
 
 # Production-sheet checkboxes that auto-populate line(s) on the driver manifest.
 # Meal-slot checkboxes (breakfast/lunch/snack/am_snack/pm_snack) live on the
@@ -54,7 +72,6 @@ SUPPLY_TYPES = ["produce", "milk", "juice"]
 # so itemized slots like snack don't need a note field at all.
 MEAL_SLOT_TYPES = ("breakfast", "lunch", "snack", "am_snack", "pm_snack")
 PACK_NOTE_FIELDS = {"breakfast": "breakfast_pack_note", "lunch": "lunch_pack_note"}
-SIMPLE_SUPPLY_LABELS = {"milk": "Milk", "juice": "Juice"}
 SLOT_LABELS = {
     "breakfast": "B",
     "lunch": "L",
@@ -82,31 +99,87 @@ def _natural_key(s: str):
 
 
 def _route_group_key(route_code: str) -> str:
-    """Top-level route used for color grouping only, e.g. 'R1-4' -> 'R1'."""
+    """The route part of a program's route_code — 'R1' stays 'R1'; a legacy
+    'R1-4' (route + stop in one string) also reads as 'R1'."""
     if not route_code:
         return ""
     return route_code.split("-")[0].strip()
 
 
+UNASSIGNED_ROUTE = "Unassigned"
+UNASSIGNED_COLOR = "#94A3B8"
+# Stops with no position yet sort after every numbered stop on their route.
+UNORDERED_STOP = 10000
+
+
+def _parse_route_input(text: str) -> tuple[Optional[str], Optional[int]]:
+    """Split a typed route code into (route, stop order): 'R1' -> ('R1', None),
+    legacy-style 'R1-4' -> ('R1', 4), blank -> (None, None). A non-numeric suffix
+    ('BX-North') is kept whole as the route."""
+    return parse_route_code(text)
+
+
+def _program_route(program) -> tuple[str, int]:
+    """A program's permanent (route, stop order). The order comes from
+    route_stop_order, falling back to the numeric suffix of a legacy 'R1-4' code;
+    programs with no route land on UNASSIGNED_ROUTE."""
+    route, legacy_order = _parse_route_input(program.route_code)
+    order = program.route_stop_order if program.route_stop_order is not None else legacy_order
+    return route or UNASSIGNED_ROUTE, order if order is not None else UNORDERED_STOP
+
+
+def _route_color(route: str, fallback_index: int = 0) -> str:
+    """Stable color per route across every screen — keyed off the route's number
+    ('R1' -> first color), so R1 is the same blue on packaging, board and printout."""
+    if route == UNASSIGNED_ROUTE:
+        return UNASSIGNED_COLOR
+    digits = re.findall(r"\d+", route or "")
+    index = int(digits[0]) - 1 if digits else fallback_index
+    return ROUTE_COLORS[index % len(ROUTE_COLORS)]
+
+
+def _sorted_routes(routes) -> list:
+    """Route names in natural order, Unassigned last."""
+    return sorted(set(routes), key=lambda r: (r == UNASSIGNED_ROUTE, _natural_key(r)))
+
+
+def _supply_log_items(log) -> tuple[str, list]:
+    """(supply, selected item labels) for one supply log — the item list is stored
+    as JSON in reference_key; a legacy milk/juice check reads as a one-item
+    Beverage selection."""
+    if log.check_type in LEGACY_BEVERAGE_TYPES:
+        return "beverage", [LEGACY_BEVERAGE_TYPES[log.check_type]]
+    try:
+        items = json.loads(log.reference_key) if log.reference_key else []
+    except (ValueError, TypeError):
+        items = []
+    return log.check_type, items
+
+
+def _order_supply_items(supply: str, items) -> list:
+    """De-duplicated items in display order — beverages in BEVERAGE_OPTIONS order
+    (unknown ones dropped), produce alphabetically."""
+    items = set(items)
+    if supply == "beverage":
+        return [b for b in BEVERAGE_OPTIONS if b in items]
+    return sorted(items)
+
+
 def _group_programs_by_route(programs_data: list) -> list:
-    """Group program delivery cards by route_code, naturally sorted, one color per top-level route."""
+    """Group program delivery cards by the route they ride today (a Route Board
+    move for the day counts), in stop order, one color per route."""
     groups: dict = {}
     for pd in programs_data:
-        route_code = (pd["program"].route_code or "").strip()
-        groups.setdefault(route_code, []).append(pd)
+        groups.setdefault(pd["route"], []).append(pd)
 
-    ordered_codes = sorted((c for c in groups if c), key=_natural_key)
-
-    color_map: dict = {}
-    result = []
-    for code in ordered_codes:
-        top = _route_group_key(code) or code
-        if top not in color_map:
-            color_map[top] = ROUTE_COLORS[len(color_map) % len(ROUTE_COLORS)]
-        result.append({"route_code": code, "color": color_map[top], "programs": groups[code]})
-    if "" in groups:
-        result.append({"route_code": "Unassigned", "color": "#94A3B8", "programs": groups[""]})
-    return result
+    return [
+        {
+            "route_code": route,
+            "color": _route_color(route, i),
+            "programs": sorted(groups[route], key=lambda pd: (pd["stop_order"], pd["program"].name.lower())),
+        }
+        for i, route in enumerate(_sorted_routes(groups))
+    ]
 
 
 def _effective_slot_counts(program, overrides_for_program: dict) -> tuple[dict, dict]:
@@ -341,7 +414,9 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             DailyManifest.service_date == service_date,
         )
     )
-    manifest_by_route: dict = {m.route_code: m for m in manifests_result.scalars().all()}
+    manifests_today = manifests_result.scalars().all()
+    manifest_by_id: dict = {m.id: m for m in manifests_today}
+    manifest_by_route: dict = {m.route_code: m for m in manifests_today}
 
     stops_result = await db.execute(
         select(DailyManifestStop)
@@ -369,26 +444,34 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
         key = (log.check_type, log.program_id or "", log.reference_key or "")
         checked_items[key] = log
 
-    # Load last supply logs per program (most recent date before today for each supply type)
+    supply_check_types = SUPPLY_TYPES + list(LEGACY_BEVERAGE_TYPES)
+
+    # Last supply delivery per program (most recent date before today for each
+    # supply type) and what was sent that day
     last_supply: dict[str, dict] = {}
-    last_supply_log: dict[str, dict] = {}
+    last_supply_items: dict[str, dict] = {}
     for program in serving_programs:
         last_supply[program.id] = {}
-        last_supply_log[program.id] = {}
+        last_supply_items[program.id] = {}
         supply_result = await db.execute(
             select(ProductionDailyLog)
             .where(
                 ProductionDailyLog.tenant_id == tenant_id,
                 ProductionDailyLog.program_id == program.id,
-                ProductionDailyLog.check_type.in_(SUPPLY_TYPES),
+                ProductionDailyLog.check_type.in_(supply_check_types),
                 ProductionDailyLog.service_date < service_date,
             )
             .order_by(ProductionDailyLog.service_date.desc())
         )
         for log in supply_result.scalars().all():
-            if log.check_type not in last_supply[program.id]:
-                last_supply[program.id][log.check_type] = log.service_date
-                last_supply_log[program.id][log.check_type] = log
+            supply, items = _supply_log_items(log)
+            last_date = last_supply[program.id].get(supply)
+            if last_date is None:
+                last_supply[program.id][supply] = log.service_date
+                last_supply_items[program.id][supply] = list(items)
+            elif last_date == log.service_date:
+                # Legacy milk + juice checks on the same day merge into one Beverage entry
+                last_supply_items[program.id][supply].extend(items)
 
     # Build per-program delivery data for template
     programs_data = []
@@ -453,49 +536,34 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
                 "is_override": slot in (daily_count_overrides.get(program.id) or {}),
             })
 
-        supply_checks = {}
-        for supply in SUPPLY_TYPES:
-            if supply == "produce":
-                # Produce logs match any reference_key (items JSON stored there)
-                produce_log = next(
-                    (log for log in today_logs
-                     if log.check_type == "produce" and log.program_id == program.id),
-                    None,
-                )
-                selected_items = []
-                if produce_log and produce_log.reference_key:
-                    try:
-                        selected_items = json.loads(produce_log.reference_key)
-                    except (ValueError, TypeError):
-                        selected_items = []
-                last_produce_log = last_supply_log[program.id].get("produce")
-                last_items = []
-                if last_produce_log and last_produce_log.reference_key:
-                    try:
-                        last_items = json.loads(last_produce_log.reference_key)
-                    except (ValueError, TypeError):
-                        last_items = []
-                supply_checks[supply] = {
-                    "checked": produce_log is not None,
-                    "checked_at": produce_log.checked_at if produce_log else None,
-                    "last_date": last_supply[program.id].get(supply),
-                    "selected_items": selected_items,
-                    "last_items": last_items,
-                }
-            else:
-                key = (supply, program.id, "")
-                log = checked_items.get(key)
-                supply_checks[supply] = {
-                    "checked": log is not None,
-                    "checked_at": log.checked_at if log else None,
-                    "last_date": last_supply[program.id].get(supply),
-                    "selected_items": [],
-                    "last_items": [],
-                }
+        # Supply cards (produce, beverage): today's selection, plus the last
+        # delivery before today as a reminder when nothing is selected yet
+        supply_checks = {
+            supply: {
+                "checked": False,
+                "checked_at": None,
+                "last_date": last_supply[program.id].get(supply),
+                "selected_items": [],
+                "last_items": _order_supply_items(supply, last_supply_items[program.id].get(supply, [])),
+            }
+            for supply in SUPPLY_TYPES
+        }
+        for log in today_logs:
+            if log.program_id != program.id or log.check_type not in supply_check_types:
+                continue
+            supply, items = _supply_log_items(log)
+            sc = supply_checks[supply]
+            sc["checked"] = True
+            sc["selected_items"] = _order_supply_items(supply, sc["selected_items"] + items)
+            if sc["checked_at"] is None or log.checked_at > sc["checked_at"]:
+                sc["checked_at"] = log.checked_at
 
-        route_group_code = _route_group_key(program.route_code)
-        manifest = manifest_by_route.get(route_group_code) if route_group_code else None
+        # Where this program rides today: its manifest stop if one exists (which
+        # reflects a one-day Route Board move), else its permanent route/order.
+        home_route, home_order = _program_route(program)
         stop = stop_by_program.get(program.id)
+        manifest = manifest_by_id.get(stop.manifest_id) if stop else manifest_by_route.get(home_route)
+        route = manifest.route_code if manifest else home_route
 
         programs_data.append({
             "program": program,
@@ -504,7 +572,11 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             "packaging": packaging_slots,
             "has_menu": program.id in program_menu_days,
             "supply_checks": supply_checks,
-            "route_group_code": route_group_code,
+            "route": route,
+            "stop_order": stop.sort_order if stop else home_order,
+            "home_route": home_route,
+            "is_moved_today": route != home_route,
+            "route_group_code": route if route != UNASSIGNED_ROUTE else "",
             "manifest_status": manifest.status if manifest else None,
             "manifest_item_count": len(stop.items) if stop else 0,
         })
@@ -701,6 +773,7 @@ async def production_daily_view(
             "route_groups": data["route_groups"],
             "checked_keys_json": json.dumps(checked_keys),
             "supply_types": SUPPLY_TYPES,
+            "beverage_options": BEVERAGE_OPTIONS,
             "produce_items": data["produce_items"],
             "vegan_total": data["vegan_total"],
             "vegan_breakdown": data["vegan_breakdown"],
@@ -816,8 +889,6 @@ async def toggle_production_check(
             return
         if check_type in MEAL_SLOT_TYPES and reference_key:
             await _sync_manifest_component(db, tenant_id, program_id, service_date, check_type, reference_key, checked=checked)
-        elif check_type in SIMPLE_SUPPLY_LABELS:
-            await _sync_manifest_checkbox(db, tenant_id, program_id, service_date, check_type, checked=checked)
 
     if existing:
         await db.delete(existing)
@@ -842,16 +913,16 @@ async def toggle_production_check(
         return JSONResponse({"checked": True, "checked_at": now.strftime("%b %d %H:%M")})
 
 
-@router.post("/production/produce-save")
-async def save_produce_selection(
+@router.post("/production/supply-save")
+async def save_supply_selection(
     request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_or_worker),
 ):
     """
-    Save produce item selection for a program on a given date.
-    Body: {date, program_id, items: ["Apple", "Carrot", ...]}
-    Empty items list = clear the produce log.
+    Save a multi-select supply card (produce or beverage) for a program on a given date.
+    Body: {date, program_id, supply: "produce"|"beverage", items: ["Apple", ...] or ["Milk", "Water"]}
+    Empty items list = clear the selection. Each selected item is its own manifest line.
     Returns: {checked: bool, checked_at: str, items: [...]}
     """
     tenant_id = request.state.tenant_id
@@ -859,53 +930,91 @@ async def save_produce_selection(
 
     date_str = body.get("date")
     program_id = body.get("program_id")
-    items = body.get("items", [])
+    supply = body.get("supply")
 
-    if not date_str or not program_id:
-        return JSONResponse({"error": "date and program_id required"}, status_code=400)
+    if not date_str or not program_id or supply not in SUPPLY_TYPES:
+        return JSONResponse({"error": "date, program_id and a valid supply are required"}, status_code=400)
 
     try:
         service_date = date.fromisoformat(date_str)
     except ValueError:
         return JSONResponse({"error": "invalid date"}, status_code=400)
 
-    # Delete any existing produce log for this program+date
+    items = _order_supply_items(supply, [str(i).strip() for i in body.get("items") or [] if str(i).strip()])
+
+    # Replace any existing selection for this program+date (for beverage, also the
+    # legacy milk/juice checks it supersedes)
+    check_types = [supply] + (list(LEGACY_BEVERAGE_TYPES) if supply == "beverage" else [])
     existing_result = await db.execute(
         select(ProductionDailyLog).where(
             ProductionDailyLog.tenant_id == tenant_id,
             ProductionDailyLog.service_date == service_date,
-            ProductionDailyLog.check_type == "produce",
+            ProductionDailyLog.check_type.in_(check_types),
             ProductionDailyLog.program_id == program_id,
         )
     )
-    existing = existing_result.scalar_one_or_none()
-    if existing:
+    for existing in existing_result.scalars().all():
         await db.delete(existing)
 
-    if not items:
-        await db.commit()
-        await _sync_manifest_produce(db, tenant_id, program_id, service_date, [])
-        return JSONResponse({"checked": False, "checked_at": "", "items": []})
-
     now = datetime.utcnow()
-    new_log = ProductionDailyLog(
-        id=str(_uuid.uuid4()),
-        tenant_id=tenant_id,
-        service_date=service_date,
-        program_id=program_id,
-        check_type="produce",
-        reference_key=json.dumps(sorted(items)),
-        checked_by_user_id=user.id,
-        checked_at=now,
-    )
-    db.add(new_log)
+    if items:
+        db.add(ProductionDailyLog(
+            id=str(_uuid.uuid4()),
+            tenant_id=tenant_id,
+            service_date=service_date,
+            program_id=program_id,
+            check_type=supply,
+            reference_key=json.dumps(items),
+            checked_by_user_id=user.id,
+            checked_at=now,
+        ))
     await db.commit()
-    await _sync_manifest_produce(db, tenant_id, program_id, service_date, items)
+    await _sync_manifest_supply(db, tenant_id, program_id, service_date, supply, items)
+
     return JSONResponse({
-        "checked": True,
-        "checked_at": now.strftime("%b %d %H:%M"),
-        "items": sorted(items),
+        "checked": bool(items),
+        "checked_at": now.strftime("%b %d %H:%M") if items else "",
+        "items": items,
     })
+
+
+@router.post("/production/route-code-save")
+async def save_route_code(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Change a program's permanent route code straight from the Packaging screen.
+    Any not-yet-past manifest stop for the program follows it to its new route's
+    manifest, so today's manifests stay in sync without a rebuild.
+    Body: {program_id, route_code}  (blank = unassigned)
+    Returns: {route_code, moved_stops}
+    """
+    tenant_id = request.state.tenant_id
+    body = await request.json()
+
+    program = await db.get(CateringProgram, body.get("program_id"))
+    if not program or program.tenant_id != tenant_id:
+        return JSONResponse({"error": "program not found"}, status_code=404)
+
+    raw_code = (body.get("route_code") or "").strip()
+    if len(raw_code) > 50:
+        return JSONResponse({"error": "route code is too long"}, status_code=400)
+
+    # "R1-4" typed out of habit still works: route R1, stop 4
+    new_route, new_order = _parse_route_input(raw_code)
+    old_route, old_order = _program_route(program)
+    if new_order is None and (new_route or UNASSIGNED_ROUTE) == old_route and old_order != UNORDERED_STOP:
+        new_order = old_order  # same route: keep its place (incl. one parsed from a legacy code)
+    # A new route with no stop given goes to the end until placed on the Route Board
+    program.route_code = new_route
+    program.route_stop_order = new_order
+
+    moved = await _move_upcoming_stops_home(db, tenant_id, program, date.today())
+    await sync_delivery_routes_from(db, tenant_id, date.today())
+
+    await db.commit()
+    return JSONResponse({"route_code": new_route or "", "moved_stops": moved})
 
 
 @router.post("/production/count-save")
@@ -1054,38 +1163,87 @@ async def _get_or_create_manifest(db: AsyncSession, tenant_id: int, route_code: 
     return manifest
 
 
-async def _get_or_create_stop(db: AsyncSession, tenant_id: int, program: CateringProgram, service_date: date) -> DailyManifestStop:
-    """Get this program's stop within its route's manifest for the day, creating both if needed.
-
-    Never touch manifest.stops / stop.items off the returned objects — see the
-    warning on _get_or_create_manifest's sibling note in _sync_manifest_checkbox;
-    a delete-orphan collection still needs an (unawaitable) lazy load on first
-    touch even for a just-flushed object. Query DailyManifestStop/Item directly.
-    """
-    route_code = _route_group_key(program.route_code) or "Unassigned"
-    manifest = await _get_or_create_manifest(db, tenant_id, route_code, service_date)
-
+async def _find_stop(db: AsyncSession, tenant_id: int, program_id: str, service_date: date):
+    """This program's stop for the day, whichever route's manifest it's on — (stop,
+    manifest) or (None, None). A Route Board move can put a program on a different
+    route than its permanent one for a single day, so never look a stop up by
+    program.route_code."""
     result = await db.execute(
-        select(DailyManifestStop).where(
-            DailyManifestStop.manifest_id == manifest.id,
-            DailyManifestStop.program_id == program.id,
+        select(DailyManifestStop, DailyManifest)
+        .join(DailyManifest, DailyManifestStop.manifest_id == DailyManifest.id)
+        .where(
+            DailyManifest.tenant_id == tenant_id,
+            DailyManifest.service_date == service_date,
+            DailyManifestStop.program_id == program_id,
         )
     )
-    stop = result.scalar_one_or_none()
+    row = result.first()
+    return (row[0], row[1]) if row else (None, None)
+
+
+async def _get_or_create_stop(db: AsyncSession, tenant_id: int, program: CateringProgram, service_date: date) -> DailyManifestStop:
+    """Get this program's stop for the day, creating it (and its route's manifest)
+    on the program's permanent route at its permanent position if needed.
+
+    Never touch manifest.stops / stop.items off the returned objects — under an
+    async session a delete-orphan collection still needs an (unawaitable) lazy
+    load on first touch even for a just-flushed object. Query DailyManifestStop/Item directly.
+    """
+    stop, _ = await _find_stop(db, tenant_id, program.id, service_date)
     if stop:
         return stop
 
-    next_order = await _manifest_stop_count(db, manifest.id)
+    route, order = _program_route(program)
+    manifest = await _get_or_create_manifest(db, tenant_id, route, service_date)
     stop = DailyManifestStop(
         id=str(_uuid.uuid4()),
         manifest_id=manifest.id,
         program_id=program.id,
         special_instructions=program.special_instructions,
-        sort_order=next_order,
+        sort_order=order,
     )
     db.add(stop)
     await db.flush()
+    if manifest.status == "released":
+        # Driver's route is already out — add the new stop to it
+        await sync_delivery_route_for_manifest(db, manifest)
     return stop
+
+
+async def _move_stop(db: AsyncSession, tenant_id: int, stop: DailyManifestStop, old_manifest: DailyManifest,
+                     route: str, sort_order: int) -> DailyManifest:
+    """Move a stop (with its items) onto `route`'s manifest for the same day, and
+    drop the old manifest if that left it an empty draft. Returns the new manifest."""
+    new_manifest = await _get_or_create_manifest(db, tenant_id, route, old_manifest.service_date)
+    stop.manifest_id = new_manifest.id
+    stop.sort_order = sort_order
+    await db.flush()
+    if old_manifest.status == "draft" and await _manifest_stop_count(db, old_manifest.id) == 0:
+        await retire_delivery_route_for_manifest(db, old_manifest.id)
+        await db.execute(sa_delete(DailyManifest).where(DailyManifest.id == old_manifest.id))
+    return new_manifest
+
+
+async def _move_upcoming_stops_home(db: AsyncSession, tenant_id: int, program: CateringProgram, from_date: date) -> int:
+    """After a permanent route change: put every stop of this program dated
+    from_date or later back on its (new) permanent route, at its permanent
+    position. Returns how many stops moved."""
+    route, order = _program_route(program)
+    result = await db.execute(
+        select(DailyManifestStop, DailyManifest)
+        .join(DailyManifest, DailyManifestStop.manifest_id == DailyManifest.id)
+        .where(
+            DailyManifest.tenant_id == tenant_id,
+            DailyManifest.service_date >= from_date,
+            DailyManifestStop.program_id == program.id,
+            DailyManifest.route_code != route,
+        )
+    )
+    moved = 0
+    for stop, old_manifest in result.all():
+        await _move_stop(db, tenant_id, stop, old_manifest, route, order)
+        moved += 1
+    return moved
 
 
 async def _manifest_stop_count(db: AsyncSession, manifest_id: str) -> int:
@@ -1125,63 +1283,6 @@ def _slot_component_names_from_menu_day(menu_day, slot: str) -> list:
                 seen.add(mc.food_component.name)
                 names.append(mc.food_component.name)
     return names
-
-
-async def _sync_manifest_checkbox(db: AsyncSession, tenant_id: int, program_id: str, service_date: date, source: str, checked: bool):
-    """Add/remove the manifest line for a simple supply checkbox (milk/juice) — one
-    plain line, e.g. "Milk" — under this program's stop within its route's manifest.
-    Meal slots (breakfast/lunch/snack/am_snack/pm_snack) are handled per-component
-    by _sync_manifest_component instead."""
-    program = await db.get(CateringProgram, program_id)
-    if not program:
-        return
-
-    label = SIMPLE_SUPPLY_LABELS.get(source)
-    if label is None:
-        return
-
-    if checked:
-        stop = await _get_or_create_stop(db, tenant_id, program, service_date)
-        existing_result = await db.execute(
-            select(DailyManifestItem.id).where(
-                DailyManifestItem.stop_id == stop.id,
-                DailyManifestItem.source == source,
-            ).limit(1)
-        )
-        if existing_result.scalar_one_or_none() is None:
-            next_order = await _stop_item_count(db, stop.id)
-            db.add(DailyManifestItem(
-                id=str(_uuid.uuid4()),
-                stop_id=stop.id,
-                source=source,
-                label=label,
-                sort_order=next_order,
-            ))
-            await db.commit()
-    else:
-        route_code = _route_group_key(program.route_code) or "Unassigned"
-        stop_result = await db.execute(
-            select(DailyManifestStop)
-            .join(DailyManifest, DailyManifestStop.manifest_id == DailyManifest.id)
-            .where(
-                DailyManifest.tenant_id == tenant_id,
-                DailyManifest.route_code == route_code,
-                DailyManifest.service_date == service_date,
-                DailyManifestStop.program_id == program_id,
-            )
-        )
-        stop = stop_result.scalar_one_or_none()
-        if not stop:
-            return
-        item_result = await db.execute(
-            select(DailyManifestItem).where(
-                DailyManifestItem.stop_id == stop.id,
-                DailyManifestItem.source == source,
-            )
-        )
-        for existing_item in item_result.scalars().all():
-            await db.delete(existing_item)
-        await db.commit()
 
 
 async def _sync_manifest_component(db: AsyncSession, tenant_id: int, program_id: str, service_date: date, slot: str, component_name: str, checked: bool):
@@ -1264,58 +1365,36 @@ async def _sync_manifest_component(db: AsyncSession, tenant_id: int, program_id:
     await db.commit()
 
 
-async def _sync_manifest_produce(db: AsyncSession, tenant_id: int, program_id: str, service_date: date, items: list):
-    """Replace this program's stop's produce lines with the current produce selection."""
+async def _sync_manifest_supply(db: AsyncSession, tenant_id: int, program_id: str, service_date: date, supply: str, items: list):
+    """Replace this program's stop's lines for one supply (produce/beverage) with
+    the current selection — one manifest line per selected item."""
     program = await db.get(CateringProgram, program_id)
     if not program:
         return
-    route_code = _route_group_key(program.route_code) or "Unassigned"
+    sources = [supply] + (list(LEGACY_BEVERAGE_TYPES) if supply == "beverage" else [])
 
-    stop_result = await db.execute(
-        select(DailyManifestStop)
-        .join(DailyManifest, DailyManifestStop.manifest_id == DailyManifest.id)
-        .where(
-            DailyManifest.tenant_id == tenant_id,
-            DailyManifest.route_code == route_code,
-            DailyManifest.service_date == service_date,
-            DailyManifestStop.program_id == program_id,
-        )
-    )
-    stop = stop_result.scalar_one_or_none()
-
-    if not items:
-        if not stop:
-            return
-        item_result = await db.execute(
-            select(DailyManifestItem).where(
-                DailyManifestItem.stop_id == stop.id,
-                DailyManifestItem.source == "produce",
-            )
-        )
-        for existing_item in item_result.scalars().all():
-            await db.delete(existing_item)
-        await db.commit()
-        return
-
+    stop, _ = await _find_stop(db, tenant_id, program_id, service_date)
     if not stop:
+        if not items:
+            return
         stop = await _get_or_create_stop(db, tenant_id, program, service_date)
 
     item_result = await db.execute(
         select(DailyManifestItem).where(
             DailyManifestItem.stop_id == stop.id,
-            DailyManifestItem.source == "produce",
+            DailyManifestItem.source.in_(sources),
         )
     )
     for existing_item in item_result.scalars().all():
         await db.delete(existing_item)
     await db.flush()
 
-    base_order = 1000
-    for i, name in enumerate(sorted(items)):
+    base_order = SUPPLY_SORT_BASE.get(supply, 3000)
+    for i, name in enumerate(items):
         db.add(DailyManifestItem(
             id=str(_uuid.uuid4()),
             stop_id=stop.id,
-            source="produce",
+            source=supply,
             label=name,
             sort_order=base_order + i,
         ))
@@ -1323,6 +1402,11 @@ async def _sync_manifest_produce(db: AsyncSession, tenant_id: int, program_id: s
 
 
 # ==================== MANIFEST BUILDER (admin) ====================
+
+def _stops_in_order(stops) -> list:
+    """A manifest's stops in driving order (Route Board order), ties by name."""
+    return sorted(stops, key=lambda s: (s.sort_order, (s.program.name.lower() if s.program else "")))
+
 
 async def _serving_programs_for_date(db: AsyncSession, tenant_id: int, service_date: date) -> list:
     """Active programs whose service_days include this date's weekday and who
@@ -1373,6 +1457,7 @@ async def manifest_builder(
     for program in serving_programs:
         if program.route_code:
             await _get_or_create_stop(db, tenant_id, program, service_date)
+    await db.commit()  # persist them — the add-item/instructions forms post to these stop ids
 
     manifests_result = await db.execute(
         select(DailyManifest)
@@ -1387,12 +1472,10 @@ async def manifest_builder(
         .order_by(DailyManifest.route_code)
     )
     manifests = manifests_result.scalars().all()
+    manifest_order = _sorted_routes(m.route_code for m in manifests)
     manifest_cards = [
-        {
-            "manifest": m,
-            "stops": sorted(m.stops, key=lambda s: _natural_key(s.program.route_code or "") if s.program else ""),
-        }
-        for m in sorted(manifests, key=lambda m: _natural_key(m.route_code))
+        {"manifest": m, "stops": _stops_in_order(m.stops)}
+        for m in sorted(manifests, key=lambda m: manifest_order.index(m.route_code))
     ]
 
     return templates.TemplateResponse("catering/production_manifest_builder.html", {
@@ -1537,7 +1620,8 @@ async def manifest_release(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    """Release a route's manifest so it becomes visible to drivers."""
+    """Release a route's manifest so it becomes visible to drivers — creates (or
+    refreshes) the day's delivery route with the template's driver and pay."""
     tenant_id = request.state.tenant_id
     result = await db.execute(
         select(DailyManifest).where(DailyManifest.id == manifest_id, DailyManifest.tenant_id == tenant_id)
@@ -1550,6 +1634,7 @@ async def manifest_release(
         manifest.released_at = datetime.utcnow()
         manifest.released_by_user_id = user.id
         date_str = manifest.service_date.isoformat()
+        await sync_delivery_route_for_manifest(db, manifest)
         await db.commit()
 
     return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
@@ -1580,6 +1665,172 @@ async def manifest_reopen(
     return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
 
 
+# ==================== ROUTE BOARD (admin) ====================
+
+@router.get("/production/routes")
+async def route_board(
+    request: Request,
+    date_str: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Every route serving a day as side-by-side columns of stops, in driving order.
+    Drag within a route to reorder (sticks for future days); drag across routes to
+    move a stop for this day only, with a one-click "keep on this route" to make
+    the move permanent."""
+    tenant_id = request.state.tenant_id
+    try:
+        service_date = date.fromisoformat(date_str) if date_str else date.today()
+    except ValueError:
+        service_date = date.today()
+
+    serving_programs = await _serving_programs_for_date(db, tenant_id, service_date)
+
+    stops_result = await db.execute(
+        select(DailyManifestStop, DailyManifest)
+        .join(DailyManifest, DailyManifestStop.manifest_id == DailyManifest.id)
+        .where(DailyManifest.tenant_id == tenant_id, DailyManifest.service_date == service_date)
+    )
+    stop_info = {stop.program_id: (stop, manifest) for stop, manifest in stops_result.all()}
+
+    manifests_result = await db.execute(
+        select(DailyManifest).where(DailyManifest.tenant_id == tenant_id, DailyManifest.service_date == service_date)
+    )
+    status_by_route = {m.route_code: m.status for m in manifests_result.scalars().all()}
+
+    # Delivery-module side: each program's mirrored stop, and the template (driver,
+    # pay) that runs each route
+    await ensure_program_delivery_stops(db, tenant_id)
+    template_by_route = await catering_route_templates(db, tenant_id)
+
+    # Every route any active program is on, so a route with no stops today is still a drop target
+    codes_result = await db.execute(
+        select(CateringProgram.route_code).where(
+            CateringProgram.tenant_id == tenant_id,
+            CateringProgram.is_active == True,  # noqa: E712
+            CateringProgram.route_code.isnot(None),
+        )
+    )
+    routes = {_parse_route_input(code)[0] for code in codes_result.scalars().all() if (code or "").strip()}
+
+    stops_by_route: dict = {}
+    for program in serving_programs:
+        home_route, home_order = _program_route(program)
+        stop, manifest = stop_info.get(program.id, (None, None))
+        route = manifest.route_code if manifest else home_route
+        stops_by_route.setdefault(route, []).append({
+            "program": program,
+            "home_route": home_route,
+            "order": stop.sort_order if stop else home_order,
+        })
+    routes |= set(stops_by_route)
+
+    columns = []
+    for i, route in enumerate(_sorted_routes(routes)):
+        stops = sorted(stops_by_route.get(route, []), key=lambda s: (s["order"], s["program"].name.lower()))
+        if route == UNASSIGNED_ROUTE and not stops:
+            continue
+        template = template_by_route.get(route)
+        template_day = template_day_for(template, service_date)
+        columns.append({
+            "route": route,
+            "color": _route_color(route, i),
+            "status": status_by_route.get(route),
+            "stops": stops,
+            "template": template,
+            "runs_today": template_day is not None,
+            "driver_name": template_day.driver.name if template_day and template_day.driver else None,
+        })
+
+    return templates.TemplateResponse("catering/production_route_board.html", {
+        "request": request,
+        "service_date": service_date,
+        "is_past": service_date < date.today(),
+        "columns": columns,
+        "unassigned_route": UNASSIGNED_ROUTE,
+        "weekday_name": service_date.strftime("%A"),
+        "prev_date": (service_date - timedelta(days=1)).isoformat(),
+        "next_date": (service_date + timedelta(days=1)).isoformat(),
+    })
+
+
+@router.post("/production/routes/save")
+async def route_board_save(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Save the order of one or more Route Board columns for a day.
+    Body: {date, columns: [{route, program_ids: [in driving order]}], make_permanent: [program_id, ...]}
+
+    - A program in its own route's column: its position becomes its permanent stop
+      order (and today's stop moves back if it had been moved away for the day).
+    - A program in another route's column: moved for this day only — its manifest
+      stop moves, its permanent route doesn't.
+    - make_permanent: switch those programs' permanent route to the column they're
+      in, and move their upcoming stops along with them.
+    """
+    tenant_id = request.state.tenant_id
+    body = await request.json()
+    try:
+        service_date = date.fromisoformat(body.get("date") or "")
+    except ValueError:
+        return JSONResponse({"error": "invalid date"}, status_code=400)
+    if service_date < date.today():
+        return JSONResponse({"error": "past days can't be rearranged"}, status_code=400)
+
+    make_permanent = set(body.get("make_permanent") or [])
+    columns = body.get("columns") or []
+
+    for col in columns:
+        route = (col.get("route") or "").strip() or UNASSIGNED_ROUTE
+        if len(route) > 50:
+            return JSONResponse({"error": "route name is too long"}, status_code=400)
+
+        for position, program_id in enumerate(col.get("program_ids") or [], start=1):
+            program = await db.get(CateringProgram, program_id)
+            if not program or program.tenant_id != tenant_id:
+                continue
+
+            if program_id in make_permanent:
+                program.route_code = None if route == UNASSIGNED_ROUTE else route
+            home_route, _ = _program_route(program)
+            if home_route == route:
+                # Own route: the position sticks for every day after this one. Also
+                # drops any legacy "-4" stop suffix — the order lives in its own column now.
+                program.route_stop_order = position
+                program.route_code = None if route == UNASSIGNED_ROUTE else route
+
+            stop, manifest = await _find_stop(db, tenant_id, program_id, service_date)
+            if stop is None:
+                if home_route == route:
+                    continue  # created at its permanent position when first needed
+                target = await _get_or_create_manifest(db, tenant_id, route, service_date)
+                db.add(DailyManifestStop(
+                    id=str(_uuid.uuid4()),
+                    manifest_id=target.id,
+                    program_id=program_id,
+                    special_instructions=program.special_instructions,
+                    sort_order=position,
+                ))
+                await db.flush()
+            elif manifest.route_code != route:
+                await _move_stop(db, tenant_id, stop, manifest, route, position)
+            else:
+                stop.sort_order = position
+
+    for program_id in make_permanent:
+        program = await db.get(CateringProgram, program_id)
+        if program and program.tenant_id == tenant_id:
+            await _move_upcoming_stops_home(db, tenant_id, program, service_date)
+
+    # Drivers' routes follow the board
+    await sync_delivery_routes_from(db, tenant_id, service_date)
+
+    await db.commit()
+    return JSONResponse({"ok": True})
+
+
 # ==================== DRIVER MANIFEST ====================
 
 @router.get("/production/manifest/driver/view")
@@ -1608,16 +1859,14 @@ async def driver_manifest_landing(
         )
     )
     manifests = result.scalars().all()
-    manifests = sorted(manifests, key=lambda m: _natural_key(m.route_code))
+    manifest_order = _sorted_routes(m.route_code for m in manifests)
+    manifests = sorted(manifests, key=lambda m: manifest_order.index(m.route_code))
 
-    color_map: dict = {}
     routes = []
-    for m in manifests:
-        if m.route_code not in color_map:
-            color_map[m.route_code] = ROUTE_COLORS[len(color_map) % len(ROUTE_COLORS)]
+    for i, m in enumerate(manifests):
         routes.append({
             "route_code": m.route_code,
-            "color": color_map[m.route_code],
+            "color": _route_color(m.route_code, i),
             "stop_count": len(m.stops),
             "item_count": sum(len(s.items) for s in m.stops),
         })
@@ -1665,9 +1914,16 @@ async def driver_manifest_detail(
     )
     manifest = result.scalar_one_or_none()
 
+    # Drivers work catering routes in the delivery app (navigate, complete, photo,
+    # items per stop); this paper-style page stays for admins / printing.
+    if manifest and user.role == "worker":
+        route = await delivery_route_for_manifest(db, manifest.id)
+        if route:
+            return RedirectResponse(url=f"/delivery/driver/route/{route.id}", status_code=303)
+
     stops = []
     if manifest:
-        stops = sorted(manifest.stops, key=lambda s: _natural_key(s.program.route_code or "") if s.program else "")
+        stops = _stops_in_order(manifest.stops)
 
     base_template = "worker_base.html" if user.role == "worker" else "base.html"
 

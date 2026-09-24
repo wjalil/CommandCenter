@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}Route Board{% endblock %}
+
+{% block content %}
+{% set active = 'production' %}
+{% include "catering/_nav.html" %}
+
+<div class="rb-page-header mb-3">
+  <div>
+    <h3 class="mb-0">Route Board</h3>
+    <p class="text-muted mb-0" style="font-size:0.85rem;">
+      {{ service_date.strftime('%A, %B %d, %Y') }} —
+      {% if is_past %}past day, view only{% else %}drag to reorder a route (sticks for future days) or drag onto another route (today only){% endif %}
+    </p>
+  </div>
+  <div class="rb-date-nav">
+    <a href="/catering/production/routes?date_str={{ prev_date }}" class="btn btn-outline-secondary btn-sm" title="Previous day">&lsaquo;</a>
+    <form method="GET" action="/catering/production/routes" class="m-0">
+      <input type="date" name="date_str" value="{{ service_date.isoformat() }}" class="form-control form-control-sm" style="width:auto;" onchange="this.form.submit()">
+    </form>
+    <a href="/catering/production/routes?date_str={{ next_date }}" class="btn btn-outline-secondary btn-sm" title="Next day">&rsaquo;</a>
+    <a href="/catering/production/manifest/builder?date_str={{ service_date.isoformat() }}" class="btn btn-outline-primary btn-sm">📋 Manifests</a>
+    <a href="/catering/production?date_str={{ service_date.isoformat() }}" class="btn btn-outline-secondary btn-sm">Production Sheet</a>
+  </div>
+</div>
+
+<div class="rb-save-status" id="rbSaveStatus" aria-live="polite"></div>
+
+{% if not columns %}
+<div class="rb-empty-page">
+  <div style="font-size:2rem;">🗺️</div>
+  <p class="text-muted mb-0">No programs deliver on this day.</p>
+</div>
+{% endif %}
+
+<div class="rb-board" id="rbBoard">
+  {% for col in columns %}
+  <section class="rb-column {% if not col.stops %}is-empty{% endif %}" data-route="{{ col.route }}" style="--route-color: {{ col.color }};">
+    <header class="rb-column-header">
+      <span class="rb-route-badge">{{ col.route }}</span>
+      <span class="rb-stop-count"><span class="rb-count-num">{{ col.stops|length }}</span> stop<span class="rb-count-plural">{{ 's' if col.stops|length != 1 }}</span></span>
+      {% if col.status == 'released' %}
+      <span class="rb-status rb-status-released" title="Drivers can see this manifest — changes show up for them right away">Released</span>
+      {% endif %}
+    </header>
+    {% if col.route != unassigned_route %}
+    <div class="rb-driver-row">
+      {% if not col.template %}
+      <span class="rb-driver rb-driver-missing">No driver setup</span>
+      <a href="/delivery/admin/templates/create?catering_route={{ col.route | urlencode }}" class="rb-driver-link">Set up</a>
+      {% elif not col.runs_today %}
+      <span class="rb-driver rb-driver-missing">Not scheduled on {{ weekday_name }}s</span>
+      <a href="/delivery/admin/templates/{{ col.template.id }}/edit" class="rb-driver-link">Edit</a>
+      {% elif not col.driver_name %}
+      <span class="rb-driver rb-driver-missing">No driver assigned</span>
+      <a href="/delivery/admin/templates/{{ col.template.id }}/edit" class="rb-driver-link">Edit</a>
+      {% else %}
+      <span class="rb-driver">🚚 {{ col.driver_name }}</span>
+      <a href="/delivery/admin/templates/{{ col.template.id }}/edit" class="rb-driver-link">Edit</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    <ol class="rb-stop-list" data-route="{{ col.route }}">
+      {% for s in col.stops %}
+      <li class="rb-stop {% if s.home_route != col.route %}is-moved{% endif %}"
+          data-program-id="{{ s.program.id }}" data-home-route="{{ s.home_route }}">
+        <span class="rb-stop-num">{{ loop.index }}</span>
+        <div class="rb-stop-body">
+          <div class="rb-stop-name">{{ s.program.name }}</div>
+          {% if s.program.address %}<div class="rb-stop-address">{{ s.program.address }}</div>{% endif %}
+          <div class="rb-moved-row">
+            <span class="rb-moved-badge">Today only · usually <span class="rb-home-route">{{ s.home_route }}</span></span>
+            {% if not is_past %}
+            <button type="button" class="rb-keep-btn" onclick="makePermanent(this)">Keep on <span class="rb-keep-route">{{ col.route }}</span></button>
+            {% endif %}
+          </div>
+        </div>
+        {% if not is_past %}<span class="rb-drag-handle" aria-hidden="true">⋮⋮</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    <div class="rb-column-empty">Drop a stop here</div>
+  </section>
+  {% endfor %}
+
+  {% if not is_past %}
+  <section class="rb-column rb-add-column">
+    <form class="rb-add-form" onsubmit="addRoute(event)">
+      <label for="rbNewRoute" class="rb-add-label">New route</label>
+      <input type="text" id="rbNewRoute" class="form-control form-control-sm" placeholder="e.g. R5" maxlength="50" required>
+      <button type="submit" class="btn btn-outline-primary btn-sm">+ Add</button>
+      <small class="text-muted">Drag stops into it — use "Keep on" to make it their permanent route.</small>
+    </form>
+  </section>
+  {% endif %}
+</div>
+
+<style>
+.rb-page-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 0.75rem; }
+.rb-date-nav { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.rb-empty-page { text-align: center; padding: 3rem 1rem; }
+
+.rb-save-status { min-height: 1.2rem; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary, #64748b); margin-bottom: 0.4rem; }
+.rb-save-status.is-error { color: #b91c1c; }
+.rb-save-status.is-saved { color: #059669; }
+
+.rb-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(270px, 1fr);
+  gap: 0.9rem;
+  overflow-x: auto;
+  padding-bottom: 0.75rem;
+  align-items: start;
+}
+.rb-column {
+  background: var(--bg, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-top: 4px solid var(--route-color, #94a3b8);
+  border-radius: 10px;
+  padding: 0.7rem;
+  min-height: 8rem;
+}
+.rb-column-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.rb-route-badge {
+  font-size: 0.85rem; font-weight: 700; color: #fff; background: var(--route-color, #94a3b8);
+  padding: 0.2rem 0.65rem; border-radius: 999px;
+}
+.rb-stop-count { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary, #64748b); }
+.rb-status { margin-left: auto; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.2rem 0.55rem; border-radius: 999px; }
+.rb-status-released { background: rgba(16,185,129,0.12); color: #059669; }
+
+.rb-driver-row { display: flex; align-items: center; gap: 0.5rem; margin: -0.2rem 0 0.6rem; font-size: 0.76rem; }
+.rb-driver { font-weight: 700; color: var(--text-primary, #0f172a); }
+.rb-driver-missing { font-weight: 600; color: #b45309; }
+.rb-driver-link { font-weight: 700; color: #2563eb; text-decoration: none; }
+.rb-driver-link:hover { text-decoration: underline; }
+
+.rb-stop-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; min-height: 2.5rem; }
+.rb-column-empty { display: none; font-size: 0.78rem; color: var(--text-muted, #94a3b8); font-style: italic; text-align: center; padding: 0.6rem; border: 1.5px dashed var(--border, #cbd5e1); border-radius: 8px; pointer-events: none; }
+.rb-column.is-empty .rb-column-empty { display: block; }
+.rb-column.is-empty .rb-stop-list { min-height: 3rem; }
+
+.rb-stop {
+  display: flex; align-items: flex-start; gap: 0.6rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 0.55rem 0.6rem;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+  cursor: grab;
+  user-select: none;
+}
+.rb-stop:active { cursor: grabbing; }
+.rb-stop-num {
+  flex-shrink: 0; width: 1.6rem; height: 1.6rem; border-radius: 50%;
+  background: var(--route-color, #94a3b8); color: #fff;
+  font-size: 0.75rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.rb-stop-body { flex: 1; min-width: 0; }
+.rb-stop-name { font-size: 0.88rem; font-weight: 700; color: var(--text-primary, #0f172a); line-height: 1.25; }
+.rb-stop-address { font-size: 0.72rem; color: var(--text-secondary, #64748b); margin-top: 0.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-drag-handle { color: var(--text-muted, #cbd5e1); font-size: 0.9rem; letter-spacing: -2px; align-self: center; }
+
+.rb-moved-row { display: none; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.35rem; }
+.rb-stop.is-moved { border-color: rgba(245,158,11,0.55); background: rgba(245,158,11,0.05); }
+.rb-stop.is-moved .rb-moved-row { display: flex; }
+.rb-moved-badge { font-size: 0.66rem; font-weight: 700; color: #b45309; background: rgba(245,158,11,0.14); padding: 0.1rem 0.45rem; border-radius: 999px; }
+.rb-keep-btn {
+  font-size: 0.66rem; font-weight: 700; color: #2563eb; background: rgba(37,99,235,0.08);
+  border: 1px solid rgba(37,99,235,0.25); border-radius: 999px; padding: 0.1rem 0.5rem; cursor: pointer;
+}
+.rb-keep-btn:hover { background: rgba(37,99,235,0.16); }
+
+.rb-ghost { opacity: 0.35; }
+.rb-chosen { box-shadow: 0 6px 18px rgba(15,23,42,0.15); }
+
+.rb-add-column { border-top-color: var(--border, #e2e8f0); border-style: dashed; background: transparent; }
+.rb-add-form { display: flex; flex-direction: column; gap: 0.45rem; }
+.rb-add-label { font-size: 0.8rem; font-weight: 700; color: var(--text-secondary, #64748b); margin: 0; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+const SERVICE_DATE = "{{ service_date.isoformat() }}";
+const IS_PAST = {{ 'true' if is_past else 'false' }};
+const SAVE_URL = "/catering/production/routes/save";
+const statusEl = document.getElementById('rbSaveStatus');
+
+function setStatus(text, kind) {
+  statusEl.textContent = text;
+  statusEl.className = 'rb-save-status' + (kind ? ' is-' + kind : '');
+}
+
+function columnPayload(list) {
+  return {
+    route: list.dataset.route,
+    program_ids: Array.from(list.querySelectorAll('.rb-stop')).map(li => li.dataset.programId),
+  };
+}
+
+// Renumber stops, refresh counts and the "today only" state after any change
+function refreshColumn(list) {
+  const route = list.dataset.route;
+  const stops = list.querySelectorAll('.rb-stop');
+  stops.forEach((li, i) => {
+    li.querySelector('.rb-stop-num').textContent = i + 1;
+    li.classList.toggle('is-moved', li.dataset.homeRoute !== route);
+    const keep = li.querySelector('.rb-keep-route');
+    if (keep) keep.textContent = route;
+  });
+  const column = list.closest('.rb-column');
+  column.classList.toggle('is-empty', stops.length === 0);
+  column.querySelector('.rb-count-num').textContent = stops.length;
+  column.querySelector('.rb-count-plural').textContent = stops.length === 1 ? '' : 's';
+}
+
+async function save(lists, makePermanentIds) {
+  setStatus('Saving…');
+  try {
+    const resp = await fetch(SAVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        date: SERVICE_DATE,
+        columns: lists.map(columnPayload),
+        make_permanent: makePermanentIds || [],
+      }),
+    });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'save failed');
+    setStatus('Saved ✓', 'saved');
+    return true;
+  } catch (e) {
+    setStatus('Could not save — reloading the board.', 'error');
+    setTimeout(() => location.reload(), 1200);
+    return false;
+  }
+}
+
+function initList(list) {
+  if (IS_PAST) return;
+  new Sortable(list, {
+    group: 'routes',
+    animation: 150,
+    delay: 150,
+    delayOnTouchOnly: true,
+    ghostClass: 'rb-ghost',
+    chosenClass: 'rb-chosen',
+    onEnd(evt) {
+      if (evt.from === evt.to && evt.oldIndex === evt.newIndex) return;
+      const lists = evt.from === evt.to ? [evt.to] : [evt.from, evt.to];
+      lists.forEach(refreshColumn);
+      save(lists);
+    },
+  });
+}
+document.querySelectorAll('.rb-stop-list').forEach(initList);
+
+async function makePermanent(btn) {
+  const li = btn.closest('.rb-stop');
+  const list = li.closest('.rb-stop-list');
+  const oldHome = li.dataset.homeRoute;
+  li.dataset.homeRoute = list.dataset.route;
+  refreshColumn(list);
+  if (!(await save([list], [li.dataset.programId]))) {
+    li.dataset.homeRoute = oldHome;
+    refreshColumn(list);
+  }
+}
+
+function addRoute(event) {
+  event.preventDefault();
+  const input = document.getElementById('rbNewRoute');
+  const route = input.value.trim();
+  if (!route) return;
+  if (document.querySelector(`.rb-stop-list[data-route="${CSS.escape(route)}"]`)) {
+    setStatus(`${route} is already on the board.`, 'error');
+    return;
+  }
+  const section = document.createElement('section');
+  section.className = 'rb-column is-empty';
+  section.dataset.route = route;
+  section.style.setProperty('--route-color', '#64748b');
+  section.innerHTML = `
+    <header class="rb-column-header">
+      <span class="rb-route-badge"></span>
+      <span class="rb-stop-count"><span class="rb-count-num">0</span> stop<span class="rb-count-plural">s</span></span>
+    </header>
+    <ol class="rb-stop-list"></ol>
+    <div class="rb-column-empty">Drop a stop here</div>`;
+  section.querySelector('.rb-route-badge').textContent = route;
+  section.querySelector('.rb-stop-list').dataset.route = route;
+  document.querySelector('.rb-add-column').before(section);
+  initList(section.querySelector('.rb-stop-list'));
+  input.value = '';
+  setStatus(`Added ${route} — drag stops into it.`);
+}
+</script>
+{% endblock %}

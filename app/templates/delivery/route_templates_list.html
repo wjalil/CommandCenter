@@ -31,12 +31,19 @@
               {% if not tmpl.is_active %}
               <span class="badge bg-secondary">Inactive</span>
               {% endif %}
+              {% if tmpl.catering_route_code %}
+              <span class="badge" style="background:#7c3aed;">🍽 Catering {{ tmpl.catering_route_code }}</span>
+              {% endif %}
             </div>
             {% if tmpl.description %}
             <small class="text-muted">{{ tmpl.description }}</small>
             {% endif %}
             <div class="mt-2">
+              {% if tmpl.catering_route_code %}
+              <small class="text-muted">Stops from the <a href="/catering/production/routes">Route Board</a></small>
+              {% else %}
               <small class="text-muted">{{ tmpl.template_stops|length }} stop{% if tmpl.template_stops|length != 1 %}s{% endif %}</small>
+              {% endif %}
             </div>
           </div>
 

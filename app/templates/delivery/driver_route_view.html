@@ -160,6 +160,26 @@
   .stop-status-line.skip { color: var(--text-secondary); }
   .stop-status-line.live { color: var(--accent-blue); }
 
+  /* Catering manifest checklist per stop */
+  .stop-instructions {
+    font-size: 0.78rem; color: #b45309; background: rgba(245,158,11,0.08);
+    border-radius: 7px; padding: 0.35rem 0.55rem; margin-top: 0.45rem;
+  }
+  .stop-items { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+  .stop-item {
+    display: flex; align-items: center; gap: 0.55rem;
+    padding: 0.45rem 0.55rem; border-radius: 8px; border: 1.5px solid var(--border);
+    cursor: pointer; user-select: none; transition: all 0.12s;
+  }
+  .stop-item-check {
+    flex-shrink: 0; width: 1.15rem; height: 1.15rem; border-radius: 5px; border: 1.5px solid #cbd5e1;
+    display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #fff;
+  }
+  .stop-item-label { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
+  .stop-item.is-done { background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.3); }
+  .stop-item.is-done .stop-item-check { background: #10b981; border-color: #10b981; }
+  .stop-item.is-done .stop-item-label { color: #047857; }
+
   .delivery-photo {
     width: 68px; height: 50px; object-fit: cover;
     border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 0.5rem;
@@ -244,7 +264,9 @@
   {% if maps_stops %}
   <button type="button" class="toolbar-btn maps" onclick="launchGoogleMaps()">🗺️ Navigate</button>
   {% endif %}
+  {% if not route.catering_manifest_id %}{# catering routes show their items on each stop below #}
   <a href="/catering/production/manifest/driver/view?date_str={{ route.date.isoformat() }}" class="toolbar-btn manifest">📋 Manifest</a>
+  {% endif %}
 </div>
 
 {% if route.notes %}
@@ -312,6 +334,24 @@
         {% endif %}
         {% if rs.stop.notes %}
         <div class="stop-detail" style="font-style:italic;">{{ rs.stop.notes }}</div>
+        {% endif %}
+
+        {% set mf = manifest_by_route_stop.get(rs.id) %}
+        {% if mf %}
+        {% if mf.instructions %}
+        <div class="stop-instructions">📝 {{ mf.instructions }}</div>
+        {% endif %}
+        {% if mf["items"] %}
+        <ul class="stop-items">
+          {% for item in mf["items"] %}
+          <li class="stop-item {% if item.driver_confirmed %}is-done{% endif %}" data-item-id="{{ item.id }}"
+              {% if route.assigned_driver_id %}onclick="toggleItem(this)"{% endif %}>
+            <span class="stop-item-check">{% if item.driver_confirmed %}✓{% endif %}</span>
+            <span class="stop-item-label">{{ item.label }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
         {% endif %}
 
         {% if rs.status == 'completed' %}
@@ -447,6 +487,19 @@
       if (waypoints) url += `&waypoints=${waypoints}`;
 
       window.open(url, '_blank');
+    }
+  }
+
+  async function toggleItem(li) {
+    li.classList.toggle('is-done');  // optimistic
+    try {
+      const resp = await fetch(`/delivery/driver/manifest-item/${li.dataset.itemId}/toggle`, { method: 'POST' });
+      if (!resp.ok) throw new Error('toggle failed');
+      const data = await resp.json();
+      li.classList.toggle('is-done', data.confirmed);
+      li.querySelector('.stop-item-check').textContent = data.confirmed ? '✓' : '';
+    } catch (e) {
+      li.classList.toggle('is-done');  // revert
     }
   }
 

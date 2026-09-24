@@ -23,9 +23,22 @@
         <div class="card-body">
           <div class="mb-3">
             <label class="form-label">Route Name *</label>
-            <input type="text" name="name" class="form-control"
-                   value="{{ tmpl.name if tmpl else '' }}"
+            <input type="text" name="name" id="templateName" class="form-control"
+                   value="{{ tmpl.name if tmpl else (selected_catering_route or '') }}"
                    placeholder="e.g. Morning Round" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="cateringRoute">Catering route</label>
+            <select name="catering_route_code" id="cateringRoute" class="form-select">
+              <option value="">— Not a catering route —</option>
+              {% for code in catering_routes %}
+              <option value="{{ code }}" {% if code == selected_catering_route %}selected{% endif %}>{{ code }}</option>
+              {% endfor %}
+              {% if selected_catering_route and selected_catering_route not in catering_routes %}
+              <option value="{{ selected_catering_route }}" selected>{{ selected_catering_route }}</option>
+              {% endif %}
+            </select>
+            <small class="form-text text-muted">Runs this catering route with the drivers and pay rates below. Its stops and their order come from the catering Route Board.</small>
           </div>
           <div class="mb-3">
             <label class="form-label">Description</label>
@@ -42,8 +55,16 @@
         </div>
       </div>
 
+      <div class="card" id="cateringStopsNote" hidden>
+        <div class="card-header">Route Stops</div>
+        <div class="card-body small text-muted">
+          Stops for <strong id="cateringStopsRoute"></strong> come from the catering programs on that route, in the order set on the
+          <a href="/catering/production/routes">Route Board</a>.
+        </div>
+      </div>
+
       <!-- Stops -->
-      <div class="card">
+      <div class="card" id="manualStopsCard">
         <div class="card-header">Route Stops <small class="text-muted">(drag to reorder)</small></div>
         <div class="card-body">
           <div id="selectedStops" class="mb-3">
@@ -196,6 +217,21 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
+  // A catering route's stops come from the Route Board — swap the manual stop picker for a note
+  const cateringRoute = document.getElementById('cateringRoute');
+  function syncCateringRoute() {
+    const code = cateringRoute.value;
+    document.getElementById('cateringStopsNote').hidden = !code;
+    document.getElementById('manualStopsCard').hidden = !!code;
+    document.getElementById('cateringStopsRoute').textContent = code;
+  }
+  cateringRoute.addEventListener('change', () => {
+    const nameInput = document.getElementById('templateName');
+    if (cateringRoute.value && !nameInput.value.trim()) nameInput.value = cateringRoute.value;
+    syncCateringRoute();
+  });
+  syncCateringRoute();
+
   // Sortable stops
   new Sortable(document.getElementById('selectedStops'), {
     animation: 150,

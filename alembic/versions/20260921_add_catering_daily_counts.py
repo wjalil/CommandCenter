@@ -25,6 +25,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # The app's startup create_all() may already have created this table (and its
+    # indexes) before this migration ran — only create what's missing.
+    inspector = sa.inspect(op.get_bind())
+    if inspector.has_table('catering_daily_counts'):
+        existing = {ix['name'] for ix in inspector.get_indexes('catering_daily_counts')}
+        if 'idx_daily_counts_program_date' not in existing:
+            op.create_index('idx_daily_counts_program_date', 'catering_daily_counts', ['program_id', 'service_date'])
+        if 'idx_daily_counts_tenant_date' not in existing:
+            op.create_index('idx_daily_counts_tenant_date', 'catering_daily_counts', ['tenant_id', 'service_date'])
+        return
+
     op.create_table(
         'catering_daily_counts',
         sa.Column('id', sa.String(), primary_key=True),

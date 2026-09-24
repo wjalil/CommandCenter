@@ -295,6 +295,9 @@
     <button type="button" class="pkg-filter-btn active" data-style-filter="all" onclick="setStyleFilter('all')">All</button>
     <button type="button" class="pkg-filter-btn" data-style-filter="family_style" onclick="setStyleFilter('family_style')">🍽️ Family Style</button>
     <button type="button" class="pkg-filter-btn" data-style-filter="individual" onclick="setStyleFilter('individual')">🍱 Individualized</button>
+    {% if user.role != 'worker' %}
+    <a href="/catering/production/routes?date_str={{ primary_date.isoformat() }}" class="pkg-filter-btn pkg-route-board-link">🗺️ Route Board — reorder stops</a>
+    {% endif %}
   </div>
   <div class="d-flex flex-column gap-3">
     {% for group in route_groups %}
@@ -309,6 +312,15 @@
           <div class="prod-card-title">
             <span class="prod-card-icon">📦</span>
             {{ pd.program.name }}
+            <span class="route-edit-chip" data-program-id="{{ pd.program.id }}" data-route-code="{{ pd.program.route_code or '' }}">
+              <span class="route-edit-display">{{ group.route_code }} · Stop {{ loop.index }}</span>
+              {% if user.role != 'worker' %}
+              <button type="button" class="prod-count-edit-btn" title="Change this program's permanent route" onclick="startEditRoute(event, this)">&#9998;</button>
+              {% endif %}
+            </span>
+            {% if pd.is_moved_today %}
+            <span class="route-moved-badge" title="Moved on the Route Board for today only">today only · usually {{ pd.home_route }}</span>
+            {% endif %}
             {% if pd.program.meal_service_style == 'family_style' %}
             <span class="prod-style-badge family">🍽️ Family Style</span>
             {% elif pd.program.meal_service_style == 'individual' %}
@@ -405,29 +417,25 @@
                 {% endif %}
               </div>
             </div>
-            {% else %}
-            <div class="prod-supply-card supply-item {% if sc.checked %}is-done{% endif %}"
-                 data-key="{{ supply_key }}"
-                 data-check-type="{{ supply }}"
-                 data-program-id="{{ pd.program.id }}"
-                 onclick="toggleSupply(this)">
-              <div class="prod-supply-emoji">
-                {% if supply == 'milk' %}&#x1F95B;
-                {% elif supply == 'juice' %}&#x1F9C3;
-                {% endif %}
-              </div>
-              <div class="prod-supply-name">{{ supply | capitalize }}</div>
-              <div class="prod-supply-status">
-                <span class="supply-badge prod-status-pill {% if sc.checked %}done{% else %}pending{% endif %}">
-                  {% if sc.checked %}✓ Done{% else %}Pending{% endif %}
-                </span>
+            {% elif supply == 'beverage' %}
+            <div class="prod-supply-card supply-item bev-card {% if sc.checked %}is-done{% endif %}"
+                 data-check-type="beverage"
+                 data-program-id="{{ pd.program.id }}">
+              <div class="prod-supply-emoji">&#x1F964;</div>
+              <div class="prod-supply-name">Beverage</div>
+              <div class="bev-toggle-row">
+                {% for bev in beverage_options %}
+                <button type="button" class="bev-toggle {% if bev in sc.selected_items %}active{% endif %}"
+                        data-beverage="{{ bev }}" aria-pressed="{{ 'true' if bev in sc.selected_items else 'false' }}"
+                        onclick="toggleBeverage(this)">{{ bev }}</button>
+                {% endfor %}
               </div>
               <div class="supply-check-time prod-supply-time"{% if not sc.checked %} style="display:none"{% endif %}>
                 {{ sc.checked_at.strftime('%H:%M') if sc.checked_at else '' }}
               </div>
               <div class="supply-last-date prod-supply-last"{% if sc.checked %} style="display:none"{% endif %}>
                 {% if sc.last_date %}
-                  Last: {{ sc.last_date.strftime('%b %d') }}
+                  Last: {{ sc.last_date.strftime('%b %d') }}{% if sc.last_items %}<br><span class="prod-last-items">{{ sc.last_items | join(', ') }}</span>{% endif %}
                 {% else %}
                   <span class="prod-no-record">No record</span>
                 {% endif %}
@@ -1194,7 +1202,7 @@
 /* ── Supply grid ─────────────────────────────── */
 .prod-supply-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.625rem;
 }
 .prod-supply-card {
@@ -1269,6 +1277,60 @@
   font-weight: 600;
 }
 
+/* ── Beverage multi-toggle ───────────────────── */
+.bev-card { cursor: default; }
+.bev-toggle-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.3rem; margin: 0.15rem 0; }
+.bev-toggle {
+  border: 1.5px solid rgba(148,163,184,0.35);
+  background: var(--surface, #fff);
+  color: var(--text-secondary, #64748b);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.bev-toggle:hover { border-color: rgba(20,184,166,0.5); color: var(--accent, #14b8a6); }
+.bev-toggle.active {
+  background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(20,184,166,0.18));
+  border-color: rgba(16,185,129,0.5);
+  color: #059669;
+}
+.bev-toggle:disabled { opacity: 0.6; cursor: wait; }
+
+/* ── Route code chip (Packaging card header) ─── */
+.route-edit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  background: rgba(37,99,235,0.08);
+  border: 1px solid rgba(37,99,235,0.2);
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.route-moved-badge {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #b45309;
+  background: rgba(245,158,11,0.14);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+}
+.pkg-route-board-link { margin-left: auto; text-decoration: none; }
+.route-edit-input {
+  width: 6.5rem;
+  font-size: 0.75rem;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid rgba(37,99,235,0.4);
+  border-radius: 4px;
+  font-family: inherit;
+}
+
 @media (max-width: 400px) {
   .prod-supply-emoji { font-size: 1.25rem; }
   .prod-supply-card { padding: 0.5rem 0.3rem; }
@@ -1285,7 +1347,8 @@ const SELECTED_DATES = new Set({{ selected_iso | tojson }});
 let batchMode = {{ 'true' if is_batch_mode else 'false' }};
 
 const TOGGLE_URL = "/catering/production/toggle";
-const PRODUCE_SAVE_URL = "/catering/production/produce-save";
+const SUPPLY_SAVE_URL = "/catering/production/supply-save";
+const ROUTE_SAVE_URL = "/catering/production/route-code-save";
 const COUNT_SAVE_URL = "/catering/production/count-save";
 
 /* ── Mode switch (Kitchen Prep <-> Packaging) ────────────── */
@@ -1439,46 +1502,6 @@ async function togglePrep(checkbox) {
   }
 }
 
-async function toggleSupply(card) {
-  const checkType = card.dataset.checkType;
-  const programId = card.dataset.programId;
-  const key = card.dataset.key;
-  const badge = card.querySelector('.supply-badge');
-  const timeEl = card.querySelector('.supply-check-time');
-  const lastEl = card.querySelector('.supply-last-date');
-
-  try {
-    const resp = await fetch(TOGGLE_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        date: SERVICE_DATE,
-        check_type: checkType,
-        program_id: programId,
-      })
-    });
-    const data = await resp.json();
-
-    if (data.checked) {
-      card.classList.add('is-done');
-      badge.className = 'supply-badge prod-status-pill done';
-      badge.textContent = '✓ Done';
-      if (timeEl) { timeEl.textContent = data.checked_at; timeEl.style.display = ''; }
-      if (lastEl) lastEl.style.display = 'none';
-      checkedMap[key] = data.checked_at;
-    } else {
-      card.classList.remove('is-done');
-      badge.className = 'supply-badge prod-status-pill pending';
-      badge.textContent = 'Pending';
-      if (timeEl) { timeEl.textContent = ''; timeEl.style.display = 'none'; }
-      if (lastEl) lastEl.style.display = '';
-      delete checkedMap[key];
-    }
-  } catch (e) {
-    console.error('Toggle failed', e);
-  }
-}
-
 /* ── Packaging: per-component checkbox ───────────────────── */
 async function togglePackagingComponent(checkbox) {
   const programId = checkbox.dataset.programId;
@@ -1579,6 +1602,88 @@ async function saveEditCount(event, btn) {
   }
 }
 
+/* ── Beverage: multi-toggle, each selection is its own manifest line ── */
+async function toggleBeverage(btn) {
+  const card = btn.closest('.bev-card');
+  const toggles = Array.from(card.querySelectorAll('.bev-toggle'));
+  btn.classList.toggle('active');
+  const items = toggles.filter(t => t.classList.contains('active')).map(t => t.dataset.beverage);
+  toggles.forEach(t => t.disabled = true);
+
+  try {
+    const resp = await fetch(SUPPLY_SAVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ date: SERVICE_DATE, program_id: card.dataset.programId, supply: 'beverage', items })
+    });
+    if (!resp.ok) throw new Error('save failed');
+    const data = await resp.json();
+    toggles.forEach(t => {
+      const on = data.items.includes(t.dataset.beverage);
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const timeEl = card.querySelector('.supply-check-time');
+    const lastEl = card.querySelector('.supply-last-date');
+    card.classList.toggle('is-done', data.checked);
+    if (timeEl) { timeEl.textContent = data.checked_at; timeEl.style.display = data.checked ? '' : 'none'; }
+    if (lastEl) lastEl.style.display = data.checked ? 'none' : '';
+  } catch (e) {
+    btn.classList.toggle('active');  // revert
+    console.error('Beverage save failed', e);
+  } finally {
+    toggles.forEach(t => t.disabled = false);
+  }
+}
+
+/* ── Route code: inline edit on the Packaging card ───────── */
+function startEditRoute(event, btn) {
+  event.stopPropagation();
+  const chip = btn.closest('.route-edit-chip');
+  if (chip.querySelector('.route-edit-input')) return;
+  const displayEl = chip.querySelector('.route-edit-display');
+  displayEl.dataset.originalHtml = displayEl.innerHTML;
+  displayEl.innerHTML =
+    `<input type="text" class="route-edit-input" maxlength="50" placeholder="e.g. R1">` +
+    ` <button type="button" class="prod-count-edit-save" onclick="saveEditRoute(event, this)">&#10003;</button>` +
+    ` <button type="button" class="prod-count-edit-cancel" onclick="cancelEditRoute(event, this)">&times;</button>`;
+  const input = displayEl.querySelector('.route-edit-input');
+  input.value = chip.dataset.routeCode;
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveEditRoute(e, input);
+    if (e.key === 'Escape') cancelEditRoute(e, input);
+  });
+  input.focus();
+  input.select();
+}
+
+function cancelEditRoute(event, el) {
+  event.stopPropagation();
+  const displayEl = el.closest('.route-edit-chip').querySelector('.route-edit-display');
+  displayEl.innerHTML = displayEl.dataset.originalHtml;
+}
+
+async function saveEditRoute(event, el) {
+  event.stopPropagation();
+  const chip = el.closest('.route-edit-chip');
+  const displayEl = chip.querySelector('.route-edit-display');
+  const routeCode = chip.querySelector('.route-edit-input').value.trim();
+  if (routeCode === chip.dataset.routeCode) { cancelEditRoute(event, el); return; }
+
+  try {
+    const resp = await fetch(ROUTE_SAVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ program_id: chip.dataset.programId, route_code: routeCode })
+    });
+    if (!resp.ok) throw new Error('save failed');
+    location.reload();  // route grouping/colors change
+  } catch (e) {
+    alert('Could not save the route code — please try again.');
+    displayEl.innerHTML = displayEl.dataset.originalHtml;
+  }
+}
+
 function openProduceModal(card) {
   activeProduceCard = card;
   document.getElementById('produceModalProgram').textContent = card.dataset.programName;
@@ -1607,10 +1712,10 @@ async function saveProduce(clear) {
     : Array.from(document.querySelectorAll('.produce-item-check:checked')).map(cb => cb.value);
 
   try {
-    const resp = await fetch(PRODUCE_SAVE_URL, {
+    const resp = await fetch(SUPPLY_SAVE_URL, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ date: SERVICE_DATE, program_id: programId, items })
+      body: JSON.stringify({ date: SERVICE_DATE, program_id: programId, supply: 'produce', items })
     });
     const data = await resp.json();
 

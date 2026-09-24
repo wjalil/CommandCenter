@@ -68,7 +68,8 @@ class DailyManifestItem(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     stop_id = Column(String, ForeignKey("catering_daily_manifest_stops.id", ondelete="CASCADE"), nullable=False)
-    # 'breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack', 'milk', 'juice', 'produce', or 'manual'
+    # 'breakfast', 'lunch', 'snack', 'am_snack', 'pm_snack', '<slot>_packnote', 'produce', 'beverage',
+    # 'manual', or legacy 'milk'/'juice' (pre-Beverage)
     source = Column(String, nullable=False)
     label = Column(String, nullable=False)
     sort_order = Column(Integer, default=0, nullable=False)

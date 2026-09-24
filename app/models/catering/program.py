@@ -28,7 +28,8 @@ class CateringProgram(Base):
     pm_snack_count = Column(Integer, nullable=True)
 
     cacfp_eligible = Column(Boolean, default=False, nullable=False)  # auto-add milk to breakfast/lunch on invoices + menu share note
-    route_code = Column(String, nullable=True)  # delivery route code, e.g. "R3"
+    route_code = Column(String, nullable=True)  # delivery route, e.g. "R3" (legacy values carry the stop too: "R3-4")
+    route_stop_order = Column(Integer, nullable=True)  # permanent position on its route; set by dragging on the Route Board
     meal_service_style = Column(String, nullable=True)  # "family_style" or "individual"
     special_instructions = Column(Text, nullable=True)  # e.g. "Split food into 5 trays"
     breakfast_pack_note = Column(String, nullable=True)  # driver manifest line, e.g. "5 trays breakfast"

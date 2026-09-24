@@ -20,6 +20,7 @@ from app.db import get_db
 from app.auth.dependencies import get_current_admin_user
 from app.models.user import User
 from app.models.delivery import DeliveryStop, DeliveryRoute, DeliveryRouteStop, DeliveryRouteTemplate
+from app.services.catering.delivery_link import ensure_program_delivery_stops
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -231,6 +232,7 @@ async def stops_list(
 ):
     """List all delivery stops"""
     tenant_id = request.state.tenant_id
+    await ensure_program_delivery_stops(db, tenant_id)
 
     result = await db.execute(
         select(DeliveryStop)
@@ -291,12 +293,15 @@ async def update_stop(
     stop = result.scalar_one_or_none()
 
     if stop:
-        stop.name = form.get("name")
-        stop.address = form.get("address") or None
-        stop.contact_name = form.get("contact_name") or None
-        stop.contact_phone = form.get("contact_phone") or None
         stop.notes = form.get("notes") or None
-        stop.is_active = "is_active" in form
+        # A catering program's stop takes name/address/contact/active from the
+        # program (edit those on the program); only the notes are delivery's own.
+        if not stop.catering_program_id:
+            stop.name = form.get("name")
+            stop.address = form.get("address") or None
+            stop.contact_name = form.get("contact_name") or None
+            stop.contact_phone = form.get("contact_phone") or None
+            stop.is_active = "is_active" in form
         await db.commit()
 
     return RedirectResponse(url="/delivery/admin/stops", status_code=303)
@@ -320,7 +325,7 @@ async def delete_stop(
     )
     stop = result.scalar_one_or_none()
 
-    if stop:
+    if stop and not stop.catering_program_id:  # program stops follow the program's active flag
         stop.is_active = False
         await db.commit()
 

@@ -5,7 +5,7 @@ Driver-facing endpoints for viewing routes and tracking deliveries
 """
 from fastapi import APIRouter, Depends, Request, UploadFile, File, Form, HTTPException
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import or_
 from sqlalchemy.future import select
@@ -21,6 +21,7 @@ from app.db import get_db
 from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.models.delivery import DeliveryStop, DeliveryRoute, DeliveryRouteStop
+from app.models.catering import DailyManifestStop, DailyManifestItem
 from app.utils.delivery_driver_helpers import next_driver_route, route_date_label, pending_maps_stops
 
 router = APIRouter()
@@ -212,7 +213,60 @@ async def driver_route_view(
         "completed_count": completed_count,
         "total_count": total_count,
         "maps_stops": maps_stops,
+        "manifest_by_route_stop": await _manifest_by_route_stop(db, route, sorted_stops),
     })
+
+
+async def _manifest_by_route_stop(db: AsyncSession, route: DeliveryRoute, route_stops: list) -> dict:
+    """For a route created from a catering manifest: {route stop id: {"items": [...],
+    "instructions": str}} — what goes off the van at each stop, straight from the
+    live manifest (so kitchen edits after release show up here too)."""
+    if not route.catering_manifest_id:
+        return {}
+    manifest_stops = (await db.execute(
+        select(DailyManifestStop)
+        .where(DailyManifestStop.manifest_id == route.catering_manifest_id)
+        .options(selectinload(DailyManifestStop.items))
+    )).scalars().all()
+    by_program = {ms.program_id: ms for ms in manifest_stops}
+    result = {}
+    for rs in route_stops:
+        ms = by_program.get(rs.stop.catering_program_id) if rs.stop.catering_program_id else None
+        if ms:
+            result[rs.id] = {
+                "items": sorted(ms.items, key=lambda i: i.sort_order),
+                "instructions": ms.special_instructions,
+            }
+    return result
+
+
+@router.post("/manifest-item/{item_id}/toggle")
+async def toggle_manifest_item(
+    request: Request,
+    item_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Driver checks a manifest line off as delivered/unloaded at a stop. Only the
+    driver assigned to the route carrying that manifest (or an admin) may toggle."""
+    tenant_id = request.state.tenant_id
+    row = (await db.execute(
+        select(DailyManifestItem, DeliveryRoute)
+        .join(DailyManifestStop, DailyManifestItem.stop_id == DailyManifestStop.id)
+        .join(DeliveryRoute, DeliveryRoute.catering_manifest_id == DailyManifestStop.manifest_id)
+        .where(DailyManifestItem.id == item_id, DeliveryRoute.tenant_id == tenant_id)
+    )).first()
+    if not row:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    item, route = row
+    if route.assigned_driver_id != user.id and user.role not in ("admin", "office_admin"):
+        return JSONResponse({"error": "not your route"}, status_code=403)
+
+    item.driver_confirmed = not item.driver_confirmed
+    item.driver_confirmed_at = datetime.utcnow() if item.driver_confirmed else None
+    item.driver_confirmed_by_user_id = user.id if item.driver_confirmed else None
+    await db.commit()
+    return JSONResponse({"confirmed": item.driver_confirmed})
 
 
 # ==================== ROUTE ACTIONS ====================

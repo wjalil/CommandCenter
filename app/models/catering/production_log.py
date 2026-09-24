@@ -13,7 +13,8 @@ class ProductionDailyLog(Base):
     service_date = Column(Date, nullable=False)
     # NULL program_id = kitchen prep item (not program-specific)
     program_id = Column(String, ForeignKey("catering_programs.id", ondelete="CASCADE"), nullable=True)
-    # 'produce', 'milk', 'juice' for supply checks (requires program_id)
+    # 'produce', 'beverage' for supply checks (requires program_id; selected items
+    # stored as a JSON list in reference_key). Legacy 'milk'/'juice' rows predate Beverage.
     # 'prep' for kitchen component checks (program_id = null)
     check_type = Column(String, nullable=False)
     # For 'prep' checks: the food component name (e.g. "Brown Rice")

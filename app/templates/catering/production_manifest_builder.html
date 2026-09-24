@@ -14,6 +14,7 @@
     <form method="GET" action="/catering/production/manifest/builder" class="d-flex align-items-center gap-2">
       <input type="date" name="date_str" value="{{ service_date.isoformat() }}" class="form-control form-control-sm" style="width:auto;" onchange="this.form.submit()">
     </form>
+    <a href="/catering/production/routes?date_str={{ service_date.isoformat() }}" class="btn btn-outline-primary btn-sm">🗺️ Route Board</a>
     <a href="/catering/production?date_str={{ service_date.isoformat() }}" class="btn btn-outline-secondary btn-sm">&lsaquo; Production Sheet</a>
   </div>
 </div>
@@ -45,7 +46,7 @@
     {% for stop in card.stops %}
     <div class="mb-stop">
       <div class="mb-stop-header">
-        {% if stop.program.route_code %}<span class="mb-stop-code">{{ stop.program.route_code }}</span>{% endif %}
+        <span class="mb-stop-code">Stop {{ loop.index }}</span>
         <span class="mb-stop-name">{{ stop.program.name if stop.program else 'Unknown Program' }}</span>
       </div>
 
@@ -65,7 +66,7 @@
         {% endfor %}
       </ul>
       {% else %}
-      <div class="mb-empty">No items yet — check off meal slots, milk, juice or produce on the production sheet, or add one below.</div>
+      <div class="mb-empty">No items yet — check off meal slots, produce or beverages on the Packaging screen, or add one below.</div>
       {% endif %}
 
       <form action="/catering/production/manifest/stop/{{ stop.id }}/items" method="POST" class="mb-add-form">

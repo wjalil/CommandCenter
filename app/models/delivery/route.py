@@ -20,6 +20,9 @@ class DeliveryRoute(Base):
 
     template_id = Column(String, ForeignKey("delivery_route_templates.id"), nullable=True)
     driver_pay_rate = Column(Numeric(10, 2), nullable=True)  # stamped at generation
+    # The catering manifest this route delivers (one route per manifest), when it
+    # was created from a released catering manifest rather than generated weekly.
+    catering_manifest_id = Column(String, ForeignKey("catering_daily_manifests.id", ondelete="SET NULL"), nullable=True, unique=True)
 
     tenant = relationship("Tenant", back_populates="delivery_routes")
     assigned_driver = relationship("User", back_populates="assigned_routes")

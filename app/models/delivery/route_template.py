@@ -16,6 +16,10 @@ class DeliveryRouteTemplate(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Set when this template runs a catering route (e.g. "R1"): its per-weekday
+    # drivers and pay rates apply to that route. Its stops come from the catering
+    # Route Board, not template_stops. One template per catering route per tenant.
+    catering_route_code = Column(String, nullable=True)
 
     tenant = relationship("Tenant", back_populates="delivery_route_templates")
     template_stops = relationship(
@@ -38,6 +42,7 @@ class DeliveryRouteTemplate(Base):
 
     __table_args__ = (
         Index("idx_route_templates_tenant", "tenant_id"),
+        UniqueConstraint("tenant_id", "catering_route_code", name="uq_route_template_catering_route"),
     )
 
     @property

@@ -20,6 +20,7 @@ from app.models.delivery import (
     DeliveryRouteTemplate, DeliveryRouteTemplateStop, DeliveryRouteTemplateDay,
     DeliveryRoutePayRate,
 )
+from app.services.catering.delivery_link import catering_route_codes
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -38,6 +39,24 @@ async def _get_drivers(db: AsyncSession, tenant_id: int) -> list[User]:
         select(User).where(User.tenant_id == tenant_id, User.is_active == True).order_by(User.name)
     )
     return result.scalars().all()
+
+
+async def _set_catering_route(db: AsyncSession, tenant_id: int, tmpl: DeliveryRouteTemplate, form) -> None:
+    """Link (or unlink) this template to a catering route. One template per route:
+    linking takes the route away from whichever template had it before."""
+    code = (form.get("catering_route_code") or "").strip() or None
+    if code:
+        others = await db.execute(
+            select(DeliveryRouteTemplate).where(
+                DeliveryRouteTemplate.tenant_id == tenant_id,
+                DeliveryRouteTemplate.catering_route_code == code,
+                DeliveryRouteTemplate.id != tmpl.id,
+            )
+        )
+        for other in others.scalars().all():
+            other.catering_route_code = None
+        await db.flush()
+    tmpl.catering_route_code = code
 
 
 async def _get_stops(db: AsyncSession, tenant_id: int) -> list[DeliveryStop]:
@@ -96,6 +115,9 @@ async def template_create_form(
         "selected_stops": [],
         "day_map": {},
         "pay_rate_map": {},
+        # Linking from the catering Route Board's "Set up" arrives with ?catering_route=R1
+        "catering_routes": await catering_route_codes(db, tenant_id),
+        "selected_catering_route": request.query_params.get("catering_route") or "",
     })
 
 
@@ -117,9 +139,11 @@ async def template_create(
     )
     db.add(tmpl)
     await db.flush()
+    await _set_catering_route(db, tenant_id, tmpl, form)
 
-    # Stops (ordered list)
-    for order, stop_id in enumerate(form.getlist("stop_ids[]"), start=1):
+    # Stops (ordered list) — a catering route's stops come from the Route Board instead
+    manual_stop_ids = [] if tmpl.catering_route_code else form.getlist("stop_ids[]")
+    for order, stop_id in enumerate(manual_stop_ids, start=1):
         if stop_id:
             db.add(DeliveryRouteTemplateStop(
                 id=str(uuid.uuid4()),
@@ -200,6 +224,8 @@ async def template_edit_form(
         "selected_stops": selected_stops,
         "day_map": day_map,
         "pay_rate_map": pay_rate_map,
+        "catering_routes": await catering_route_codes(db, tenant_id),
+        "selected_catering_route": tmpl.catering_route_code or "",
     })
 
 
@@ -230,12 +256,14 @@ async def template_update(
     tmpl.name = form.get("name")
     tmpl.description = form.get("description") or None
     tmpl.is_active = "is_active" in form
+    await _set_catering_route(db, tenant_id, tmpl, form)
 
     # Replace stops
     for ts in list(tmpl.template_stops):
         await db.delete(ts)
     await db.flush()
-    for order, stop_id in enumerate(form.getlist("stop_ids[]"), start=1):
+    manual_stop_ids = [] if tmpl.catering_route_code else form.getlist("stop_ids[]")
+    for order, stop_id in enumerate(manual_stop_ids, start=1):
         if stop_id:
             db.add(DeliveryRouteTemplateStop(
                 id=str(uuid.uuid4()),
@@ -328,11 +356,13 @@ async def generate_form(
     week_start = week[0]
     week_end = week[6]
 
-    # Load all active templates with stops + days
+    # Load all active templates with stops + days. Catering-route templates are
+    # left out: their daily routes come from released catering manifests.
     result = await db.execute(
         select(DeliveryRouteTemplate).where(
             DeliveryRouteTemplate.tenant_id == tenant_id,
             DeliveryRouteTemplate.is_active == True,
+            DeliveryRouteTemplate.catering_route_code.is_(None),
         ).options(
             selectinload(DeliveryRouteTemplate.template_stops).selectinload(DeliveryRouteTemplateStop.stop),
             selectinload(DeliveryRouteTemplate.template_days).selectinload(DeliveryRouteTemplateDay.driver),

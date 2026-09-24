@@ -16,9 +16,14 @@ class DeliveryStop(Base):
     notes = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    # Set when this stop mirrors a catering program — name/address/contact/active
+    # are kept in sync from the program (app/services/catering/delivery_link.py);
+    # notes stay delivery-owned (gate codes, dock instructions, ...).
+    catering_program_id = Column(String, ForeignKey("catering_programs.id", ondelete="SET NULL"), nullable=True, unique=True)
 
     tenant = relationship("Tenant", back_populates="delivery_stops")
     route_stops = relationship("DeliveryRouteStop", back_populates="stop", cascade="all, delete-orphan")
+    catering_program = relationship("CateringProgram")
 
     __table_args__ = (
         Index("idx_delivery_stops_tenant", "tenant_id"),
