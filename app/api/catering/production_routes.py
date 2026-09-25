@@ -1914,16 +1914,20 @@ async def driver_manifest_detail(
     )
     manifest = result.scalar_one_or_none()
 
+    delivery_route = await delivery_route_for_manifest(db, manifest.id) if manifest else None
+
     # Drivers work catering routes in the delivery app (navigate, complete, photo,
     # items per stop); this paper-style page stays for admins / printing.
-    if manifest and user.role == "worker":
-        route = await delivery_route_for_manifest(db, manifest.id)
-        if route:
-            return RedirectResponse(url=f"/delivery/driver/route/{route.id}", status_code=303)
+    if delivery_route and user.role == "worker":
+        return RedirectResponse(url=f"/delivery/driver/route/{delivery_route.id}", status_code=303)
 
     stops = []
+    driver_name = None
     if manifest:
         stops = _stops_in_order(manifest.stops)
+        if delivery_route and delivery_route.assigned_driver_id:
+            driver = await db.get(User, delivery_route.assigned_driver_id)
+            driver_name = driver.name if driver else None
 
     base_template = "worker_base.html" if user.role == "worker" else "base.html"
 
@@ -1931,9 +1935,13 @@ async def driver_manifest_detail(
         "request": request,
         "base_template": base_template,
         "route_code": route_code,
+        "route_color": _route_color(route_code),
         "service_date": service_date,
         "manifest": manifest,
         "stops": stops,
+        "driver_name": driver_name,
+        "item_count": sum(len(s.items) for s in stops),
+        "confirmed_count": sum(1 for s in stops for i in s.items if i.driver_confirmed),
     })
 
 

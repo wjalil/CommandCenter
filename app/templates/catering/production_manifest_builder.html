@@ -28,7 +28,7 @@
 
 {% for card in manifest_cards %}
 {% set manifest = card.manifest %}
-<details class="mb-route-card" {% if manifest.status != 'released' %}open{% endif %}>
+<details class="mb-route-card" data-manifest-id="{{ manifest.id }}" data-status="{{ manifest.status }}" {% if manifest.status != 'released' %}open{% endif %}>
   <summary class="mb-route-summary">
     <span class="mb-route-badge">{{ manifest.route_code }}</span>
     <span class="mb-route-stop-count">{{ card.stops|length }} stop{{ 's' if card.stops|length != 1 }}</span>
@@ -55,12 +55,13 @@
         {% for item in stop.items %}
         <li class="mb-item">
           <span class="mb-item-source mb-source-{{ item.source }}">{{ item.source }}</span>
-          <form action="/catering/production/manifest/item/{{ item.id }}/edit" method="POST" class="mb-item-edit-form">
-            <input type="text" name="label" value="{{ item.label }}" class="mb-item-input" maxlength="200">
+          <form action="/catering/production/manifest/item/{{ item.id }}/edit" method="POST" class="mb-item-edit-form" data-autosave>
+            <input type="text" name="label" value="{{ item.label }}" class="mb-item-input" maxlength="200" required>
             <button type="submit" class="mb-item-save" title="Save">Save</button>
+            <span class="mb-save-status" aria-live="polite"></span>
           </form>
-          <form action="/catering/production/manifest/item/{{ item.id }}/delete" method="POST" class="mb-item-remove-form">
-            <button type="submit" class="mb-item-remove" title="Remove" onclick="return confirm('Remove this item?')">&times;</button>
+          <form action="/catering/production/manifest/item/{{ item.id }}/delete" method="POST" class="mb-item-remove-form" data-ajax-delete>
+            <button type="submit" class="mb-item-remove" title="Remove">&times;</button>
           </form>
         </li>
         {% endfor %}
@@ -74,9 +75,10 @@
         <button type="submit" class="btn btn-outline-primary btn-sm">+ Add</button>
       </form>
 
-      <form action="/catering/production/manifest/stop/{{ stop.id }}/instructions" method="POST" class="mb-instructions-form">
+      <form action="/catering/production/manifest/stop/{{ stop.id }}/instructions" method="POST" class="mb-instructions-form" data-autosave>
         <input type="text" name="special_instructions" value="{{ stop.special_instructions or '' }}" class="form-control form-control-sm" placeholder="Special instructions for this stop (e.g. gated entrance)" maxlength="300">
-        <button type="submit" class="btn btn-outline-secondary btn-sm">Save Note</button>
+        <button type="submit" class="btn btn-outline-secondary btn-sm mb-note-save">Save Note</button>
+        <span class="mb-save-status" aria-live="polite"></span>
       </form>
     </div>
     {% endfor %}
@@ -171,6 +173,121 @@
 .mb-instructions-form { display: flex; gap: 0.4rem; }
 .mb-instructions-form input { flex: 1; }
 
+/* With JS on, edits autosave — hide the manual Save buttons. */
+.mb-js .mb-item-save, .mb-js .mb-note-save { display: none; }
+.mb-save-status { flex-shrink: 0; min-width: 3.2rem; font-size: 0.68rem; font-weight: 700; color: var(--text-muted, #94a3b8); align-self: center; }
+.mb-save-status.is-saved { color: #059669; }
+.mb-save-status.is-error { color: #dc2626; }
+.mb-item.is-removing { opacity: 0.4; pointer-events: none; }
+
 .mb-release-row { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border, #e2e8f0); }
 </style>
+
+<script>
+(function () {
+  document.documentElement.classList.add('mb-js');
+  var STATE_KEY = 'mb-builder-state:' + location.pathname + location.search;
+
+  // ---- Keep scroll position + expanded routes across the reloads we still do (add, release, reopen) ----
+  function saveState() {
+    var cards = {};
+    document.querySelectorAll('.mb-route-card').forEach(function (d) {
+      cards[d.dataset.manifestId] = { open: d.open, status: d.dataset.status };
+    });
+    try { sessionStorage.setItem(STATE_KEY, JSON.stringify({ y: window.scrollY, cards: cards })); } catch (e) {}
+  }
+  (function restoreState() {
+    var raw = null;
+    try { raw = sessionStorage.getItem(STATE_KEY); sessionStorage.removeItem(STATE_KEY); } catch (e) {}
+    if (!raw) return;
+    try {
+      var st = JSON.parse(raw);
+      document.querySelectorAll('.mb-route-card').forEach(function (d) {
+        var prev = st.cards && st.cards[d.dataset.manifestId];
+        // A route that just changed status keeps its default (released collapses, reopened expands).
+        if (prev && prev.status === d.dataset.status) d.open = prev.open;
+      });
+      window.scrollTo(0, st.y || 0);
+    } catch (e) {}
+  })();
+
+  function post(form) {
+    return fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin' })
+      .then(function (res) {
+        // Endpoints redirect back to the builder on success; anything else (e.g. login page) is a failure.
+        if (!res.ok || res.url.indexOf('/manifest/builder') === -1) throw new Error('save failed');
+        return res;
+      });
+  }
+
+  // ---- Autosave: item labels and stop notes ----
+  document.querySelectorAll('form[data-autosave]').forEach(function (form) {
+    var input = form.querySelector('input[type="text"]');
+    var status = form.querySelector('.mb-save-status');
+    var saved = input.value;
+    var timer = null, statusTimer = null, inFlight = null;
+
+    function setStatus(text, cls) {
+      clearTimeout(statusTimer);
+      status.textContent = text;
+      status.className = 'mb-save-status' + (cls ? ' ' + cls : '');
+      if (cls === 'is-saved') statusTimer = setTimeout(function () { status.textContent = ''; }, 1800);
+    }
+
+    function save() {
+      clearTimeout(timer);
+      var value = input.value;
+      if (value.trim() === saved.trim()) return;
+      if (input.required && !value.trim()) { setStatus('Can’t be blank', 'is-error'); return; }
+      setStatus('Saving…');
+      var run = function () {
+        return post(form).then(function () {
+          saved = value;
+          if (input.value === value) setStatus('Saved', 'is-saved');
+        }).catch(function () { setStatus('Not saved', 'is-error'); });
+      };
+      inFlight = (inFlight || Promise.resolve()).then(run, run);
+    }
+
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(save, 800);
+    });
+    input.addEventListener('blur', save);
+    form.addEventListener('submit', function (e) { e.preventDefault(); save(); });
+    // Blank item label on blur: put the last saved text back rather than leaving it empty.
+    if (input.required) input.addEventListener('blur', function () {
+      if (!input.value.trim()) { input.value = saved; setStatus(''); }
+    });
+  });
+
+  // ---- Delete a line in place ----
+  document.querySelectorAll('form[data-ajax-delete]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!confirm('Remove this item?')) return;
+      var li = form.closest('.mb-item');
+      li.classList.add('is-removing');
+      post(form).then(function () {
+        var list = li.parentElement;
+        li.remove();
+        if (!list.querySelector('.mb-item')) {
+          var empty = document.createElement('div');
+          empty.className = 'mb-empty';
+          empty.textContent = 'No items yet — check off meal slots, produce or beverages on the Packaging screen, or add one below.';
+          list.replaceWith(empty);
+        }
+      }).catch(function () {
+        li.classList.remove('is-removing');
+        alert('Could not remove that item. Please try again.');
+      });
+    });
+  });
+
+  // ---- Everything else still reloads; remember where we were ----
+  document.querySelectorAll('.mb-add-form, .mb-release-row form').forEach(function (form) {
+    form.addEventListener('submit', saveState);
+  });
+})();
+</script>
 {% endblock %}

@@ -2,15 +2,35 @@
 {% block title %}Daily Manifest — {{ route_code }}{% endblock %}
 
 {% block content %}
-<a href="/catering/production/manifest/driver/view?date_str={{ service_date.isoformat() }}" class="dm-back-link">&lsaquo; All Routes</a>
+<div class="dm-page" style="--dm-route: {{ route_color }};">
 
-<div class="dm-header mb-3">
-  <div>
-    <div class="dm-eyebrow">Daily Manifest</div>
-    <h3 class="mb-0">{{ route_code }}</h3>
-    <p class="text-muted mb-0" style="font-size:0.85rem;">{{ service_date.strftime('%A, %B %d, %Y') }}</p>
-  </div>
+<div class="dm-toolbar dm-no-print">
+  <a href="/catering/production/manifest/driver/view?date_str={{ service_date.isoformat() }}" class="dm-back-link">&lsaquo; All Routes</a>
+  {% if manifest and stops %}
+  <button type="button" class="dm-print-btn" onclick="window.print()">🖨️ Print Manifest</button>
+  {% endif %}
 </div>
+
+<header class="dm-hero">
+  <div class="dm-hero-main">
+    <span class="dm-route-badge">{{ route_code }}</span>
+    <div>
+      <div class="dm-eyebrow">Daily Manifest</div>
+      <div class="dm-date">{{ service_date.strftime('%A, %B ') ~ service_date.day ~ service_date.strftime(', %Y') }}</div>
+    </div>
+  </div>
+  {% if manifest and stops %}
+  <dl class="dm-stats">
+    <div><dt>Driver</dt><dd>{{ driver_name or 'Unassigned' }}</dd></div>
+    <div><dt>Stops</dt><dd>{{ stops|length }}</dd></div>
+    <div><dt>Items</dt><dd>{{ item_count }}</dd></div>
+  </dl>
+  <div class="dm-progress dm-no-print">
+    <div class="dm-progress-bar"><span id="dmProgressFill" style="width: {{ (confirmed_count / item_count * 100) if item_count else 0 }}%;"></span></div>
+    <span class="dm-progress-text"><strong id="dmConfirmed">{{ confirmed_count }}</strong> of {{ item_count }} loaded</span>
+  </div>
+  {% endif %}
+</header>
 
 {% if not manifest or not stops %}
 <div class="dm-empty">
@@ -18,68 +38,192 @@
   <p class="text-muted mb-0">This route's manifest isn't released for this day.</p>
 </div>
 {% else %}
-{% for stop in stops %}
-<div class="dm-stop-card">
-  <div class="dm-stop-header">
-    <span class="dm-stop-code">Stop {{ loop.index }}</span>
-    <span class="dm-stop-name">{{ stop.program.name if stop.program else 'Unknown Program' }}</span>
-  </div>
-  {% if stop.special_instructions %}
-  <div class="dm-stop-note">📝 {{ stop.special_instructions }}</div>
-  {% endif %}
-  {% if stop.items %}
-  <ul class="dm-item-list">
-    {% for item in stop.items %}
-    <li class="dm-item {% if item.driver_confirmed %}dm-item-done{% endif %}" data-item-id="{{ item.id }}" onclick="dmToggleItem(this)">
-      <span class="dm-item-check">{% if item.driver_confirmed %}✓{% endif %}</span>
-      <span class="dm-item-label">{{ item.label }}</span>
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <div class="text-muted" style="font-size:0.8rem; font-style:italic;">No items for this stop.</div>
-  {% endif %}
-</div>
-{% endfor %}
+<ol class="dm-stops">
+  {% for stop in stops %}
+  {% set program = stop.program %}
+  <li class="dm-stop">
+    <div class="dm-stop-num" title="Stop {{ loop.index }}">{{ loop.index }}</div>
+    <div class="dm-stop-body">
+      <div class="dm-stop-head">
+        <h4 class="dm-stop-name">{{ program.name if program else 'Unknown Program' }}</h4>
+        {% if stop.items %}<span class="dm-stop-count dm-no-print">{{ stop.items|length }} item{{ 's' if stop.items|length != 1 }}</span>{% endif %}
+      </div>
+      {% if program and (program.address or program.client_phone) %}
+      <div class="dm-stop-meta">
+        {% if program.address %}
+        <a href="https://www.google.com/maps/search/?api=1&query={{ program.address|replace('\n', ' ')|urlencode }}" target="_blank" rel="noopener" class="dm-address">📍 {{ program.address|replace('\n', ', ') }}</a>
+        {% endif %}
+        {% if program.client_phone %}
+        <a href="tel:{{ program.client_phone }}" class="dm-phone">📞 {{ program.client_phone }}</a>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if stop.special_instructions %}
+      <div class="dm-stop-note"><strong>Note:</strong> {{ stop.special_instructions }}</div>
+      {% endif %}
+      {% if stop.items %}
+      <ul class="dm-item-list">
+        {% for item in stop.items %}
+        <li class="dm-item {% if item.driver_confirmed %}dm-item-done{% endif %}" data-item-id="{{ item.id }}" onclick="dmToggleItem(this)">
+          <span class="dm-item-check">{% if item.driver_confirmed %}✓{% endif %}</span>
+          <span class="dm-item-label">{{ item.label }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="dm-no-items">No items for this stop.</div>
+      {% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+
+<footer class="dm-print-footer">
+  <span>Driver signature: ______________________</span>
+  <span>Time out: ________</span>
+  <span>Time back: ________</span>
+</footer>
 {% endif %}
 
+</div>
+
 <style>
-/* Distinct identity color for this page — deliberately not the app's shared
-   teal accent, so "Driver Manifests" reads as its own place at a glance. */
-:root { --dm-accent: #7c3aed; --dm-accent-hover: #6d28d9; }
+.dm-page { --dm-route: #2563EB; max-width: 860px; margin: 0 auto; }
 
-.dm-back-link { display: inline-block; font-size: 0.82rem; font-weight: 600; color: var(--dm-accent); text-decoration: none; margin-bottom: 0.75rem; }
-.dm-back-link:hover { text-decoration: underline; }
+.dm-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 0.9rem; }
+.dm-back-link { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary, #64748b); text-decoration: none; }
+.dm-back-link:hover { color: var(--dm-route); }
+.dm-print-btn {
+  border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fff); color: var(--text-primary, #0f172a);
+  font-size: 0.85rem; font-weight: 600; padding: 0.45rem 0.9rem; border-radius: 8px; cursor: pointer;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}
+.dm-print-btn:hover { border-color: var(--dm-route); color: var(--dm-route); }
 
-.dm-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 0.75rem; }
-.dm-eyebrow { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dm-accent); }
+/* ---- Hero ---- */
+.dm-hero {
+  background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 14px;
+  border-top: 5px solid var(--dm-route); padding: 1.1rem 1.25rem; margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+  display: grid; grid-template-columns: 1fr auto; gap: 1rem 1.5rem; align-items: center;
+}
+.dm-hero-main { display: flex; align-items: center; gap: 0.9rem; }
+.dm-route-badge {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 3.2rem; height: 3.2rem; padding: 0 0.6rem;
+  border-radius: 12px; background: var(--dm-route); color: #fff; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em;
+}
+.dm-eyebrow { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dm-route); }
+.dm-date { font-size: 1.15rem; font-weight: 700; color: var(--text-primary, #0f172a); }
+.dm-stats { display: flex; gap: 1.5rem; margin: 0; }
+.dm-stats dt { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted, #94a3b8); }
+.dm-stats dd { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary, #0f172a); }
+.dm-progress { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.75rem; }
+.dm-progress-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--bg, #f1f5f9); overflow: hidden; }
+.dm-progress-bar span { display: block; height: 100%; background: #10b981; border-radius: 999px; transition: width 0.2s; }
+.dm-progress-text { font-size: 0.8rem; color: var(--text-secondary, #64748b); white-space: nowrap; }
 
 .dm-empty { text-align: center; padding: 3rem 1rem; }
 
-.dm-stop-card {
-  background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 10px;
-  padding: 0.9rem 1rem; margin-bottom: 0.75rem; box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+/* ---- Stops (timeline) ---- */
+.dm-stops { list-style: none; margin: 0; padding: 0; position: relative; }
+.dm-stops::before {
+  content: ""; position: absolute; left: 1.05rem; top: 1rem; bottom: 1rem; width: 2px;
+  background: var(--border, #e2e8f0);
 }
-.dm-stop-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
-.dm-stop-code { font-size: 0.72rem; font-weight: 700; color: var(--text-secondary, #64748b); background: var(--bg, #f1f5f9); padding: 0.1rem 0.4rem; border-radius: 6px; }
-.dm-stop-name { font-size: 1rem; font-weight: 700; color: var(--text-primary, #0f172a); }
-.dm-stop-note { font-size: 0.8rem; color: #b45309; background: rgba(245,158,11,0.08); border-radius: 7px; padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; }
+.dm-stop { position: relative; display: flex; gap: 0.9rem; margin-bottom: 0.9rem; }
+.dm-stop-num {
+  position: relative; z-index: 1; flex-shrink: 0; width: 2.1rem; height: 2.1rem; border-radius: 50%;
+  background: var(--dm-route); color: #fff; font-weight: 800; font-size: 0.95rem;
+  display: flex; align-items: center; justify-content: center; margin-top: 0.7rem;
+  box-shadow: 0 0 0 4px var(--bg, #f8fafc);
+}
+.dm-stop-body {
+  flex: 1; min-width: 0; background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 12px;
+  padding: 0.85rem 1rem; box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+}
+.dm-stop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
+.dm-stop-name { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-primary, #0f172a); }
+.dm-stop-count { font-size: 0.72rem; font-weight: 600; color: var(--text-muted, #94a3b8); white-space: nowrap; }
+.dm-stop-meta { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-top: 0.2rem; font-size: 0.8rem; }
+.dm-stop-meta a { color: var(--text-secondary, #64748b); text-decoration: none; }
+.dm-stop-meta a:hover { color: var(--dm-route); text-decoration: underline; }
+.dm-stop-note {
+  margin-top: 0.55rem; font-size: 0.82rem; color: #92400e; background: rgba(245,158,11,0.1);
+  border-left: 3px solid #f59e0b; border-radius: 6px; padding: 0.4rem 0.6rem;
+}
+.dm-no-items { margin-top: 0.5rem; font-size: 0.8rem; font-style: italic; color: var(--text-muted, #94a3b8); }
 
-.dm-item-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.dm-item-list {
+  list-style: none; margin: 0.65rem 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.35rem;
+}
 .dm-item {
-  display: flex; align-items: center; gap: 0.6rem;
-  padding: 0.55rem 0.6rem; border-radius: 8px; border: 1.5px solid var(--border, #e2e8f0);
-  cursor: pointer; user-select: none; transition: all 0.12s;
+  display: flex; align-items: center; gap: 0.55rem; padding: 0.5rem 0.6rem; border-radius: 8px;
+  border: 1.5px solid var(--border, #e2e8f0); cursor: pointer; user-select: none; transition: background 0.12s, border-color 0.12s;
 }
-.dm-item:hover { border-color: var(--dm-accent); }
+.dm-item:hover { border-color: var(--dm-route); }
 .dm-item-check {
-  flex-shrink: 0; width: 1.2rem; height: 1.2rem; border-radius: 5px; border: 1.5px solid var(--border, #cbd5e1);
-  display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: #fff;
+  flex-shrink: 0; width: 1.15rem; height: 1.15rem; border-radius: 5px; border: 1.5px solid var(--border, #cbd5e1);
+  display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; color: #fff;
 }
-.dm-item-label { font-size: 0.9rem; font-weight: 600; color: var(--text-primary, #0f172a); }
-.dm-item-done { background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.3); }
+.dm-item-label { font-size: 0.88rem; font-weight: 600; color: var(--text-primary, #0f172a); }
+.dm-item-done { background: rgba(16,185,129,0.06); border-color: rgba(16,185,129,0.35); }
 .dm-item-done .dm-item-check { background: #10b981; border-color: #10b981; }
 .dm-item-done .dm-item-label { color: #059669; text-decoration: line-through; text-decoration-color: rgba(5,150,105,0.4); }
+
+.dm-print-footer { display: none; }
+
+@media (max-width: 600px) {
+  .dm-hero { grid-template-columns: 1fr; }
+  .dm-stats { gap: 1.1rem; }
+}
+
+/* ---- Print: one compact, ink-light sheet, stops in two columns ---- */
+@media print {
+  @page { size: letter; margin: 0.4in; }
+  html, body { background: #fff !important; }
+  .co-nav, .navbar, nav, .dm-no-print { display: none !important; }
+  .co-page, main { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .dm-page { max-width: none; font-size: 9.5pt; color: #000; }
+
+  .dm-hero {
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    border: none; border-bottom: 2px solid #000; border-radius: 0; box-shadow: none;
+    padding: 0 0 0.35rem; margin-bottom: 0.6rem;
+  }
+  .dm-route-badge { min-width: 0; height: auto; padding: 0.1rem 0.45rem; font-size: 14pt; border-radius: 5px;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .dm-hero-main { gap: 0.5rem; }
+  .dm-eyebrow { color: #000; font-size: 7pt; }
+  .dm-date { font-size: 11pt; }
+  .dm-stats { gap: 1rem; }
+  .dm-stats dt { color: #444; font-size: 6.5pt; }
+  .dm-stats dd { font-size: 10pt; }
+
+  .dm-stops { column-count: 2; column-gap: 0.3in; }
+  .dm-stops::before { display: none; }
+  .dm-stop { break-inside: avoid; page-break-inside: avoid; gap: 0.4rem; margin-bottom: 0.45rem; }
+  .dm-stop-num {
+    width: 1.35rem; height: 1.35rem; font-size: 8.5pt; margin-top: 0.15rem; box-shadow: none;
+    background: #fff; color: #000; border: 1.5px solid #000;
+  }
+  .dm-stop-body { border: 1px solid #999; border-radius: 4px; box-shadow: none; padding: 0.3rem 0.45rem; }
+  .dm-stop-name { font-size: 10pt; }
+  .dm-stop-meta { font-size: 8pt; margin-top: 0; }
+  .dm-stop-meta a { color: #000; }
+  .dm-stop-note { margin-top: 0.2rem; font-size: 8.5pt; color: #000; background: none; border-left: 2px solid #000; border-radius: 0; padding: 0 0 0 0.35rem; }
+
+  .dm-item-list { display: block; margin-top: 0.2rem; }
+  .dm-item { border: none; padding: 0.05rem 0; gap: 0.35rem; background: none !important; }
+  .dm-item-check { width: 0.75rem; height: 0.75rem; border: 1px solid #000; border-radius: 2px; font-size: 7pt; color: #000; background: none !important; }
+  .dm-item-label { font-size: 9pt; font-weight: 500; color: #000 !important; text-decoration: none !important; }
+  .dm-no-items { margin-top: 0.1rem; font-size: 8pt; color: #444; }
+
+  .dm-print-footer {
+    display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.6rem; padding-top: 0.4rem;
+    border-top: 1px solid #000; font-size: 9pt; break-inside: avoid;
+  }
+}
 </style>
 {% endblock %}
 
@@ -96,9 +240,19 @@ async function dmToggleItem(li) {
     const data = await resp.json();
     li.classList.toggle('dm-item-done', data.confirmed);
     li.querySelector('.dm-item-check').textContent = data.confirmed ? '✓' : '';
+    dmUpdateProgress();
   } catch (e) {
     console.error('Confirm failed', e);
   }
+}
+
+function dmUpdateProgress() {
+  const total = document.querySelectorAll('.dm-item').length;
+  const done = document.querySelectorAll('.dm-item.dm-item-done').length;
+  const count = document.getElementById('dmConfirmed');
+  const fill = document.getElementById('dmProgressFill');
+  if (count) count.textContent = done;
+  if (fill) fill.style.width = (total ? done / total * 100 : 0) + '%';
 }
 </script>
 {% endblock %}
