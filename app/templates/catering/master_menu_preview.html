@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Preview Master Menu{% endblock %}
+
+{% block content %}
+{% set active = 'master_menus' %}
+{% include "catering/_nav.html" %}
+
+<div class="mb-3">
+  <a href="/catering/master-menus/upload" class="small text-decoration-none">&larr; Upload a different file</a>
+  <h2 class="mb-1">Preview: {{ name }} — {{ month_label }}</h2>
+  <p class="text-muted mb-0">{{ source_filename }} · Check the items below, then save. Nothing is sent to programs until you publish.</p>
+</div>
+
+{% for e in errors %}<div class="alert alert-danger">{{ e }}</div>{% endfor %}
+{% for w in sheet.warnings %}<div class="alert alert-warning py-2">{{ w }}</div>{% endfor %}
+
+<div class="mst-stats mb-3">
+  <div class="mst-stat"><div class="mst-num">{{ counts.days }}</div><div class="mst-label">Service days</div></div>
+  <div class="mst-stat"><div class="mst-num">{{ counts.closed }}</div><div class="mst-label">Closed days</div></div>
+  <div class="mst-stat"><div class="mst-num text-success">{{ counts.matched }}</div><div class="mst-label">Items matched</div></div>
+  <div class="mst-stat"><div class="mst-num text-primary">{{ counts.suggested }}</div><div class="mst-label">Close matches</div></div>
+  <div class="mst-stat"><div class="mst-num text-warning-emphasis">{{ counts.new }}</div><div class="mst-label">New items</div></div>
+</div>
+
+<form method="POST" id="importForm" action="/catering/master-menus/import/confirm">
+  <input type="hidden" name="sheet_json" value="{{ sheet_json }}">
+  <input type="hidden" name="name" value="{{ name }}">
+  <input type="hidden" name="source_filename" value="{{ source_filename }}">
+
+  {# ---------- items that need a decision ---------- #}
+  {% set review = match_rows|rejectattr('m.status', 'equalto', 'matched')|list %}
+  {% set matched = match_rows|selectattr('m.status', 'equalto', 'matched')|list %}
+  <div class="mst-card mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h5 class="mb-0">Items to review</h5>
+      <span class="small text-muted">New items are added to Components with a starting portion you can change later.</span>
+    </div>
+    {% if review %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>In the sheet</th><th class="text-center">Used</th><th style="min-width:240px;">Use component</th><th style="min-width:200px;">New item name</th><th style="min-width:170px;">Food type</th></tr></thead>
+        <tbody>
+          {% for r in review %}
+          {% set i = loop.index0 %}
+          <tr class="mst-match-row">
+            <td>
+              <input type="hidden" name="key__{{ i }}" value="{{ r.m.key }}">
+              <span class="fw-semibold">{{ r.m.name }}</span>
+              {% if r.m.status == 'suggested' %}<span class="badge bg-primary-subtle text-primary-emphasis ms-1">close match</span>{% endif %}
+            </td>
+            <td class="text-center text-muted">{{ r.m.uses }}×</td>
+            <td>
+              <select class="form-select form-select-sm mst-choice" name="choice__{{ i }}">
+                <option value="new" {% if r.choice == 'new' %}selected{% endif %}>+ Create new item</option>
+                {% for c in components %}
+                <option value="c:{{ c.id }}" {% if r.choice == 'c:' ~ c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input type="text" class="form-control form-control-sm mst-new" name="newname__{{ i }}" value="{{ r.new_name }}"></td>
+            <td>
+              <select class="form-select form-select-sm mst-new" name="newtype__{{ i }}">
+                {% for t in component_types %}
+                <option value="{{ t.id }}" {% if r.new_type == t.id %}selected{% endif %}>{{ t.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-success mb-0">Every item in the sheet matches an existing component.</p>
+    {% endif %}
+
+    {% if matched %}
+    <details class="mt-3">
+      <summary class="small text-muted">{{ matched|length }} items matched existing components</summary>
+      <div class="d-flex flex-wrap gap-1 mt-2">
+        {% for r in matched %}
+        {% set i = review|length + loop.index0 %}
+        <input type="hidden" name="key__{{ i }}" value="{{ r.m.key }}">
+        <input type="hidden" name="choice__{{ i }}" value="{{ r.choice }}">
+        <span class="mst-chip mst-matched" title="{{ r.m.uses }}× in the sheet">
+          {{ r.m.name }}{% if r.m.component_name and r.m.component_name != r.m.name %} → {{ r.m.component_name }}{% endif %}
+        </span>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+
+  {# ---------- the menu itself ---------- #}
+  <div class="mst-card mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h5 class="mb-0">Menu</h5>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleEdit">Edit cells</button>
+    </div>
+    <p class="small text-muted mb-2 mst-edit-hint">Separate items with <code>;</code> — e.g. <code>Carrot &amp; Cucumber Sticks; Hummus</code>. Click <em>Re-check</em> after editing.</p>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-top mb-0 mst-grid" id="menuGrid">
+        <thead class="table-light">
+          <tr>
+            <th style="width:110px;">Date</th>
+            {% for col in sheet.columns %}<th>{{ col.header }}<div class="small fw-normal text-muted">{{ col.label }}{% if col.type_hint %} · {{ col.type_hint }}{% endif %}</div></th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in sheet.rows %}
+          {% set r = loop.index0 %}
+          <tr class="{% if row.closed_reason %}mst-closed{% endif %}">
+            <td class="text-nowrap">
+              <div class="fw-semibold">{{ row.date_obj.strftime('%a %m/%d') }}</div>
+              {% if row.notes %}<div class="small text-muted">{{ row.notes }}</div>{% endif %}
+            </td>
+            {% if row.closed_reason %}
+            <td colspan="{{ sheet.columns|length }}" class="text-muted fst-italic">Closed — {{ row.closed_reason }}</td>
+            {% else %}
+            {% for tokens in row.cells %}
+            <td>
+              <div class="mst-chips">
+                {% for t in tokens %}
+                <span class="mst-chip mst-{{ status_by_key.get(match_key(t), 'new') }}">{{ t }}</span>
+                {% endfor %}
+              </div>
+              <input type="text" class="form-control form-control-sm mst-cell-input" name="tok__{{ r }}__{{ loop.index0 }}" value="{{ tokens|join('; ') }}">
+            </td>
+            {% endfor %}
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="small text-muted mt-2">
+      <span class="mst-chip mst-matched">matched</span>
+      <span class="mst-chip mst-suggested">close match</span>
+      <span class="mst-chip mst-new">new item</span>
+    </div>
+  </div>
+
+  <div class="mst-card d-flex flex-wrap align-items-center gap-3 mst-actions">
+    {% if existing %}
+    <div class="form-check mb-0">
+      <input class="form-check-input" type="checkbox" name="replace_existing" value="1" id="replaceExisting">
+      <label class="form-check-label" for="replaceExisting">
+        Replace the existing <strong>{{ existing.name }}</strong> menu for {{ month_label }}
+        {% if existing.status == 'published' %}<span class="text-muted">(programs keep their current days until you publish again)</span>{% endif %}
+      </label>
+    </div>
+    {% endif %}
+    <div class="ms-auto d-flex gap-2">
+      <button type="submit" class="btn btn-outline-secondary" formaction="/catering/master-menus/import/preview">Re-check</button>
+      <button type="submit" class="btn btn-primary">Save master menu</button>
+    </div>
+  </div>
+</form>
+
+<style>
+.mst-card { background:#fff; border-radius:12px; box-shadow:var(--shadow-sm, 0 1px 4px rgba(0,0,0,.07)); padding:1rem 1.25rem; }
+.mst-stats { display:flex; flex-wrap:wrap; gap:.75rem; }
+.mst-stat { background:#fff; border-radius:12px; box-shadow:var(--shadow-sm, 0 1px 4px rgba(0,0,0,.07)); padding:.7rem 1.1rem; flex:1 1 110px; }
+.mst-num { font-size:1.5rem; font-weight:800; line-height:1; color:#1e293b; }
+.mst-label { font-size:.75rem; color:#64748b; margin-top:.15rem; }
+.mst-chips { display:flex; flex-wrap:wrap; gap:.25rem; }
+.mst-chip { display:inline-block; font-size:.75rem; padding:.1rem .45rem; border-radius:999px; border:1px solid transparent; }
+.mst-matched { background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
+.mst-suggested { background:#eff6ff; color:#1e40af; border-color:#bfdbfe; }
+.mst-new { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+.mst-grid td, .mst-grid th { font-size:.85rem; }
+.mst-closed td { background:#f8fafc; }
+.mst-cell-input, .mst-edit-hint { display:none; }
+.mst-grid.editing .mst-cell-input { display:block; }
+.mst-grid.editing .mst-chips { display:none; }
+.mst-actions { position:sticky; bottom:.75rem; z-index:5; }
+.mst-new:disabled { opacity:.35; }
+</style>
+
+<script>
+(function () {
+  // "Use component" picks an existing one -> the new-item fields don't apply
+  document.querySelectorAll('.mst-match-row').forEach(function (row) {
+    var choice = row.querySelector('.mst-choice');
+    var sync = function () {
+      row.querySelectorAll('.mst-new').forEach(function (el) {
+        el.disabled = choice.value !== 'new';
+      });
+    };
+    choice.addEventListener('change', sync);
+    sync();
+  });
+
+  var grid = document.getElementById('menuGrid');
+  var btn = document.getElementById('toggleEdit');
+  btn.addEventListener('click', function () {
+    var on = grid.classList.toggle('editing');
+    document.querySelector('.mst-edit-hint').style.display = on ? 'block' : 'none';
+    btn.textContent = on ? 'Show items' : 'Edit cells';
+  });
+})();
+</script>
+{% endblock %}

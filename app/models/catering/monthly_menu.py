@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Date, Text, UniqueConstraint, Index
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, DateTime, Date, Text, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.models.base import Base
@@ -16,6 +16,7 @@ class CateringMonthlyMenu(Base):
     status = Column(String, default="draft", nullable=False)  # draft, finalized, sent
     finalized_at = Column(DateTime, nullable=True)
     sent_at = Column(DateTime, nullable=True)
+    master_menu_id = Column(String, ForeignKey("catering_master_menus.id", ondelete="SET NULL"), nullable=True)  # last master menu published into this one
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -24,6 +25,7 @@ class CateringMonthlyMenu(Base):
     tenant = relationship("Tenant", back_populates="catering_monthly_menus")
     menu_days = relationship("CateringMenuDay", back_populates="monthly_menu", cascade="all, delete-orphan")
     invoices = relationship("CateringInvoice", back_populates="monthly_menu")
+    master_menu = relationship("CateringMasterMenu", back_populates="program_menus")
 
     __table_args__ = (
         UniqueConstraint("program_id", "month", "year", "menu_type", name="uq_monthly_menu"),
@@ -60,6 +62,7 @@ class CateringMenuDay(Base):
     pm_snack_vegan_item_id = Column(String, ForeignKey("catering_meal_items.id"), nullable=True)
 
     notes = Column(Text, nullable=True)
+    is_customized = Column(Boolean, default=False, nullable=False)  # edited by hand; master-menu publishes leave it alone
 
     monthly_menu = relationship("CateringMonthlyMenu", back_populates="menu_days")
 

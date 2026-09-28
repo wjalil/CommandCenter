@@ -11,10 +11,25 @@ from app.schemas.catering import (
     BulkComponentsRequest
 )
 from app.crud.catering import monthly_menu, menu_day_component
+from app.models.catering import CateringMenuDay
+from sqlalchemy import update
 from app.db import get_db
 from app.utils.tenant import get_current_tenant_id
 
 router = APIRouter()
+
+
+async def _mark_customized(db: AsyncSession, menu, service_dates) -> None:
+    """Days edited by hand on a menu published from a master menu keep their edits
+    when the master menu is published again."""
+    if not menu.master_menu_id or not service_dates:
+        return
+    await db.execute(
+        update(CateringMenuDay)
+        .where(CateringMenuDay.monthly_menu_id == menu.id, CateringMenuDay.service_date.in_(service_dates))
+        .values(is_customized=True)
+    )
+    await db.commit()
 
 
 @router.post("/", response_model=MonthlyMenuRead)
@@ -89,6 +104,7 @@ async def bulk_update_menu_days(
     menu_days = [MenuDayAssignment(**day) for day in menu_days_data.get("menu_days", [])]
 
     await monthly_menu.bulk_update_menu_days(db, menu_id, menu_days)
+    await _mark_customized(db, menu, [d.service_date for d in menu_days])
 
     # Return success message instead of trying to serialize the objects
     return {"success": True, "message": f"Updated {len(menu_days)} menu days"}
@@ -127,6 +143,7 @@ async def bulk_assign_components(
     result = await menu_day_component.bulk_assign_components_to_days(
         db, menu_id, data.menu_days
     )
+    await _mark_customized(db, menu, [d.service_date for d in data.menu_days])
 
     return {
         "success": True,

@@ -10,6 +10,7 @@ from .client_account import CateringClientAccount
 from .portal_request import ClientPortalRequest
 from .daily_manifest import DailyManifest, DailyManifestStop, DailyManifestItem
 from .daily_count import CateringDailyCount
+from .master_menu import CateringMasterMenu, CateringMasterMenuDay, CateringMasterMenuComponent
 
 __all__ = [
     "CACFPAgeGroup",
@@ -30,4 +31,7 @@ __all__ = [
     "DailyManifest",
     "DailyManifestItem",
     "CateringDailyCount",
+    "CateringMasterMenu",
+    "CateringMasterMenuDay",
+    "CateringMasterMenuComponent",
 ]

@@ -21,6 +21,15 @@
   </div>
 </div>
 
+{% if monthly_menu.master_menu %}
+<div class="alert alert-light border d-flex justify-content-between align-items-center py-2">
+  <div>
+    Published from the <a href="/catering/master-menus/{{ monthly_menu.master_menu.id }}"><strong>{{ monthly_menu.master_menu.name }}</strong> master menu</a>.
+    Days you edit here are marked <span class="badge bg-warning text-dark">Custom</span> and are kept when the master menu is published again.
+  </div>
+</div>
+{% endif %}
+
 <div class="alert alert-info d-flex justify-content-between align-items-center">
   <div>
     <strong>Service Days:</strong> {{ service_days|join(', ') }} |
@@ -79,6 +88,9 @@
                 {% endif %}
               </div>
             </div>
+            {% if monthly_menu.master_menu_id and day.menu_day and day.menu_day.is_customized %}
+            <div><small class="badge bg-warning text-dark" title="Edited by hand — master menu publishes skip this day">Custom</small></div>
+            {% endif %}
             {% if day.in_month and day.is_service_day and day.is_holiday %}
             <div><small class="badge bg-danger">Program Closed</small></div>
             {% endif %}

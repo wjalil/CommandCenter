@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Upload Master Menu{% endblock %}
+
+{% block content %}
+{% set active = 'master_menus' %}
+{% include "catering/_nav.html" %}
+
+<div class="mb-3">
+  <a href="/catering/master-menus" class="small text-decoration-none">&larr; Master Menus</a>
+  <h2 class="mb-1">Upload a master menu</h2>
+  <p class="text-muted mb-0">You'll see a preview and can fix anything before it's saved. Nothing reaches programs until you publish.</p>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="mst-card">
+      {% if error %}
+      <div class="alert alert-danger">{{ error }}</div>
+      {% endif %}
+      <form method="POST" action="/catering/master-menus/upload" enctype="multipart/form-data">
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="file">Menu file (CSV)</label>
+          <input type="file" class="form-control" id="file" name="file" accept=".csv,text/csv" required>
+          <div class="form-text">From Excel or Google Sheets: File → Save As / Download → CSV.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="name">Menu name</label>
+          <input type="text" class="form-control" id="name" name="name" value="{{ name }}" maxlength="60" required>
+          <div class="form-text">Keep "Standard" unless you run more than one menu a month (e.g. "Infant").</div>
+        </div>
+        <button type="submit" class="btn btn-primary">Preview</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="mst-card">
+      <h6 class="fw-semibold">How the sheet is read</h6>
+      <ul class="small mb-3 ps-3">
+        <li>One row per day, with a <strong>Date</strong> column (10/1/2026 or 2026-10-01). A <em>Day</em> column is ignored.</li>
+        <li>Meal columns are matched by name: <code>Breakfast</code>, <code>AM Snack</code>, <code>Lunch</code>, <code>Snack</code>, <code>PM Snack</code>. Add a word to set the food type, like <code>Lunch Vegetable</code> or <code>Breakfast Fruit</code>. Add <code>Vegan</code> for the vegan version, like <code>Vegan Lunch</code>.</li>
+        <li>Items in one cell are split on <code>w/</code>, <code>+</code>, commas and <code>&amp;</code>: <em>Chicken Nuggets w/ Mashed Potatoes &amp; Bread</em> becomes three items.</li>
+        <li>Write <code>OFF</code> or <code>CLOSED</code> in the meal columns for days the kitchen doesn't serve. An optional <code>Notes</code> column is kept with the day.</li>
+      </ul>
+      <a href="/catering/master-menus/template.csv" class="btn btn-sm btn-outline-secondary">Download the template</a>
+    </div>
+  </div>
+</div>
+
+<style>
+.mst-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.07));
+  padding: 1.25rem;
+}
+</style>
+{% endblock %}

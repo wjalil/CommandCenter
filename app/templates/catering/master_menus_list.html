@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Master Menus{% endblock %}
+
+{% block content %}
+{% set active = 'master_menus' %}
+{% include "catering/_nav.html" %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">Master Menus</h2>
+    <p class="text-muted mb-0">Build one menu for the month, then publish it to every program in one step.</p>
+  </div>
+  <a href="/catering/master-menus/upload" class="btn btn-primary">
+    <i data-lucide="upload" style="width:16px;height:16px;"></i> Upload menu
+  </a>
+</div>
+
+{% if masters %}
+<div class="mst-card">
+  <table class="table align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th>Name</th>
+        <th class="text-center">Service days</th>
+        <th class="text-center">Programs</th>
+        <th>Status</th>
+        <th>Source file</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in masters %}
+      {% set st = stats.get(m.id, {}) %}
+      <tr>
+        <td class="fw-semibold">{{ month_name[m.month] }} {{ m.year }}</td>
+        <td>{{ m.name }}</td>
+        <td class="text-center">{{ st.get('days', 0) }}</td>
+        <td class="text-center">{{ st.get('programs', 0) }}</td>
+        <td>
+          {% if m.status == 'published' %}
+            <span class="badge bg-success-subtle text-success-emphasis">Published</span>
+            <div class="small text-muted">{{ m.published_at.strftime('%b %d, %Y') if m.published_at else '' }}</div>
+          {% else %}
+            <span class="badge bg-secondary-subtle text-secondary-emphasis">Draft</span>
+          {% endif %}
+        </td>
+        <td class="small text-muted text-truncate" style="max-width:220px;">{{ m.source_filename or '—' }}</td>
+        <td class="text-end">
+          <a href="/catering/master-menus/{{ m.id }}" class="btn btn-sm btn-outline-primary">Open</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="mst-card text-center py-5">
+  <div class="mb-2"><i data-lucide="file-spreadsheet" style="width:40px;height:40px;color:#94a3b8;"></i></div>
+  <h5>No master menus yet</h5>
+  <p class="text-muted mb-3">Upload your monthly menu spreadsheet (CSV) and publish it to all programs at once.</p>
+  <a href="/catering/master-menus/upload" class="btn btn-primary">Upload a menu</a>
+  <a href="/catering/master-menus/template.csv" class="btn btn-link">Download the template</a>
+</div>
+{% endif %}
+
+<style>
+.mst-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.07));
+  padding: 0.5rem 1rem;
+  overflow-x: auto;
+}
+</style>
+{% endblock %}

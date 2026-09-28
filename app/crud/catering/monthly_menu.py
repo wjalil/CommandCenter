@@ -52,7 +52,8 @@ async def get_monthly_menu(db: AsyncSession, menu_id: str, tenant_id: int):
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.am_snack_item),
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.pm_snack_item),
             selectinload(CateringMonthlyMenu.menu_days).selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component).selectinload(FoodComponent.component_type),
-            selectinload(CateringMonthlyMenu.program)
+            selectinload(CateringMonthlyMenu.program),
+            selectinload(CateringMonthlyMenu.master_menu)
         )
     )
     return result.scalar_one_or_none()

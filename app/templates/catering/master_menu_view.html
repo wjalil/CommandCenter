@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}{{ master.name }} — {{ month_label }}{% endblock %}
+
+{% block content %}
+{% set active = 'master_menus' %}
+<div class="mst-no-print">{% include "catering/_nav.html" %}</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3 mst-no-print">
+  <div>
+    <a href="/catering/master-menus" class="small text-decoration-none">&larr; Master Menus</a>
+    <h2 class="mb-1">{{ master.name }} — {{ month_label }}</h2>
+    <p class="text-muted mb-0">
+      {% if master.status == 'published' %}<span class="badge bg-success-subtle text-success-emphasis">Published</span>
+      {% else %}<span class="badge bg-secondary-subtle text-secondary-emphasis">Draft — not on any program yet</span>{% endif %}
+      {% if master.source_filename %}<span class="ms-2 small">from {{ master.source_filename }}</span>{% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">
+      <i data-lucide="printer" style="width:16px;height:16px;"></i> Print
+    </button>
+    <a href="/catering/master-menus/upload" class="btn btn-outline-secondary btn-sm">Upload a new version</a>
+    <form method="POST" action="/catering/master-menus/{{ master.id }}/delete"
+          onsubmit="return confirm('Delete this master menu? Program menus already published keep their days.');">
+      <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+    </form>
+  </div>
+</div>
+
+{% if imported %}
+<div class="alert alert-success py-2 mst-no-print">
+  Saved.{% if created_count != '0' %} {{ created_count }} new item{{ '' if created_count == '1' else 's' }} added to Components.{% endif %}
+  Next: pick programs below and publish.
+</div>
+{% endif %}
+
+{% if results %}
+<div class="mst-card mb-3 mst-no-print">
+  <h5 class="mb-2">Publish results</h5>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Program</th><th>Result</th><th class="text-center">Days written</th><th class="text-center">Custom days kept</th><th class="text-center">Holidays added</th><th></th></tr></thead>
+      <tbody>
+        {% for r in results %}
+        <tr>
+          <td class="fw-semibold">{{ r.program_name }}</td>
+          <td>
+            {% if r.status == 'published' %}<span class="badge bg-success">{{ 'Created' if r.created_menu else 'Updated' }}</span>
+            {% elif r.status == 'skipped_locked' %}<span class="badge bg-warning text-dark">Skipped — locked</span>
+            {% else %}<span class="badge bg-secondary">Skipped</span>{% endif %}
+            {% for n in r.notes %}<div class="small text-muted">{{ n }}</div>{% endfor %}
+          </td>
+          <td class="text-center">{{ r.days_written }}</td>
+          <td class="text-center">{{ r.days_customized_kept or '—' }}</td>
+          <td class="text-center">{{ r.holidays_added or '—' }}</td>
+          <td class="text-end">{% if r.menu_id %}<a href="/catering/monthly-menus/{{ r.menu_id }}/calendar" class="btn btn-sm btn-outline-primary">Open menu</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ---------- publish ---------- #}
+<form method="POST" action="/catering/master-menus/{{ master.id }}/publish" class="mst-card mb-3 mst-no-print">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <h5 class="mb-0">Publish to programs</h5>
+    <div class="small">
+      <a href="#" data-select="all">Select all</a> ·
+      <a href="#" data-select="none">None</a>
+    </div>
+  </div>
+  <p class="small text-muted">Each program gets only its own service days and meal types. Closed days and program holidays are skipped.</p>
+
+  {% if program_rows %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th style="width:32px;"></th><th>Program</th><th>Gets</th><th>{{ month_label }} menu now</th></tr></thead>
+      <tbody>
+        {% for row in program_rows %}
+        <tr class="{% if row.no_slots %}text-muted{% endif %}">
+          <td><input class="form-check-input mst-prog" type="checkbox" name="program_ids" value="{{ row.program.id }}"
+                     id="p-{{ row.program.id }}" {% if row.checked %}checked{% endif %} {% if row.no_slots %}disabled{% endif %}></td>
+          <td><label for="p-{{ row.program.id }}" class="fw-semibold mb-0">{{ row.program.name }}</label>
+              <div class="small text-muted">{{ row.program.client_name }}</div></td>
+          <td class="small">{% if row.no_slots %}No matching meal types{% else %}{{ row.slots|join(', ') }}{% endif %}</td>
+          <td class="small">
+            {% if row.state == 'new' %}<span class="text-muted">None yet — will be created</span>
+            {% elif row.state == 'linked' %}<span class="text-success">From this master menu</span> · {{ row.total_days }} days
+              {% if row.customized %}· <span class="badge bg-warning text-dark">{{ row.customized }} custom</span>{% endif %}
+            {% elif row.state == 'other_master' %}<span class="text-warning-emphasis">From the “{{ row.menu.master_menu.name }}” master menu</span>
+            {% elif row.state == 'hand_built' %}<span class="text-warning-emphasis">Built by hand ({{ row.total_days }} days) — publishing replaces those days</span>
+            {% else %}<span class="text-muted">Empty menu</span>{% endif %}
+            {% if row.locked %}<span class="badge bg-secondary ms-1">{{ row.menu.status|capitalize }}</span>{% endif %}
+            {% if row.menu %}<a href="/catering/monthly-menus/{{ row.menu.id }}/calendar" class="ms-1">view</a>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-flex flex-wrap gap-3 mb-3 small">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="closed_as_holidays" value="1" id="optHolidays" {% if opts.closed_as_holidays %}checked{% endif %}>
+      <label class="form-check-label" for="optHolidays">Add closed days as program holidays</label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="overwrite_customized" value="1" id="optOverwrite" {% if opts.overwrite_customized %}checked{% endif %}>
+      <label class="form-check-label" for="optOverwrite">Overwrite days edited by hand</label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="include_locked" value="1" id="optLocked" {% if opts.include_locked %}checked{% endif %}>
+      <label class="form-check-label" for="optLocked">Also update finalized / sent menus</label>
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary">Publish to <span id="progCount">0</span> program(s)</button>
+  {% else %}
+  <p class="text-muted mb-0">No active programs.</p>
+  {% endif %}
+</form>
+
+{# ---------- menu grid ---------- #}
+<div class="mst-card mst-print-area">
+  <h5 class="mb-2 mst-no-print">Menu</h5>
+  <div class="mst-print-title">{{ master.name }} Menu — {{ month_label }}</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-top mb-0 mst-grid">
+      <thead class="table-light">
+        <tr><th style="width:110px;">Date</th>{% for c in columns %}<th>{{ c.label }}</th>{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for g in grid %}
+        <tr class="{% if g.day.is_closed %}mst-closed{% endif %}">
+          <td class="text-nowrap">
+            <div class="fw-semibold">{{ g.day.service_date.strftime('%a %m/%d') }}</div>
+            {% if g.day.notes %}<div class="small text-muted">{{ g.day.notes }}</div>{% endif %}
+          </td>
+          {% if g.day.is_closed %}
+          <td colspan="{{ columns|length or 1 }}" class="text-muted fst-italic">Closed — {{ g.day.closed_reason or 'OFF' }}</td>
+          {% else %}
+          {% for names in g.cells %}<td>{{ names|join(', ') }}</td>{% endfor %}
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.mst-card { background:#fff; border-radius:12px; box-shadow:var(--shadow-sm, 0 1px 4px rgba(0,0,0,.07)); padding:1rem 1.25rem; }
+.mst-grid td, .mst-grid th { font-size:.85rem; }
+.mst-closed td { background:#f8fafc; }
+.mst-print-title { display:none; }
+
+@media print {
+  @page { size: landscape; margin: 0.4in; }
+  .co-nav, .mst-no-print { display:none !important; }
+  body, .co-page { background:#fff !important; margin:0 !important; padding:0 !important; }
+  .mst-card { box-shadow:none !important; padding:0 !important; }
+  .mst-print-area .table-responsive { overflow:visible !important; }
+  .mst-print-title { display:block; font-size:18pt; font-weight:800; text-align:center; margin-bottom:8pt; }
+  .mst-grid { width:100%; border-collapse:collapse; }
+  .mst-grid th, .mst-grid td { font-size:9.5pt !important; padding:3pt 5pt !important; border:1px solid #999 !important; }
+  .mst-grid thead th { background:#eee !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .mst-grid tr { page-break-inside:avoid; break-inside:avoid; }
+  .mst-grid thead { display:table-header-group; }
+  .mst-closed td { background:#f3f3f3 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+}
+</style>
+
+<script>
+(function () {
+  var boxes = document.querySelectorAll('.mst-prog');
+  var count = document.getElementById('progCount');
+  var update = function () {
+    if (count) count.textContent = Array.prototype.filter.call(boxes, function (b) { return b.checked; }).length;
+  };
+  boxes.forEach(function (b) { b.addEventListener('change', update); });
+  document.querySelectorAll('[data-select]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      var on = a.dataset.select === 'all';
+      boxes.forEach(function (b) { if (!b.disabled) b.checked = on; });
+      update();
+    });
+  });
+  update();
+})();
+</script>
+{% endblock %}
