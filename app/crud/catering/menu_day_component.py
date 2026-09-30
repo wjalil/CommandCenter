@@ -118,8 +118,9 @@ async def bulk_assign_components(
 
     created_components = []
     for idx, comp in enumerate(components):
-        # Use provided sort_order or default to index position
-        sort_order = comp.sort_order if hasattr(comp, 'sort_order') and comp.sort_order else idx
+        # Use provided sort_order or default to index position. 0 is a real position
+        # (the top of its meal), so only a missing value falls back.
+        sort_order = comp.sort_order if comp.sort_order is not None else idx
         new_component = MenuDayComponent(
             id=str(uuid.uuid4()),
             menu_day_id=menu_day_id,

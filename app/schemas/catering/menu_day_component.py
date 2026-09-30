@@ -46,7 +46,7 @@ class MenuDayComponentAssignment(BaseModel):
     meal_slot: MealSlot
     is_vegan: bool = False
     quantity: Optional[Decimal] = None
-    sort_order: int = 0
+    sort_order: Optional[int] = None  # None = keep the order sent
     notes: Optional[str] = None
 
 

@@ -655,8 +655,20 @@
 #componentEditorModal .accordion,
 #mealEditorModal .accordion {
   border-radius: 10px;
-  overflow: hidden;
   border: 1px solid #eef1f4;
+}
+/* No overflow:hidden on the accordion — it clipped the search dropdown on the lower
+   meals. Round the ends here instead, and leave room under the last meal for its list. */
+#componentEditorModal .accordion-item:first-child .accordion-button,
+#mealEditorModal .accordion-item:first-child .accordion-button {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+#componentEditorModal .modal-body {
+  padding-bottom: 220px;
+}
+#componentEditorModal .accordion-collapse.show {
+  overflow: visible;
 }
 #componentEditorModal .accordion-item,
 #mealEditorModal .accordion-item {
@@ -997,6 +1009,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const isVegan = selector.dataset.vegan === 'true';
     const input = selector.querySelector('.component-search');
     const dropdown = selector.querySelector('.component-dropdown');
+
+    // Lift the field you're typing in toward the top of the popup so its
+    // suggestion list has room underneath instead of running off the bottom
+    input.addEventListener('focus', function() {
+      setTimeout(() => this.scrollIntoView({ block: 'start', behavior: 'smooth' }), 50);
+    });
 
     input.addEventListener('input', function() {
       const query = this.value;

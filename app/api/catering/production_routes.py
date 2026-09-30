@@ -72,6 +72,7 @@ SUPPLY_SORT_BASE = {"produce": 1000, "beverage": 2000}
 # so itemized slots like snack don't need a note field at all.
 MEAL_SLOT_TYPES = ("breakfast", "lunch", "snack", "am_snack", "pm_snack")
 PACK_NOTE_FIELDS = {"breakfast": "breakfast_pack_note", "lunch": "lunch_pack_note"}
+SNACK_SLOTS = ("snack", "pm_snack", "am_snack")
 SLOT_LABELS = {
     "breakfast": "B",
     "lunch": "L",
@@ -507,7 +508,18 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             # a breakfast/lunch ingredient line — CACFP requires it be served, but
             # from a packaging standpoint it doesn't belong on this checklist.
             component_names = _slot_component_names_from_menu_day(menu_day, slot) if menu_day else []
-            component_names = [n for n in component_names if n not in produce_set]
+            if not component_names and slot in SNACK_SLOTS and menu_day:
+                # Menu has this program's snack under a different snack slot (e.g. items
+                # entered as "Snack" for a program set up for "PM Snack")
+                for other in SNACK_SLOTS:
+                    if other != slot and other not in meal_types_lower:
+                        component_names = _slot_component_names_from_menu_day(menu_day, other)
+                        if component_names:
+                            break
+            non_produce = [n for n in component_names if n not in produce_set]
+            # A fruit-only snack (e.g. "Apple") is the snack itself — keep it rather
+            # than falling back to a bare "PM Snack" line on the manifest.
+            component_names = non_produce if (non_produce or slot in PACK_NOTE_FIELDS) else component_names
             if not component_names:
                 component_names = [SLOT_DISPLAY.get(slot, slot.replace("_", " ").title())]
             components = [
@@ -1351,6 +1363,20 @@ async def _sync_manifest_component(db: AsyncSession, tenant_id: int, program_id:
         existing_item = existing_result.scalar_one_or_none()
 
         if checked and not existing_item:
+            # Drop the bare "PM Snack" line an earlier check left behind before the
+            # real item was on the packaging list
+            placeholder = SLOT_DISPLAY.get(slot, slot.replace("_", " ").title())
+            if component_name != placeholder:
+                stale_result = await db.execute(
+                    select(DailyManifestItem).where(
+                        DailyManifestItem.stop_id == stop.id,
+                        DailyManifestItem.source == slot,
+                        DailyManifestItem.label == placeholder,
+                    )
+                )
+                for stale in stale_result.scalars().all():
+                    await db.delete(stale)
+                await db.flush()
             next_order = await _stop_item_count(db, stop.id)
             db.add(DailyManifestItem(
                 id=str(_uuid.uuid4()),

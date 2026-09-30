@@ -42,7 +42,7 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.catering import (
     CACFPAgeGroup, CACFPComponentType, FoodComponent, CateringMonthlyMenu, CateringMenuDay,
-    CateringMasterMenu, CateringMasterMenuDay, CateringProgram, MenuDayComponent,
+    CateringMasterMenu, CateringMasterMenuDay, CateringProgram, MenuDayComponent, DailyManifestItem,
 )
 from app.schemas.catering import CateringProgramCreate, BulkComponentsRequest
 from app.crud.catering import program as program_crud
@@ -337,6 +337,73 @@ async def test_snack_and_pm_snack_columns_stay_separate(env):
     assert await env.day_names("Charlie", date(2026, 10, 1), "snack") == []
 
 
+async def _set_day(env, program, day, comps):
+    """Hand-edit one program day the way the calendar popup saves it: [(slot, name), ...],
+    sort_order numbered from 0 within each meal."""
+    menu = await env.program_menu(program)
+    async with env.Session() as db:
+        by_name = {c.name: c.id for c in (await db.execute(select(FoodComponent))).scalars().all()}
+        per_slot = {}
+        payload = []
+        for slot, name in comps:
+            payload.append({"component_id": by_name[name], "meal_slot": slot, "sort_order": per_slot.get(slot, 0)})
+            per_slot[slot] = per_slot.get(slot, 0) + 1
+        await mmr.bulk_assign_components(make_request(), menu_id=menu.id, data=BulkComponentsRequest(menu_days=[{
+            "service_date": day.isoformat(), "replace_existing": True, "components": payload,
+        }]), db=db)
+
+
+async def test_reordered_items_keep_their_order(env):
+    await env.confirm(await env.upload())
+    await env.publish(["Alpha"])
+    d = date(2026, 10, 5)
+    # Rice moved above BBQ Chicken in lunch, after two breakfast items
+    await _set_day(env, "Alpha", d, [
+        ("breakfast", "Bagel"), ("breakfast", "Apple"),
+        ("lunch", "Rice"), ("lunch", "BBQ Chicken"), ("lunch", "Mixed Vegetables"),
+    ])
+    menu = await env.program_menu("Alpha")
+    day = next(x for x in menu.menu_days if x.service_date == d)
+    lunch = [c.food_component.name for c in sorted(day.components, key=lambda c: c.sort_order) if c.meal_slot == "lunch"]
+    assert lunch == ["Rice", "BBQ Chicken", "Mixed Vegetables"], lunch
+    # and the calendar page renders them in that order after a refresh
+    async with env.Session() as db:
+        page = html(await hr.menu_calendar_view(make_request(method="GET"), menu_id=menu.id, db=db, user=env.admin))
+    day_json = json.loads(re.search(r"menuDayComponents\s*=\s*(\{.*?\});", page, re.S).group(1)) if "menuDayComponents =" in page else None
+    if day_json:
+        assert [c["name"] for c in day_json[d.isoformat()]["lunch"]] == lunch
+
+
+def _packaging(data, program_name, slot):
+    pd = next(p for p in data["programs_data"] if p["program"].name == program_name)
+    pkg = next(p for p in pd["packaging"] if p["slot"] == slot)
+    return [c["name"] for c in pkg["components"]]
+
+
+async def test_pm_snack_packaging_lists_items_not_slot_name(env):
+    await env.confirm(await env.upload())
+    await env.publish(["Charlie"])
+    # fruit-only PM snack: the fruit is the snack
+    await _set_day(env, "Charlie", date(2026, 10, 2), [("lunch", "Cheese Pizza"), ("pm_snack", "Pineapple")])
+    # snack entered under "Snack" for a program set up for "PM Snack"
+    await _set_day(env, "Charlie", date(2026, 10, 5), [("lunch", "Cheese Pizza"), ("snack", "Crackers")])
+    async with env.Session() as db:
+        assert _packaging(await pr._build_production_data(db, TENANT_ID, date(2026, 10, 1)), "Charlie", "pm_snack") == ["Yogurt"]
+        assert _packaging(await pr._build_production_data(db, TENANT_ID, date(2026, 10, 2)), "Charlie", "pm_snack") == ["Pineapple"]
+        assert _packaging(await pr._build_production_data(db, TENANT_ID, date(2026, 10, 5)), "Charlie", "pm_snack") == ["Crackers"]
+
+
+async def test_checking_real_snack_item_replaces_placeholder_line(env):
+    d = date(2026, 10, 2)
+    async with env.Session() as db:
+        await pr._sync_manifest_component(db, TENANT_ID, env.p["Charlie"], d, "pm_snack", "PM Snack", True)
+    async with env.Session() as db:
+        await pr._sync_manifest_component(db, TENANT_ID, env.p["Charlie"], d, "pm_snack", "Pineapple", True)
+    async with env.Session() as db:
+        labels = [i.label for i in (await db.execute(select(DailyManifestItem))).scalars().all()]
+    assert labels == ["Pineapple"], labels
+
+
 async def test_locked_menus_are_skipped(env):
     await env.confirm(await env.upload())
     await env.publish(["Charlie"])
@@ -374,6 +441,9 @@ TESTS = [
     test_publish_respects_service_days_meal_types_and_closures,
     test_republish_keeps_hand_edited_days,
     test_snack_and_pm_snack_columns_stay_separate,
+    test_reordered_items_keep_their_order,
+    test_pm_snack_packaging_lists_items_not_slot_name,
+    test_checking_real_snack_item_replaces_placeholder_line,
     test_locked_menus_are_skipped,
     test_bad_files_are_rejected,
 ]
