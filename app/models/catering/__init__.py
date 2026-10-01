@@ -3,13 +3,14 @@ from .food_component import FoodComponent
 from .meal_item import CateringMealItem, CateringMealComponent
 from .program import CateringProgram, CateringProgramHoliday
 from .monthly_menu import CateringMonthlyMenu, CateringMenuDay
-from .invoice import CateringInvoice
+from .invoice import CateringInvoice, CateringInvoiceLine
 from .menu_day_component import MenuDayComponent
 from .production_log import ProductionDailyLog
 from .client_account import CateringClientAccount
 from .portal_request import ClientPortalRequest
 from .daily_manifest import DailyManifest, DailyManifestStop, DailyManifestItem
 from .daily_count import CateringDailyCount
+from .substitution import CateringSubstitution
 from .master_menu import CateringMasterMenu, CateringMasterMenuDay, CateringMasterMenuComponent
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "CateringMonthlyMenu",
     "CateringMenuDay",
     "CateringInvoice",
+    "CateringInvoiceLine",
     "MenuDayComponent",
     "ProductionDailyLog",
     "CateringClientAccount",
@@ -31,6 +33,7 @@ __all__ = [
     "DailyManifest",
     "DailyManifestItem",
     "CateringDailyCount",
+    "CateringSubstitution",
     "CateringMasterMenu",
     "CateringMasterMenuDay",
     "CateringMasterMenuComponent",

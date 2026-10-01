@@ -6,7 +6,7 @@ Accessible to both admin and worker roles.
 """
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, delete as sa_delete
 from sqlalchemy.future import select
@@ -33,11 +33,12 @@ from app.models.catering import (
     DailyManifestStop,
     DailyManifestItem,
     CateringDailyCount,
+    CateringSubstitution,
 )
 from app.models.catering.food_component import FoodComponent
 from app.models.catering.cacfp_rules import CACFPComponentType
 from app.crud.catering import daily_count as daily_count_crud
-from app.crud.catering import invoice as invoice_crud
+from app.services.catering import day_menu, ddi
 from app.services.catering.delivery_link import (
     parse_route_code,
     ensure_program_delivery_stops,
@@ -184,29 +185,37 @@ def _group_programs_by_route(programs_data: list) -> list:
 
 
 def _effective_slot_counts(program, overrides_for_program: dict) -> tuple[dict, dict]:
-    """Per-slot (count, vegan) dicts for one program on one date — uses today's
-    CateringDailyCount override when present, else the program's standing count.
-    Single source of truth for kitchen-prep quantities, the delivery pill counts,
-    and (via crud.catering.invoice) invoice generation, so editing a headcount on
-    the Production Sheet flows through everywhere that count is used."""
-    counts = {
-        "breakfast": program.breakfast_count if program.breakfast_count is not None else program.total_children,
-        "lunch": program.lunch_count if program.lunch_count is not None else program.total_children,
-        "snack": program.snack_count if program.snack_count is not None else program.total_children,
-        "am_snack": program.am_snack_count if program.am_snack_count is not None else program.total_children,
-        "pm_snack": program.pm_snack_count if program.pm_snack_count is not None else program.total_children,
-    }
-    vegan = {
-        "breakfast": program.breakfast_vegan_count or 0,
-        "lunch": program.lunch_vegan_count or 0,
-        "snack": 0,
-        "am_snack": 0,
-        "pm_snack": 0,
-    }
-    for slot, override in (overrides_for_program or {}).items():
-        counts[slot] = override.count
-        vegan[slot] = override.vegan_count
-    return counts, vegan
+    """Per-slot (count, vegan) for one program on one date — see
+    day_menu.effective_slot_counts, the one place this rule lives (kitchen prep,
+    packaging pills and the Daily Delivery Invoice all read it)."""
+    return day_menu.effective_slot_counts(program, overrides_for_program)
+
+
+def _packaging_components(menu_day, slot: str, slots_required: list, produce_set: set, subs: list, program_id: str) -> list:
+    """The checkable lines for one program's meal slot on the Packaging screen:
+    the resolved menu (subs applied) minus produce, which is packed via the
+    Produce card — except a fruit-only snack, which is the snack itself. Falls
+    back to a bare slot-name line when the menu has nothing for that slot."""
+    resolved = day_menu.resolve_slot(menu_day, slot, slots_required, subs, program_id) if menu_day else []
+    non_produce = [c for c in resolved if c.name not in produce_set]
+    resolved = non_produce if (non_produce or slot in PACK_NOTE_FIELDS) else resolved
+    if not resolved:
+        resolved = [day_menu.ResolvedComponent(SLOT_DISPLAY.get(slot, slot.replace("_", " ").title()), None, "", 0.0)]
+    return resolved
+
+
+async def _produce_names(db: AsyncSession, tenant_id: int) -> list:
+    """Food components whose CACFP type contains "fruit"."""
+    result = await db.execute(
+        select(FoodComponent.name)
+        .join(FoodComponent.component_type)
+        .where(
+            FoodComponent.tenant_id == tenant_id,
+            CACFPComponentType.name.ilike("%fruit%"),
+        )
+        .order_by(FoodComponent.name)
+    )
+    return [row[0] for row in result.all()]
 
 
 async def _build_production_data(db: AsyncSession, tenant_id: int, service_date: date):
@@ -240,92 +249,41 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             continue
         serving_programs.append(program)
 
-    # Load menu days for each serving program
-    program_menu_days: dict[str, CateringMenuDay] = {}
-    for program in serving_programs:
-        result = await db.execute(
-            select(CateringMonthlyMenu)
-            .where(
-                CateringMonthlyMenu.program_id == program.id,
-                CateringMonthlyMenu.month == service_date.month,
-                CateringMonthlyMenu.year == service_date.year,
-                CateringMonthlyMenu.menu_type == "regular",
-            )
-            .options(
-                selectinload(CateringMonthlyMenu.menu_days)
-                    .selectinload(CateringMenuDay.components)
-                    .selectinload(MenuDayComponent.food_component),
-                selectinload(CateringMonthlyMenu.menu_days)
-                    .selectinload(CateringMenuDay.breakfast_item)
-                    .selectinload(CateringMealItem.components)
-                    .selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMonthlyMenu.menu_days)
-                    .selectinload(CateringMenuDay.breakfast_vegan_item)
-                    .selectinload(CateringMealItem.components)
-                    .selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMonthlyMenu.menu_days)
-                    .selectinload(CateringMenuDay.lunch_item)
-                    .selectinload(CateringMealItem.components)
-                    .selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMonthlyMenu.menu_days)
-                    .selectinload(CateringMenuDay.lunch_vegan_item)
-                    .selectinload(CateringMealItem.components)
-                    .selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMonthlyMenu.menu_days)
-                    .selectinload(CateringMenuDay.snack_item)
-                    .selectinload(CateringMealItem.components)
-                    .selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMonthlyMenu.menu_days)
-                    .selectinload(CateringMenuDay.am_snack_item)
-                    .selectinload(CateringMealItem.components)
-                    .selectinload(CateringMealComponent.food_component),
-                selectinload(CateringMonthlyMenu.menu_days)
-                    .selectinload(CateringMenuDay.pm_snack_item)
-                    .selectinload(CateringMealItem.components)
-                    .selectinload(CateringMealComponent.food_component),
-            )
-        )
-        monthly_menu = result.scalar_one_or_none()
-        if monthly_menu:
-            menu_day = next(
-                (d for d in monthly_menu.menu_days if d.service_date == service_date),
-                None,
-            )
-            if menu_day:
-                program_menu_days[program.id] = menu_day
+    # Menu day for each serving program (one query), plus today's substitutions
+    program_menu_days = await day_menu.load_menu_days(db, [p.id for p in serving_programs], service_date)
+    substitutions = await day_menu.load_substitutions(db, tenant_id, service_date)
 
     # Same-day headcount overrides edited on the Production Sheet (falls back to
     # each program's standing count where no override exists for a slot).
     daily_count_overrides = await daily_count_crud.get_counts_for_date(db, tenant_id, service_date)
 
-    # Food components whose CACFP type contains "fruit" — pulled out of the
-    # per-slot Kitchen Prep buckets into their own standalone Produce section,
-    # since fruit is prepped/portioned separately from the rest of a meal.
-    produce_result = await db.execute(
-        select(FoodComponent.name)
-        .join(FoodComponent.component_type)
-        .where(
-            FoodComponent.tenant_id == tenant_id,
-            CACFPComponentType.name.ilike("%fruit%"),
-        )
-        .order_by(FoodComponent.name)
-    )
-    produce_items = [row[0] for row in produce_result.all()]
+    # Fruit components are pulled out of the per-slot Kitchen Prep buckets into
+    # their own standalone Produce section (prepped/portioned separately).
+    produce_items = await _produce_names(db, tenant_id)
     produce_set = set(produce_items)
 
-    def _accumulate(agg: dict, name: str, qty_oz: float, meal_count: int, slot: str, program_name: str):
-        agg[name]["total_oz"] += qty_oz * meal_count
-        agg[name]["total_count"] += meal_count
-        agg[name]["slots"].add(slot)
-        pb = agg[name]["program_breakdown"].setdefault(program_name, {"count": 0, "oz": 0.0})
+    def _accumulate(agg: dict, comp, meal_count: int, slot: str, program):
+        entry = agg[comp.name]
+        entry["total_oz"] += comp.qty_oz * meal_count
+        entry["total_count"] += meal_count
+        entry["slots"].add(slot)
+        entry["component_id"] = comp.component_id
+        entry["type_name"] = comp.type_name
+        if comp.is_sub:
+            entry["sub_from"].add(comp.original_name)
+        pb = entry["program_breakdown"].setdefault(program.name, {"count": 0, "oz": 0.0, "id": program.id})
         pb["count"] += meal_count
-        pb["oz"] += qty_oz * meal_count
+        pb["oz"] += comp.qty_oz * meal_count
 
     # Aggregate components across all programs — produce goes to its own bucket,
     # everything else to the regular kitchen-prep bucket.
     # program_breakdown is a dict {program_name: {count, oz}} during aggregation
-    component_agg: dict = defaultdict(lambda: {"total_oz": 0.0, "total_count": 0, "slots": set(), "program_breakdown": {}})
-    produce_agg: dict = defaultdict(lambda: {"total_oz": 0.0, "total_count": 0, "slots": set(), "program_breakdown": {}})
+    def _new_entry():
+        return {"total_oz": 0.0, "total_count": 0, "slots": set(), "program_breakdown": {},
+                "component_id": None, "type_name": "", "sub_from": set()}
+
+    component_agg: dict = defaultdict(_new_entry)
+    produce_agg: dict = defaultdict(_new_entry)
 
     for program in serving_programs:
         menu_day = program_menu_days.get(program.id)
@@ -341,43 +299,14 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
 
         counts, _ = _effective_slot_counts(program, daily_count_overrides.get(program.id))
 
-        slots_with_components = {
-            comp.meal_slot for comp in menu_day.components
-            if not comp.is_vegan and comp.food_component
-        }
-        slot_items = {
-            "breakfast": menu_day.breakfast_item,
-            "lunch": menu_day.lunch_item,
-            "snack": menu_day.snack_item,
-            "am_snack": menu_day.am_snack_item,
-            "pm_snack": menu_day.pm_snack_item,
-        }
-
-        for comp in menu_day.components:
-            if comp.is_vegan or not comp.food_component:
-                continue
-            slot = comp.meal_slot
-            if slot not in meal_types_lower:
-                continue
-            qty_oz = float(comp.quantity or comp.food_component.default_portion_oz or 0)
-            meal_count = counts.get(slot, program.total_children) or 0
-            name = comp.food_component.name
-            target = produce_agg if name in produce_set else component_agg
-            _accumulate(target, name, qty_oz, meal_count, slot, program.name)
-
-        for slot, meal_item in slot_items.items():
-            if slot in slots_with_components:
-                continue
-            if slot not in meal_types_lower or not meal_item or not meal_item.components:
+        # Regular (non-vegan) items only, as before — resolved through today's subs
+        for slot in meal_types_lower:
+            if slot not in MEAL_SLOT_TYPES:
                 continue
             meal_count = counts.get(slot, program.total_children) or 0
-            for mc in meal_item.components:
-                if not mc.food_component:
-                    continue
-                name = mc.food_component.name
-                item_oz = float(mc.portion_oz or 0)
-                target = produce_agg if name in produce_set else component_agg
-                _accumulate(target, name, item_oz, meal_count, slot, program.name)
+            for comp in day_menu.resolve_slot(menu_day, slot, meal_types_lower, substitutions, program.id):
+                target = produce_agg if comp.name in produce_set else component_agg
+                _accumulate(target, comp, meal_count, slot, program)
 
     def _format_agg(agg: dict) -> list:
         """Sort an aggregation bucket and convert its slot sets into sorted label lists."""
@@ -398,9 +327,12 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
                 ],
                 "primary_slot": slots_sorted[0] if slots_sorted else "other",
                 "program_breakdown": [
-                    {"name": pname, "count": vals["count"], "oz": round(vals["oz"], 1), "lb": round(vals["oz"] / 16, 2)}
+                    {"name": pname, "id": vals["id"], "count": vals["count"], "oz": round(vals["oz"], 1), "lb": round(vals["oz"] / 16, 2)}
                     for pname, vals in sorted(data["program_breakdown"].items())
                 ],
+                "component_id": data["component_id"],
+                "type_name": data["type_name"],
+                "sub_from": sorted(data["sub_from"]),
             })
         return formatted
 
@@ -474,6 +406,18 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
                 # Legacy milk + juice checks on the same day merge into one Beverage entry
                 last_supply_items[program.id][supply].extend(items)
 
+    # Invoices locked for today (route released) — their counts/subs are frozen.
+    # A route released before its invoices existed gets them locked now.
+    released_ids = {
+        program_id for program_id, stop in stop_by_program.items()
+        if manifest_by_id.get(stop.manifest_id) and manifest_by_id[stop.manifest_id].status == "released"
+    }
+    locked_programs = await ddi.locked_program_ids(db, [p.id for p in serving_programs], service_date)
+    to_lock = [p for p in serving_programs if p.id in released_ids and p.id not in locked_programs]
+    if to_lock:
+        await ddi.finalize_for_programs(db, tenant_id, to_lock, service_date)
+        locked_programs = await ddi.locked_program_ids(db, [p.id for p in serving_programs], service_date)
+
     # Build per-program delivery data for template
     programs_data = []
     for program in serving_programs:
@@ -507,24 +451,17 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             # Produce is packed via the dedicated Produce supply check below, not as
             # a breakfast/lunch ingredient line — CACFP requires it be served, but
             # from a packaging standpoint it doesn't belong on this checklist.
-            component_names = _slot_component_names_from_menu_day(menu_day, slot) if menu_day else []
-            if not component_names and slot in SNACK_SLOTS and menu_day:
-                # Menu has this program's snack under a different snack slot (e.g. items
-                # entered as "Snack" for a program set up for "PM Snack")
-                for other in SNACK_SLOTS:
-                    if other != slot and other not in meal_types_lower:
-                        component_names = _slot_component_names_from_menu_day(menu_day, other)
-                        if component_names:
-                            break
-            non_produce = [n for n in component_names if n not in produce_set]
-            # A fruit-only snack (e.g. "Apple") is the snack itself — keep it rather
-            # than falling back to a bare "PM Snack" line on the manifest.
-            component_names = non_produce if (non_produce or slot in PACK_NOTE_FIELDS) else component_names
-            if not component_names:
-                component_names = [SLOT_DISPLAY.get(slot, slot.replace("_", " ").title())]
+            resolved = _packaging_components(menu_day, slot, meal_types_lower, produce_set, substitutions, program.id)
             components = [
-                {"name": name, "checked": (slot, program.id, name) in checked_items}
-                for name in component_names
+                {
+                    "name": c.name,
+                    "checked": (slot, program.id, c.name) in checked_items,
+                    "component_id": c.component_id,
+                    "type_name": c.type_name,
+                    "sub_from": c.original_name,
+                    "sub_reason": c.reason,
+                }
+                for c in resolved
             ]
             checked_count = sum(1 for c in components if c["checked"])
 
@@ -591,6 +528,7 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
             "route_group_code": route if route != UNASSIGNED_ROUTE else "",
             "manifest_status": manifest.status if manifest else None,
             "manifest_item_count": len(stop.items) if stop else 0,
+            "invoice_locked": program.id in locked_programs,
         })
 
     # Vegan headcount, broken down by program (program.vegan_count is filled in per-program)
@@ -619,6 +557,22 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
         "vegan_breakdown": vegan_breakdown,
         "manifests_released_count": released_routes,
         "manifests_total_routes": total_routes,
+        "substitutions": [
+            {
+                "id": sub.id,
+                "original": sub.original_component.name if sub.original_component else "?",
+                "replacement": sub.replacement_component.name if sub.replacement_component else "?",
+                "slot_label": SLOT_DISPLAY.get(sub.meal_slot, "All meals") if sub.meal_slot else "All meals",
+                "scope": sub.program.name if sub.program else "All programs",
+                "portion_oz": float(sub.portion_oz) if sub.portion_oz is not None else None,
+                "reason": sub.reason,
+                "type_changed": bool(
+                    sub.original_component and sub.replacement_component
+                    and sub.original_component.component_type_id != sub.replacement_component.component_type_id
+                ),
+            }
+            for sub in substitutions
+        ],
     }
 
 
@@ -762,6 +716,22 @@ async def production_daily_view(
 
     base_template = "worker_base.html" if user.role == "worker" else "base.html"
 
+    # Replacement choices for the Sub dialog, grouped by CACFP component type
+    sub_options = []
+    if user.role != "worker":
+        comp_result = await db.execute(
+            select(FoodComponent)
+            .where(FoodComponent.tenant_id == tenant_id)
+            .options(selectinload(FoodComponent.component_type))
+            .order_by(FoodComponent.name)
+        )
+        sub_options = [
+            {"id": fc.id, "name": fc.name, "type": fc.component_type.name if fc.component_type else "Other",
+             "oz": float(fc.default_portion_oz or 0)}
+            for fc in comp_result.scalars().all()
+        ]
+        sub_options.sort(key=lambda o: (o["type"], o["name"].lower()))
+
     return templates.TemplateResponse(
         "catering/production_daily.html",
         {
@@ -791,6 +761,10 @@ async def production_daily_view(
             "vegan_breakdown": data["vegan_breakdown"],
             "manifests_released_count": data["manifests_released_count"],
             "manifests_total_routes": data["manifests_total_routes"],
+            "substitutions": data["substitutions"],
+            "cacfp_count": sum(1 for p in data["serving_programs"] if p.cacfp_eligible),
+            "sub_options": sub_options,
+            "slot_display": SLOT_DISPLAY,
         },
     )
 
@@ -1064,6 +1038,8 @@ async def save_daily_count(
     program = await db.get(CateringProgram, program_id)
     if not program or program.tenant_id != tenant_id:
         return JSONResponse({"error": "program not found"}, status_code=404)
+    if program_id in await ddi.locked_program_ids(db, [program_id], service_date):
+        return JSONResponse({"error": LOCKED_MESSAGE.format(names=program.name)}, status_code=409)
 
     await daily_count_crud.set_count(
         db, tenant_id, program_id, service_date, slot, count, vegan_count, user_id=user.id,
@@ -1088,66 +1064,6 @@ async def save_daily_count(
         "regular": max(slot_counts[slot] - slot_vegan[slot], 0),
         "total_meals": total_meals,
     })
-
-
-async def _menu_day_for_program_date(db: AsyncSession, program_id: str, service_date: date):
-    """The monthly menu day for one program on one date, or None — used to check
-    whether a menu exists before generating that day's invoice from it."""
-    result = await db.execute(
-        select(CateringMonthlyMenu)
-        .where(
-            CateringMonthlyMenu.program_id == program_id,
-            CateringMonthlyMenu.month == service_date.month,
-            CateringMonthlyMenu.year == service_date.year,
-            CateringMonthlyMenu.menu_type == "regular",
-        )
-        .options(selectinload(CateringMonthlyMenu.menu_days))
-    )
-    monthly_menu = result.scalar_one_or_none()
-    if not monthly_menu:
-        return None
-    return next((d for d in monthly_menu.menu_days if d.service_date == service_date), None)
-
-
-@router.post("/production/generate-invoices")
-async def generate_invoices_from_production(
-    request: Request,
-    date_str: str = Form(...),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_admin_user),
-):
-    """Generate/update today's invoices for every serving program, straight from
-    the kitchen — reading each program's (possibly edited) daily headcount rather
-    than the planned monthly-menu count. Triggered from the Production Sheet."""
-    tenant_id = request.state.tenant_id
-    try:
-        service_date = date.fromisoformat(date_str)
-    except ValueError:
-        return RedirectResponse(url="/catering/production", status_code=303)
-
-    serving_programs = await _serving_programs_for_date(db, tenant_id, service_date)
-
-    generated = 0
-    skipped = 0
-    for program in serving_programs:
-        menu_day = await _menu_day_for_program_date(db, program.id, service_date)
-        if not menu_day:
-            skipped += 1
-            continue
-        invoice = await invoice_crud.generate_invoice_from_menu_day(db, menu_day.id, tenant_id)
-        if invoice:
-            generated += 1
-        else:
-            skipped += 1
-
-    msg = f"{generated} invoice(s) generated/updated"
-    if skipped:
-        msg += f", {skipped} skipped (no menu set for that day)"
-
-    return RedirectResponse(
-        url=f"/catering/production?date_str={service_date.isoformat()}&message={msg}",
-        status_code=303,
-    )
 
 
 async def _get_or_create_manifest(db: AsyncSession, tenant_id: int, route_code: str, service_date: date) -> DailyManifest:
@@ -1270,31 +1186,6 @@ async def _stop_item_count(db: AsyncSession, stop_id: str) -> int:
         select(func.count()).select_from(DailyManifestItem).where(DailyManifestItem.stop_id == stop_id)
     )
     return result.scalar() or 0
-
-
-def _slot_component_names_from_menu_day(menu_day, slot: str) -> list:
-    """Actual food item names scheduled for one meal slot on an already-loaded menu
-    day (e.g. slot='snack' -> ['Pretzels', 'Yogurt']) — same override-vs-fallback
-    lookup used for kitchen prep aggregation, scoped to one slot, reading off an
-    object already in memory rather than re-querying."""
-    if not menu_day:
-        return []
-    names, seen = [], set()
-    comps = [c for c in menu_day.components if c.meal_slot == slot and not c.is_vegan and c.food_component]
-    if comps:
-        for c in comps:
-            if c.food_component.name not in seen:
-                seen.add(c.food_component.name)
-                names.append(c.food_component.name)
-        return names
-
-    meal_item = getattr(menu_day, f"{slot}_item", None)
-    if meal_item and meal_item.components:
-        for mc in meal_item.components:
-            if mc.food_component and mc.food_component.name not in seen:
-                seen.add(mc.food_component.name)
-                names.append(mc.food_component.name)
-    return names
 
 
 async def _sync_manifest_component(db: AsyncSession, tenant_id: int, program_id: str, service_date: date, slot: str, component_name: str, checked: bool):
@@ -1427,7 +1318,350 @@ async def _sync_manifest_supply(db: AsyncSession, tenant_id: int, program_id: st
     await db.commit()
 
 
+# ==================== INVOICES + SUBSTITUTIONS ====================
+
+LOCKED_MESSAGE = (
+    "The invoice for {names} is locked because its route manifest was released. "
+    "Reopen that manifest to make changes."
+)
+
+
+@router.post("/production/generate-invoices")
+async def generate_invoices_from_production(
+    request: Request,
+    date_str: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Build/refresh the Daily Delivery Invoice for every program serving that day
+    (CACFP or not — every delivery gets a record). Locked invoices are left as-is."""
+    tenant_id = request.state.tenant_id
+    try:
+        service_date = date.fromisoformat(date_str)
+    except ValueError:
+        return RedirectResponse(url="/catering/production", status_code=303)
+
+    programs = await _serving_programs_for_date(db, tenant_id, service_date)
+    await _lock_released(db, tenant_id, service_date, programs,
+                         await _route_positions(db, tenant_id, service_date, programs))
+    built = await ddi.build_for_programs(db, tenant_id, programs, service_date)
+    made = sum(1 for inv in built.values() if inv is not None and not ddi.is_locked(inv))
+    locked = sum(1 for inv in built.values() if ddi.is_locked(inv))
+    missing = sum(1 for inv in built.values() if inv is None)
+
+    msg = f"{made} invoice(s) up to date"
+    if locked:
+        msg += f", {locked} locked (route released)"
+    if missing:
+        msg += f", {missing} skipped (no menu that day)"
+    return RedirectResponse(
+        url=f"/catering/production?date_str={service_date.isoformat()}&message={msg}",
+        status_code=303,
+    )
+
+
+async def _packaging_snapshot(db: AsyncSession, tenant_id: int, programs: list, service_date: date) -> dict:
+    """{(program_id, slot): [packaging line names]} as the Packaging screen shows them now."""
+    menu_days = await day_menu.load_menu_days(db, [p.id for p in programs], service_date)
+    subs = await day_menu.load_substitutions(db, tenant_id, service_date)
+    produce_set = set(await _produce_names(db, tenant_id))
+    snapshot = {}
+    for program in programs:
+        slots = day_menu.required_slots(program)
+        for slot in slots:
+            if slot not in MEAL_SLOT_TYPES:
+                continue
+            comps = _packaging_components(menu_days.get(program.id), slot, slots, produce_set, subs, program.id)
+            snapshot[(program.id, slot)] = [c.name for c in comps]
+    return snapshot
+
+
+async def _clear_stale_packing(db: AsyncSession, tenant_id: int, service_date: date, before: dict, after: dict) -> int:
+    """A sub changes what goes in the bag: a packed line for an item that's no
+    longer on the list is un-checked and pulled off the manifest, so the new item
+    shows up unpacked and gets packed for real."""
+    cleared = 0
+    for (program_id, slot), names in before.items():
+        gone = set(names) - set(after.get((program_id, slot), []))
+        for name in gone:
+            result = await db.execute(
+                select(ProductionDailyLog).where(
+                    ProductionDailyLog.tenant_id == tenant_id,
+                    ProductionDailyLog.service_date == service_date,
+                    ProductionDailyLog.program_id == program_id,
+                    ProductionDailyLog.check_type == slot,
+                    ProductionDailyLog.reference_key == name,
+                )
+            )
+            logs = result.scalars().all()
+            if not logs:
+                continue
+            for log in logs:
+                await db.delete(log)
+            await db.commit()
+            await _sync_manifest_component(db, tenant_id, program_id, service_date, slot, name, checked=False)
+            cleared += 1
+    return cleared
+
+
+def _programs_serving_component(programs: list, menu_days: dict, component_id: int, slot: Optional[str]) -> list:
+    """Programs whose planned menu has this component in the slot (or any slot)."""
+    hits = []
+    for program in programs:
+        menu_day = menu_days.get(program.id)
+        slots = day_menu.required_slots(program)
+        for s in slots:
+            if slot and s != slot:
+                continue
+            source = day_menu.program_slot_source(menu_day, s, slots)
+            if any(c.component_id == component_id for c in day_menu.planned_slot_components(menu_day, source)):
+                hits.append(program)
+                break
+    return hits
+
+
+@router.post("/production/substitution-save")
+async def save_substitution(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Swap one food component for another on one service date.
+    Body: {date, original_component_id, replacement_component_id, meal_slot ('' = all
+    meals), program_ids ([] = every program serving it), portion_oz (optional), reason}"""
+    tenant_id = request.state.tenant_id
+    body = await request.json()
+    try:
+        service_date = date.fromisoformat(body.get("date") or "")
+        original_id = int(body.get("original_component_id"))
+        replacement_id = int(body.get("replacement_component_id"))
+        portion = body.get("portion_oz")
+        portion = float(portion) if portion not in (None, "") else None
+    except (ValueError, TypeError):
+        return JSONResponse({"error": "date and both components are required"}, status_code=400)
+    slot = body.get("meal_slot") or None
+    program_ids = [pid for pid in (body.get("program_ids") or []) if pid]
+    reason = (body.get("reason") or "").strip() or None
+
+    if slot is not None and slot not in MEAL_SLOT_TYPES:
+        return JSONResponse({"error": "invalid meal"}, status_code=400)
+    if original_id == replacement_id:
+        return JSONResponse({"error": "pick a different item to substitute"}, status_code=400)
+    if portion is not None and portion <= 0:
+        return JSONResponse({"error": "portion must be more than 0"}, status_code=400)
+    original = await db.get(FoodComponent, original_id)
+    replacement = await db.get(FoodComponent, replacement_id)
+    if not original or not replacement or original.tenant_id != tenant_id or replacement.tenant_id != tenant_id:
+        return JSONResponse({"error": "food component not found"}, status_code=404)
+
+    serving = await _serving_programs_for_date(db, tenant_id, service_date)
+    in_scope = [p for p in serving if not program_ids or p.id in program_ids]
+    menu_days = await day_menu.load_menu_days(db, [p.id for p in in_scope], service_date)
+    affected = _programs_serving_component(in_scope, menu_days, original_id, slot)
+    if not affected:
+        return JSONResponse({"error": f"{original.name} isn't on the menu for those programs that day"}, status_code=400)
+
+    locked = await ddi.locked_program_ids(db, [p.id for p in affected], service_date)
+    if locked:
+        names = ", ".join(p.name for p in affected if p.id in locked)
+        return JSONResponse({"error": LOCKED_MESSAGE.format(names=names)}, status_code=409)
+
+    before = await _packaging_snapshot(db, tenant_id, affected, service_date)
+
+    # One row per scope; re-subbing the same item for the same scope replaces it
+    scopes = program_ids or [None]
+    for pid in scopes:
+        existing = await db.execute(
+            select(CateringSubstitution).where(
+                CateringSubstitution.tenant_id == tenant_id,
+                CateringSubstitution.service_date == service_date,
+                CateringSubstitution.original_component_id == original_id,
+                CateringSubstitution.is_vegan == False,  # noqa: E712
+                CateringSubstitution.meal_slot == slot if slot else CateringSubstitution.meal_slot.is_(None),
+                CateringSubstitution.program_id == pid if pid else CateringSubstitution.program_id.is_(None),
+            )
+        )
+        for old in existing.scalars().all():
+            await db.delete(old)
+        db.add(CateringSubstitution(
+            tenant_id=tenant_id, service_date=service_date, meal_slot=slot, is_vegan=False,
+            program_id=pid, original_component_id=original_id, replacement_component_id=replacement_id,
+            portion_oz=portion, reason=reason, created_by_user_id=user.id,
+        ))
+    await db.commit()
+
+    after = await _packaging_snapshot(db, tenant_id, affected, service_date)
+    cleared = await _clear_stale_packing(db, tenant_id, service_date, before, after)
+    return JSONResponse({"ok": True, "affected": len(affected), "cleared_checks": cleared})
+
+
+@router.post("/production/substitution/{sub_id}/delete")
+async def delete_substitution(
+    request: Request,
+    sub_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Undo a substitution — the planned item comes back everywhere it applied."""
+    tenant_id = request.state.tenant_id
+    sub = await db.get(CateringSubstitution, sub_id)
+    if not sub or sub.tenant_id != tenant_id:
+        return JSONResponse({"error": "not found"}, status_code=404)
+
+    serving = await _serving_programs_for_date(db, tenant_id, sub.service_date)
+    in_scope = [p for p in serving if sub.program_id is None or p.id == sub.program_id]
+    menu_days = await day_menu.load_menu_days(db, [p.id for p in in_scope], sub.service_date)
+    affected = _programs_serving_component(in_scope, menu_days, sub.original_component_id, sub.meal_slot)
+    locked = await ddi.locked_program_ids(db, [p.id for p in affected], sub.service_date)
+    if locked:
+        names = ", ".join(p.name for p in affected if p.id in locked)
+        return JSONResponse({"error": LOCKED_MESSAGE.format(names=names)}, status_code=409)
+
+    service_date = sub.service_date
+    before = await _packaging_snapshot(db, tenant_id, affected, service_date)
+    await db.delete(sub)
+    await db.commit()
+    after = await _packaging_snapshot(db, tenant_id, affected, service_date)
+    cleared = await _clear_stale_packing(db, tenant_id, service_date, before, after)
+    return JSONResponse({"ok": True, "cleared_checks": cleared})
+
+
+async def _route_positions(db: AsyncSession, tenant_id: int, service_date: date, programs: list) -> dict:
+    """{program_id: (route, stop order, manifest status)} for the day — the
+    manifest stop when one exists (reflects Route Board moves), else the
+    program's permanent route — so printed pages come out in bag/driving order."""
+    result = await db.execute(
+        select(DailyManifestStop, DailyManifest)
+        .join(DailyManifest, DailyManifestStop.manifest_id == DailyManifest.id)
+        .where(DailyManifest.tenant_id == tenant_id, DailyManifest.service_date == service_date)
+    )
+    stops = {stop.program_id: (manifest.route_code, stop.sort_order, manifest.status) for stop, manifest in result.all()}
+    positions = {}
+    for program in programs:
+        if program.id in stops:
+            positions[program.id] = stops[program.id]
+        else:
+            route, order = _program_route(program)
+            positions[program.id] = (route, order, None)
+    return positions
+
+
+async def _lock_released(db: AsyncSession, tenant_id: int, service_date: date, programs: list, positions: dict) -> None:
+    """Invoices lock when their route is released. A route released before its
+    invoices were built (or before this rule existed) gets them locked here."""
+    released = [p for p in programs if positions[p.id][2] == "released"]
+    if not released:
+        return
+    locked = await ddi.locked_program_ids(db, [p.id for p in released], service_date)
+    pending = [p for p in released if p.id not in locked]
+    if pending:
+        await ddi.finalize_for_programs(db, tenant_id, pending, service_date)
+
+
+def _render_pdf(html_content: str) -> bytes:
+    import io
+    from xhtml2pdf import pisa
+    buffer = io.BytesIO()
+    status = pisa.CreatePDF(html_content, dest=buffer)
+    if status.err:
+        raise RuntimeError(f"PDF generation failed with {status.err} errors")
+    return buffer.getvalue()
+
+
+@router.get("/production/day-pack")
+async def invoice_day_pack(
+    request: Request,
+    date_str: Optional[str] = None,
+    scope: str = "cacfp",
+    route: Optional[str] = None,
+    format: str = "html",
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """One printable file of the day's Daily Delivery Invoices — one page per
+    program, in route/stop order, ready to drop into the delivery bags.
+    scope=cacfp (default) prints CACFP programs; scope=all prints everyone."""
+    tenant_id = request.state.tenant_id
+    try:
+        service_date = date.fromisoformat(date_str) if date_str else date.today()
+    except ValueError:
+        service_date = date.today()
+
+    serving = await _serving_programs_for_date(db, tenant_id, service_date)
+    positions = await _route_positions(db, tenant_id, service_date, serving)
+    await _lock_released(db, tenant_id, service_date, serving, positions)
+    # Every serving program gets its record built, printed or not
+    built = await ddi.build_for_programs(db, tenant_id, serving, service_date)
+    routes = _sorted_routes({positions[p.id][0] for p in serving})
+
+    candidates = [p for p in serving if scope == "all" or p.cacfp_eligible]
+    if route:
+        candidates = [p for p in candidates if positions[p.id][0] == route]
+    candidates.sort(key=lambda p: (_natural_key(positions[p.id][0]), positions[p.id][1], p.name.lower()))
+
+    pages, warnings, stop_numbers = [], [], defaultdict(int)
+    for program in candidates:
+        program_route, _, manifest_status = positions[program.id]
+        stop_numbers[program_route] += 1
+        invoice = built.get(program.id)
+        if invoice is None:
+            warnings.append(f"{program.name}: no menu for this day — no invoice.")
+            continue
+        invoice = await ddi.ensure_lines(db, invoice)
+        if not ddi.is_locked(invoice):
+            warnings.append(f"{program.name}: route {program_route} not released yet — printing a DRAFT.")
+        meals = ddi.invoice_meals(invoice)
+        if any(l["item_name"] == "Seasonal Fruit" for m in meals for l in m["lines"]):
+            warnings.append(f"{program.name}: fruit type not picked on the Produce card — prints as \"Seasonal Fruit\".")
+        pages.append({
+            "invoice": invoice,
+            "meals": meals,
+            "total_meals": sum(m["meal_count"] for m in meals),
+            "route": program_route,
+            "stop_no": stop_numbers[program_route],
+            "is_draft": not ddi.is_locked(invoice),
+        })
+
+    context = {
+        "request": request,
+        "user": user,
+        "service_date": service_date,
+        "pages": pages,
+        "warnings": warnings,
+        "vendor": ddi.VENDOR,
+        "scope": scope,
+        "route": route or "",
+        "routes": routes,
+        "for_pdf": format == "pdf",
+    }
+    if format == "pdf":
+        html_content = templates.TemplateResponse("catering/ddi_pack.html", context).body.decode("utf-8")
+        try:
+            pdf = _render_pdf(html_content)
+        except Exception:
+            import logging
+            logging.exception("Day pack PDF generation failed")
+            return RedirectResponse(
+                url=f"/catering/production/day-pack?date_str={service_date.isoformat()}&scope={scope}&route={route or ''}&error=PDF+generation+failed",
+                status_code=303,
+            )
+        suffix = f"_{route}" if route else ""
+        filename = f"DDI_{service_date.isoformat()}{suffix}.pdf"
+        return Response(content=pdf, media_type="application/pdf",
+                        headers={"Content-Disposition": f'inline; filename="{filename}"'})
+    return templates.TemplateResponse("catering/ddi_pack.html", context)
+
+
 # ==================== MANIFEST BUILDER (admin) ====================
+
+async def _manifest_programs(db: AsyncSession, manifest_id: str) -> list:
+    result = await db.execute(
+        select(CateringProgram)
+        .join(DailyManifestStop, DailyManifestStop.program_id == CateringProgram.id)
+        .where(DailyManifestStop.manifest_id == manifest_id)
+    )
+    return list(result.scalars().all())
+
 
 def _stops_in_order(stops) -> list:
     """A manifest's stops in driving order (Route Board order), ties by name."""
@@ -1662,6 +1896,8 @@ async def manifest_release(
         date_str = manifest.service_date.isoformat()
         await sync_delivery_route_for_manifest(db, manifest)
         await db.commit()
+        # The paperwork rides with the food: freeze this route's Daily Delivery Invoices
+        await ddi.finalize_for_programs(db, tenant_id, await _manifest_programs(db, manifest.id), manifest.service_date)
 
     return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
 
@@ -1687,6 +1923,8 @@ async def manifest_reopen(
         manifest.released_by_user_id = None
         date_str = manifest.service_date.isoformat()
         await db.commit()
+        programs = await _manifest_programs(db, manifest.id)
+        await ddi.reopen_for_programs(db, [p.id for p in programs], manifest.service_date)
 
     return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
 

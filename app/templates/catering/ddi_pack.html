@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Delivery Invoices {{ service_date.strftime('%b %d') }}</title>
+  {% include "catering/_ddi_styles.html" %}
+  <style>
+    @page { size: letter; margin: 0.45in; }
+    body { margin: 0; background: #fff; }
+    {% if not for_pdf %}
+    body { background: #eef0f3; }
+    .pack-bar { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid #d6d9de; padding: 10px 16px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px; }
+    .pack-bar-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .pack-bar h1 { font-size: 16px; margin: 0 12px 0 0; }
+    .pack-bar a, .pack-bar button, .pack-bar select { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; border: 1px solid #c9ced6; background: #fff; color: #1f2937; text-decoration: none; cursor: pointer; }
+    .pack-bar .primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+    .pack-bar .seg a.on { background: #1f2937; color: #fff; border-color: #1f2937; }
+    .pack-warn { margin: 10px 0 0; padding: 8px 12px; border-radius: 6px; background: #fff7e6; border: 1px solid #f5c26b; color: #6b4500; font-size: 13px; }
+    .pack-warn ul { margin: 4px 0 0 18px; padding: 0; }
+    .pack-error { margin: 10px 0 0; padding: 8px 12px; border-radius: 6px; background: #fdecec; border: 1px solid #f1a5a5; color: #8a1c1c; font-size: 13px; }
+    .sheet { background: #fff; width: 8.5in; max-width: calc(100% - 32px); margin: 16px auto; padding: 0.45in; box-sizing: border-box; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+    .pack-empty { text-align: center; color: #555; font-family: system-ui, sans-serif; padding: 48px 16px; }
+    @media (max-width: 640px) {
+      .pack-bar { padding: 8px 12px; }
+      .pack-bar h1 { width: 100%; font-size: 15px; margin: 2px 0; }
+      .pack-bar .seg, .pack-bar select { flex: 1; }
+      .pack-bar .seg { display: flex; }
+      .pack-bar .seg a { flex: 1; text-align: center; }
+      .pack-count { display: none; }
+      .sheet { max-width: calc(100% - 16px); margin: 8px auto; padding: 12px; overflow-x: auto; }
+    }
+    @media print {
+      body { background: #fff; }
+      .pack-bar { display: none; }
+      .sheet { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; }
+      .page-break { page-break-after: always; }
+    }
+    {% endif %}
+  </style>
+</head>
+<body>
+{% if not for_pdf %}
+{% set qs = 'date_str=' ~ service_date.isoformat() %}
+<div class="pack-bar">
+  <div class="pack-bar-row">
+    <a href="/catering/production?date_str={{ service_date.isoformat() }}">&larr; Production</a>
+    <h1>Delivery Invoices &middot; {{ service_date.strftime('%a %b %d, %Y') }}</h1>
+    <span class="seg">
+      <a href="?{{ qs }}&scope=cacfp&route={{ route }}" class="{{ 'on' if scope != 'all' }}">CACFP programs</a>
+      <a href="?{{ qs }}&scope=all&route={{ route }}" class="{{ 'on' if scope == 'all' }}">All programs</a>
+    </span>
+    <select onchange="location.href='?{{ qs }}&scope={{ scope }}&route=' + encodeURIComponent(this.value)">
+      <option value="">All routes</option>
+      {% for r in routes %}<option value="{{ r }}" {% if r == route %}selected{% endif %}>{{ r }}</option>{% endfor %}
+    </select>
+    <span class="pack-spacer" style="flex:1"></span>
+    <span class="pack-count">{{ pages|length }} page{{ 's' if pages|length != 1 }}</span>
+    <button type="button" onclick="window.print()">Print</button>
+    <a class="primary" href="?{{ qs }}&scope={{ scope }}&route={{ route }}&format=pdf" target="_blank">Download PDF</a>
+  </div>
+  {% if request.query_params.get('error') %}
+  <div class="pack-error">{{ request.query_params.get('error') }}</div>
+  {% endif %}
+  {% if warnings %}
+  <div class="pack-warn"><strong>Check before printing:</strong>
+    <ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if not pages and not for_pdf %}
+<div class="pack-empty">No invoices to print for this selection.</div>
+{% endif %}
+
+{% for page in pages %}
+<div class="sheet{% if not loop.last %} page-break{% endif %}">
+  {% include "catering/_ddi_page.html" %}
+</div>
+{% if for_pdf and not loop.last %}<pdf:nextpage />{% endif %}
+{% endfor %}
+</body>
+</html>

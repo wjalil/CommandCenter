@@ -50,6 +50,7 @@ class CateringProgramBase(BaseModel):
     cacfp_eligible: bool = False  # auto-adds milk to breakfast/lunch on invoices + menu share note
     route_code: Optional[str] = None
     meal_service_style: Optional[str] = None  # "family_style" or "individual"
+    milk_type: Optional[str] = None  # printed on the Daily Delivery Invoice
     special_instructions: Optional[str] = None
     breakfast_pack_note: Optional[str] = None
     lunch_pack_note: Optional[str] = None
@@ -88,6 +89,7 @@ class CateringProgramUpdate(BaseModel):
     cacfp_eligible: Optional[bool] = None
     route_code: Optional[str] = None
     meal_service_style: Optional[str] = None
+    milk_type: Optional[str] = None
     special_instructions: Optional[str] = None
     breakfast_pack_note: Optional[str] = None
     lunch_pack_note: Optional[str] = None

@@ -257,6 +257,13 @@
           CACFP eligible (auto-adds milk to Breakfast &amp; Lunch on invoices, and notes it on the shared menu)
         </label>
       </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="milk_type">Milk type (printed on delivery invoices)</label>
+        <input type="text" class="form-control" name="milk_type" id="milk_type" maxlength="60"
+               value="{{ program.milk_type if program and program.milk_type else '' }}"
+               placeholder="Default: Whole Milk for under-2s, otherwise 1% Low-Fat Milk">
+      </div>
     </div>
   </div>
 

@@ -93,4 +93,25 @@
   background: rgba(59,130,246,0.1);
   color: #3b82f6;
 }
+/* Phones: one swipeable row instead of a 7-row block */
+@media (max-width: 640px) {
+  .cat-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .cat-nav::-webkit-scrollbar { display: none; }
+  .cat-nav-link { scroll-snap-align: start; padding: 0.45rem 0.65rem; }
+}
 </style>
+<script>
+(function () {
+  var nav = document.currentScript.previousElementSibling.previousElementSibling;
+  var active = nav && nav.querySelector('.cat-nav-link.active');
+  if (active && nav.scrollWidth > nav.clientWidth) {
+    nav.scrollLeft = active.offsetLeft - nav.offsetLeft - 12;
+  }
+})();
+</script>

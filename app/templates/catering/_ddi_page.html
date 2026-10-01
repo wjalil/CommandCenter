@@ -1,0 +1,112 @@
+{# One Daily Delivery Invoice page (NYS DOH CACFP-142B format).
+   Expects `page` = {invoice, meals, total_meals, route, stop_no, is_draft} and `vendor`. #}
+{% set inv = page.invoice %}
+{% set bulk = inv.service_style != 'individual' %}
+<div class="ddi">
+  {% if page.is_draft %}
+  <div class="ddi-draft">DRAFT &mdash; route not released yet; numbers may still change</div>
+  {% endif %}
+
+  <table>
+    <tr>
+      <td style="width: 60%;">
+        <div class="ddi-title">DAILY DELIVERY INVOICE</div>
+        <div class="ddi-sub">Child and Adult Care Food Program{% if not inv.is_cacfp %} &middot; delivery record{% endif %}</div>
+      </td>
+      <td style="width: 40%;">
+        <table class="ddi-meta">
+          <tr><td class="k">Invoice #</td><td><strong>{{ inv.invoice_number }}</strong></td></tr>
+          <tr><td class="k">Delivery date</td><td><strong>{{ inv.service_date.strftime('%a, %b %d, %Y') }}</strong></td></tr>
+          {% if page.route %}<tr><td class="k">Route / stop</td><td>{{ page.route }}{% if page.stop_no %} &middot; stop {{ page.stop_no }}{% endif %}</td></tr>{% endif %}
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <table style="margin-top: 8px;">
+    <tr>
+      <td style="width: 49%;" class="ddi-party">
+        <span class="ddi-label">Vendor</span><br>
+        <span class="ddi-party-name">{{ vendor.name }}</span><br>
+        {{ vendor.address }}<br>
+        {{ vendor.phone }}
+      </td>
+      <td style="width: 2%;"></td>
+      <td style="width: 49%;" class="ddi-party">
+        <span class="ddi-label">Delivered to (center)</span><br>
+        <span class="ddi-party-name">{{ inv.site_name }}</span><br>
+        {{ inv.site_address or '' }}{% if inv.client_name %}<br>
+        Sponsor / contact: {{ inv.client_name }}{% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <table class="ddi-summary">
+    <tr>
+      <td style="width: 34%;">
+        <span class="ddi-label">Number of meals delivered</span><br>
+        <span class="big">{{ page.total_meals }}</span>
+      </td>
+      <td style="width: 66%;">
+        {% for meal in page.meals %}{{ meal.label }}: <strong>{{ meal.meal_count }}</strong>{% if not loop.last %} &nbsp;&middot;&nbsp; {% endif %}{% endfor %}
+        <br><span class="ddi-sub">{% if bulk %}Delivered in bulk &mdash; total amount of each food shown{% else %}Unitized &mdash; one meal per container, contents listed{% endif %}</span>
+      </td>
+    </tr>
+  </table>
+
+  {% set ns = namespace(subs=[]) %}
+  {% for meal in page.meals %}
+  <div class="ddi-meal">
+    <table class="ddi-meal-head"><tr><td>{{ meal.label|upper }} &mdash; {{ meal.meal_count }} meal{{ 's' if meal.meal_count != 1 }}{% if not bulk %}, each containing:{% endif %}</td></tr></table>
+    <table class="ddi-items">
+      <tr>
+        <th style="width: 22%;">Component</th>
+        <th>Food item</th>
+        <th style="width: 15%;" class="num">{% if bulk %}Serving size{% else %}Per meal{% endif %}</th>
+        {% if bulk %}
+        <th style="width: 10%;" class="num">Servings</th>
+        <th style="width: 15%;" class="num">Total delivered</th>
+        {% endif %}
+      </tr>
+      {% for line in meal.lines %}
+      {% if line.substituted_for %}{% set ns.subs = ns.subs + [line] %}{% endif %}
+      <tr>
+        <td>{{ line.component_type }}</td>
+        <td>{{ line.item_name }}{% if line.substituted_for %} <span class="ddi-sub-mark">*</span>{% endif %}</td>
+        <td class="num">{{ line.portion }}</td>
+        {% if bulk %}
+        <td class="num">{{ line.servings }}</td>
+        <td class="num">{{ line.total }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+
+  {% if ns.subs %}
+  <table class="ddi-subs">
+    <tr><td>
+      <strong>* Menu substitutions today:</strong>
+      {% for line in ns.subs %}<br>{{ line.item_name }} served in place of {{ line.substituted_for }}{% if line.reason %} &mdash; {{ line.reason }}{% endif %}{% endfor %}
+    </td></tr>
+  </table>
+  {% endif %}
+
+  <table class="ddi-sign">
+    <tr>
+      <td colspan="4"><span class="ddi-label">Received by center staff</span> &mdash; I received the meals listed above. Keep this invoice with your CACFP records.</td>
+    </tr>
+    <tr>
+      <td class="ddi-write" style="width: 34%;">Print name</td>
+      <td class="ddi-write" style="width: 34%;">Signature</td>
+      <td class="ddi-write" style="width: 16%;">Date</td>
+      <td class="ddi-write" style="width: 16%;">Time</td>
+    </tr>
+    <tr>
+      <td class="ddi-write" colspan="2">Meals received, if different from above (and why)</td>
+      <td class="ddi-write" colspan="2">Delivered by (driver)</td>
+    </tr>
+  </table>
+
+</div>

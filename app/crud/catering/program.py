@@ -35,6 +35,7 @@ async def create_program(db: AsyncSession, program: CateringProgramCreate):
         cacfp_eligible=program.cacfp_eligible,
         route_code=program.route_code,
         meal_service_style=program.meal_service_style,
+        milk_type=program.milk_type,
         special_instructions=program.special_instructions,
         breakfast_pack_note=program.breakfast_pack_note,
         lunch_pack_note=program.lunch_pack_note,

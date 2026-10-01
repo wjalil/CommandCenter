@@ -28,6 +28,7 @@ class CateringProgram(Base):
     pm_snack_count = Column(Integer, nullable=True)
 
     cacfp_eligible = Column(Boolean, default=False, nullable=False)  # auto-add milk to breakfast/lunch on invoices + menu share note
+    milk_type = Column(String, nullable=True)  # printed on the DDI, e.g. "1% Low-Fat Milk"; NULL = default for the age group
     route_code = Column(String, nullable=True)  # delivery route, e.g. "R3" (legacy values carry the stop too: "R3-4")
     route_stop_order = Column(Integer, nullable=True)  # permanent position on its route; set by dragging on the Route Board
     meal_service_style = Column(String, nullable=True)  # "family_style" or "individual"

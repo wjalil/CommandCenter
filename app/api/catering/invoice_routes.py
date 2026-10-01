@@ -8,6 +8,7 @@ from app.schemas.catering import (
     CateringInvoiceRead
 )
 from app.crud.catering import invoice
+from app.services.catering.ddi import is_locked
 from app.db import get_db
 from app.utils.tenant import get_current_tenant_id
 
@@ -77,4 +78,6 @@ async def delete_invoice(
     inv = await invoice.delete_invoice(db, invoice_id, tenant_id)
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    if is_locked(inv):
+        raise HTTPException(status_code=409, detail="Finalized invoices are delivery records and can't be deleted")
     return {"message": "Invoice deleted"}

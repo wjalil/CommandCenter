@@ -43,6 +43,7 @@ from app.crud.catering import (
     cacfp_rules
 )
 from app.api.catering.production_routes import _serving_programs_for_date
+from app.services.catering import ddi
 from app.schemas.catering import (
     CateringProgramCreate,
     CateringMealItemCreate,
@@ -207,6 +208,7 @@ async def program_create(
     cacfp_eligible = "cacfp_eligible" in form
     route_code = form.get("route_code") or None
     meal_service_style = form.get("meal_service_style") or None
+    milk_type = (form.get("milk_type") or "").strip() or None
     special_instructions = form.get("special_instructions") or None
     breakfast_pack_note = form.get("breakfast_pack_note") or None
     lunch_pack_note = form.get("lunch_pack_note") or None
@@ -272,6 +274,7 @@ async def program_create(
         cacfp_eligible=cacfp_eligible,
         route_code=route_code,
         meal_service_style=meal_service_style,
+        milk_type=milk_type,
         special_instructions=special_instructions,
         breakfast_pack_note=breakfast_pack_note,
         lunch_pack_note=lunch_pack_note,
@@ -331,6 +334,7 @@ async def program_edit_form(
         "cacfp_eligible": program.cacfp_eligible,
         "route_code": program.route_code,
         "meal_service_style": program.meal_service_style,
+        "milk_type": program.milk_type,
         "special_instructions": program.special_instructions,
         "breakfast_pack_note": program.breakfast_pack_note,
         "lunch_pack_note": program.lunch_pack_note,
@@ -447,6 +451,7 @@ async def program_update(
     cacfp_eligible = "cacfp_eligible" in form
     route_code = form.get("route_code") or None
     meal_service_style = form.get("meal_service_style") or None
+    milk_type = (form.get("milk_type") or "").strip() or None
     special_instructions = form.get("special_instructions") or None
     breakfast_pack_note = form.get("breakfast_pack_note") or None
     lunch_pack_note = form.get("lunch_pack_note") or None
@@ -512,6 +517,7 @@ async def program_update(
         cacfp_eligible=cacfp_eligible,
         route_code=route_code,
         meal_service_style=meal_service_style,
+        milk_type=milk_type,
         special_instructions=special_instructions,
         breakfast_pack_note=breakfast_pack_note,
         lunch_pack_note=lunch_pack_note,
@@ -1609,31 +1615,6 @@ async def menu_pdf_download(
 
 # ==================== INVOICES ====================
 
-async def _get_menu_day_for_invoice(db: AsyncSession, menu_day_id: str):
-    """Load a menu day with all meal item and component relationships for PDF rendering."""
-    from app.models.catering import CateringMenuDay, CateringMealItem, CateringMealComponent, MenuDayComponent
-    if not menu_day_id:
-        return None
-    result = await db.execute(
-        select(CateringMenuDay)
-        .where(CateringMenuDay.id == menu_day_id)
-        .options(
-            selectinload(CateringMenuDay.components).selectinload(MenuDayComponent.food_component).selectinload(FoodComponent.component_type),
-            selectinload(CateringMenuDay.breakfast_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component).selectinload(FoodComponent.component_type),
-            selectinload(CateringMenuDay.breakfast_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component).selectinload(FoodComponent.component_type),
-            selectinload(CateringMenuDay.lunch_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component).selectinload(FoodComponent.component_type),
-            selectinload(CateringMenuDay.lunch_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component).selectinload(FoodComponent.component_type),
-            selectinload(CateringMenuDay.snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.am_snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.am_snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.pm_snack_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-            selectinload(CateringMenuDay.pm_snack_vegan_item).selectinload(CateringMealItem.components).selectinload(CateringMealComponent.food_component),
-        )
-    )
-    return result.scalar_one_or_none()
-
-
 def _slot_has_component_type(components, type_name: str) -> bool:
     """True if any component in this meal slot is already categorized as `type_name` (avoids double-adding)."""
     for comp in components or []:
@@ -1644,96 +1625,28 @@ def _slot_has_component_type(components, type_name: str) -> bool:
     return False
 
 
-def _slot_already_has_milk(components) -> bool:
-    return _slot_has_component_type(components, "Milk")
-
-
-async def _build_milk_notes(db: AsyncSession, program, menu_day) -> dict:
-    """
-    For CACFP-eligible programs, figure out which Breakfast/Lunch (regular + vegan) rows
-    on an invoice should get an auto "Milk Xoz" line, without requiring it to be manually
-    added to the menu. Skips a slot that already has a manually-added Milk component.
-    """
-    if not program or not program.cacfp_eligible or not menu_day:
-        return {}
-
-    milk_portions = await cacfp_rules.get_milk_portions(db, program.age_group_id)
-    if not milk_portions:
-        return {}
-
-    has_components = bool(menu_day.components)
-    notes = {}
-
-    for slot in ("breakfast", "lunch"):
-        oz = milk_portions.get(slot)
-        if not oz:
-            continue
-
-        for suffix, is_vegan in (("", False), ("_vegan", True)):
-            if has_components:
-                slot_comps = [
-                    c for c in menu_day.components
-                    if c.meal_slot == slot and c.is_vegan == is_vegan
-                ]
-                if not slot_comps or _slot_already_has_milk(slot_comps):
-                    continue
-            else:
-                item = getattr(menu_day, f"{slot}{suffix}_item", None)
-                if not item or _slot_already_has_milk(item.components):
-                    continue
-
-            notes[f"{slot}{suffix}"] = f"Milk {oz}oz"
-
-    return notes
-
-
-async def _build_fruit_notes(db: AsyncSession, program, menu_day) -> dict:
-    """
-    For CACFP-eligible programs, auto-add a "Seasonal Fruit" line to Lunch (regular + vegan)
-    on invoices, mirroring _build_milk_notes. Skips a slot that already has a manually-added
-    Fruit component.
-    """
-    if not program or not program.cacfp_eligible or not menu_day:
-        return {}
-
-    fruit_portions = await cacfp_rules.get_fruit_portions(db, program.age_group_id)
-    oz = fruit_portions.get("lunch")
-    if not oz:
-        return {}
-
-    has_components = bool(menu_day.components)
-    notes = {}
-
-    for suffix, is_vegan in (("", False), ("_vegan", True)):
-        if has_components:
-            slot_comps = [
-                c for c in menu_day.components
-                if c.meal_slot == "lunch" and c.is_vegan == is_vegan
-            ]
-            if not slot_comps or _slot_has_component_type(slot_comps, "Fruit"):
-                continue
-        else:
-            item = getattr(menu_day, f"lunch{suffix}_item", None)
-            if not item or _slot_has_component_type(item.components, "Fruit"):
-                continue
-
-        notes[f"lunch{suffix}"] = f"Seasonal Fruit {oz} cup"
-
-    return notes
+async def _invoice_page(db: AsyncSession, invoice) -> dict:
+    """The one-page Daily Delivery Invoice context for a single invoice."""
+    invoice = await ddi.ensure_lines(db, invoice)
+    meals = ddi.invoice_meals(invoice)
+    return {
+        "invoice": invoice,
+        "meals": meals,
+        "total_meals": sum(m["meal_count"] for m in meals),
+        "route": None,
+        "stop_no": None,
+        "is_draft": not ddi.is_locked(invoice),
+    }
 
 
 async def _generate_invoice_pdf_bytes(request: Request, db: AsyncSession, invoice) -> bytes:
     """Generate PDF bytes for a single invoice using xhtml2pdf."""
     from xhtml2pdf import pisa
-    menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
-    milk_notes = await _build_milk_notes(db, invoice.program, menu_day)
-    fruit_notes = await _build_fruit_notes(db, invoice.program, menu_day)
+    page = await _invoice_page(db, invoice)
     html_content = templates.TemplateResponse("catering/invoice_pdf.html", {
         "request": request,
-        "invoice": invoice,
-        "menu_day": menu_day,
-        "milk_notes": milk_notes,
-        "fruit_notes": fruit_notes,
+        "page": page,
+        "vendor": ddi.VENDOR,
     }).body.decode('utf-8')
     pdf_buffer = io.BytesIO()
     pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
@@ -1828,16 +1741,13 @@ async def view_invoice(
     if not invoice:
         return RedirectResponse(url="/catering/invoices", status_code=303)
 
-    menu_day = await _get_menu_day_for_invoice(db, invoice.menu_day_id)
-    milk_notes = await _build_milk_notes(db, invoice.program, menu_day)
-    fruit_notes = await _build_fruit_notes(db, invoice.program, menu_day)
-
+    page = await _invoice_page(db, invoice)
     return templates.TemplateResponse("catering/invoice_view.html", {
         "request": request,
-        "invoice": invoice,
-        "menu_day": menu_day,
-        "milk_notes": milk_notes,
-        "fruit_notes": fruit_notes,
+        "invoice": page["invoice"],
+        "page": page,
+        "vendor": ddi.VENDOR,
+        "is_locked": ddi.is_locked(page["invoice"]),
     })
 
 
@@ -1953,7 +1863,12 @@ async def delete_invoice_route(
 ):
     """Delete an invoice"""
     tenant_id = request.state.tenant_id
-    await invoice_crud.delete_invoice(db, invoice_id, tenant_id)
+    invoice = await invoice_crud.delete_invoice(db, invoice_id, tenant_id)
+    if invoice and ddi.is_locked(invoice):
+        return RedirectResponse(
+            url=f"/catering/invoices/{invoice_id}/view?error=Finalized+invoices+are+delivery+records+and+can%27t+be+deleted",
+            status_code=303,
+        )
     return RedirectResponse(url="/catering/invoices", status_code=303)
 
 

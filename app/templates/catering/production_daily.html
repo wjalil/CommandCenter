@@ -11,8 +11,11 @@
 <!-- Week Header -->
 <div class="prod-header mb-3">
   <div>
-    <div class="prod-date-label">Production Sheet</div>
-    <div class="prod-date-main">Week of {{ week_dates[0].strftime('%b') }} {{ week_dates[0].day }}</div>
+    <div class="prod-date-label">Week of {{ week_dates[0].strftime('%b') }} {{ week_dates[0].day }}</div>
+    <div class="prod-date-main">{{ primary_date.strftime('%a, %b') }} {{ primary_date.day }}</div>
+    {% if serving_programs %}
+    <div class="prod-date-summary">{{ serving_programs | length }} program{{ 's' if serving_programs|length != 1 }} serving{% if not is_batch_mode and manifests_total_routes %} · {{ manifests_total_routes }} route{{ 's' if manifests_total_routes != 1 }}{% endif %}</div>
+    {% endif %}
   </div>
   <div class="prod-date-nav">
     <a href="/catering/production?date_str={{ prev_week_anchor }}" class="prod-nav-btn">&#8592;</a>
@@ -22,12 +25,12 @@
     <a href="/catering/production?date_str={{ next_week_anchor }}" class="prod-nav-btn">&#8594;</a>
     {% if user.role != 'worker' %}
     <a href="/catering/master-calendar?month={{ anchor_date.month }}&year={{ anchor_date.year }}"
-       class="prod-nav-btn prod-nav-calendar">
-      &#128197; Master Calendar
+       class="prod-nav-btn prod-nav-calendar" title="Master Calendar">
+      &#128197;<span class="prod-nav-text"> Master Calendar</span>
     </a>
     <a href="/catering/production/print?month={{ anchor_date.month }}&year={{ anchor_date.year }}"
-       class="prod-nav-btn prod-nav-print" target="_blank">
-      &#128424; View / Print Monthly Sheet
+       class="prod-nav-btn prod-nav-print" target="_blank" title="View / print the monthly sheet">
+      &#128424;<span class="prod-nav-text"> Monthly Sheet</span>
     </a>
     {% endif %}
   </div>
@@ -60,18 +63,31 @@
 </div>
 {% endif %}
 
-{% if user.role != 'worker' %}
-<div class="prod-manifest-banner mb-3">
-  <span>📋 Driver manifests: <strong>{{ manifests_released_count }}/{{ manifests_total_routes }}</strong> routes released for {{ primary_date.strftime('%b') }} {{ primary_date.day }}</span>
-  <a href="/catering/production/manifest/builder?date_str={{ primary_date.isoformat() }}">Build Manifests &rarr;</a>
+{% if user.role != 'worker' and serving_programs %}
+{% set all_released = manifests_total_routes and manifests_released_count == manifests_total_routes %}
+<div class="prod-actions mb-3">
+  <a class="prod-action prod-action-primary {% if all_released %}is-done{% endif %}" href="/catering/production/manifest/builder?date_str={{ primary_date.isoformat() }}">
+    <span class="prod-action-icon">📋</span>
+    <span class="prod-action-text">
+      <span class="prod-action-label">Manifests</span>
+      <span class="prod-action-sub">{{ manifests_released_count }}/{{ manifests_total_routes }} released</span>
+    </span>
+  </a>
+  <a class="prod-action prod-action-invoices" href="/catering/production/day-pack?date_str={{ primary_date.isoformat() }}" target="_blank">
+    <span class="prod-action-icon">🧾</span>
+    <span class="prod-action-text">
+      <span class="prod-action-label">Delivery<span class="prod-action-extra"> Invoices</span><span class="prod-action-short"> Inv.</span></span>
+      <span class="prod-action-sub">{{ cacfp_count }} to print{% if not all_released %}<span class="prod-action-extra"> · drafts until released</span>{% endif %}</span>
+    </span>
+  </a>
+  <a class="prod-action" href="/catering/production/routes?date_str={{ primary_date.isoformat() }}">
+    <span class="prod-action-icon">🗺️</span>
+    <span class="prod-action-text">
+      <span class="prod-action-label">Route Board</span>
+      <span class="prod-action-sub">Reorder stops</span>
+    </span>
+  </a>
 </div>
-{% if serving_programs %}
-{% set primary_label = primary_date.strftime('%b') ~ ' ' ~ primary_date.day %}
-<form method="post" action="/catering/production/generate-invoices" class="mb-3" onsubmit="return confirm('Generate/update invoices for every program serving {{ primary_label }}, using each program\'s current (possibly edited) headcount?');">
-  <input type="hidden" name="date_str" value="{{ primary_date.isoformat() }}">
-  <button type="submit" class="btn btn-outline-success btn-sm">🧾 Generate Invoices for {{ primary_date.strftime('%b') }} {{ primary_date.day }}</button>
-</form>
-{% endif %}
 {% endif %}
 
 {% if not serving_programs %}
@@ -81,14 +97,6 @@
 </div>
 
 {% else %}
-
-<!-- Programs serving on primary date -->
-<div class="prod-chips mb-3">
-  <span class="prod-chips-label">Serving {{ primary_date.strftime('%a') }} {{ primary_date.day }}</span>
-  {% for p in serving_programs %}
-  <span class="prod-chip">{{ p.name }}</span>
-  {% endfor %}
-</div>
 
 <!-- ==================== MODE SWITCH ==================== -->
 {% set produce_count = produce_components | length %}
@@ -111,7 +119,26 @@
 </div>
 
 <!-- ==================== KITCHEN PREP PANEL ==================== -->
+{% set can_sub = user.role != 'worker' and not is_batch_mode %}
 <div id="prepPanel" class="prod-mode-panel">
+  {% if substitutions %}
+  <div class="prod-card prod-subs-card mb-3">
+    <div class="prod-card-header">
+      <div class="prod-card-title"><span class="prod-card-icon">⇄</span> Today's substitutions</div>
+      <span class="prod-count-badge">{{ substitutions | length }}</span>
+    </div>
+    <ul class="prod-subs-list">
+      {% for sub in substitutions %}
+      <li>
+        <span class="prod-subs-swap"><s>{{ sub.original }}</s> → <strong>{{ sub.replacement }}</strong>{% if sub.portion_oz %} ({{ sub.portion_oz }} oz){% endif %}</span>
+        <span class="prod-subs-meta">{{ sub.slot_label }} · {{ sub.scope }}{% if sub.reason %} · {{ sub.reason }}{% endif %}</span>
+        {% if sub.type_changed %}<span class="prod-subs-warn" title="Different CACFP component type than the planned item — check the meal still credits">⚠ different component type</span>{% endif %}
+        {% if user.role != 'worker' %}<button type="button" class="prod-subs-undo" onclick="deleteSub('{{ sub.id }}')">Undo</button>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
   <div class="prod-card">
     <div class="prod-card-header">
       <div class="prod-card-title">
@@ -162,6 +189,7 @@
                 <span class="prod-check-box"></span>
                 <span class="prod-prep-content">
                   <span class="comp-name prod-prep-name">{{ comp.name }}</span>
+                  {% if comp.sub_from %}<span class="prod-sub-badge" title="Substituted today">⇄ for {{ comp.sub_from | join(', ') }}</span>{% endif %}
                   <span class="prod-prep-meta">
                     <span class="prod-measure" data-oz="{{ comp.total_oz }}" data-lb="{{ comp.total_lb }}">{{ comp.total_oz }} oz</span>
                     <span class="prod-measure-sep">·</span>
@@ -175,6 +203,12 @@
                 </span>
               </label>
               <small class="check-time prod-check-time"></small>
+              {% if can_sub and comp.component_id and not comp.sub_from %}
+              <button type="button" class="prod-sub-btn" title="Substitute {{ comp.name }} today"
+                      data-component-id="{{ comp.component_id }}" data-name="{{ comp.name }}" data-type="{{ comp.type_name }}"
+                      data-slots='{{ comp.slots | tojson }}' data-programs='{{ comp.program_breakdown | tojson }}'
+                      onclick="openSubModal(this)">⇄ Sub</button>
+              {% endif %}
             </div>
             {% if comp.program_breakdown | length > 0 %}
             <div class="prod-breakdown-panel" hidden>
@@ -222,6 +256,7 @@
                 <span class="prod-check-box"></span>
                 <span class="prod-prep-content">
                   <span class="comp-name prod-prep-name">{{ comp.name }}</span>
+                  {% if comp.sub_from %}<span class="prod-sub-badge" title="Substituted today">⇄ for {{ comp.sub_from | join(', ') }}</span>{% endif %}
                   <span class="prod-prep-meta">
                     <span class="prod-measure" data-oz="{{ comp.total_oz }}" data-lb="{{ comp.total_lb }}">{{ comp.total_oz }} oz</span>
                     <span class="prod-measure-sep">·</span>
@@ -235,6 +270,12 @@
                 </span>
               </label>
               <small class="check-time prod-check-time"></small>
+              {% if can_sub and comp.component_id and not comp.sub_from %}
+              <button type="button" class="prod-sub-btn" title="Substitute {{ comp.name }} today"
+                      data-component-id="{{ comp.component_id }}" data-name="{{ comp.name }}" data-type="{{ comp.type_name }}"
+                      data-slots='{{ comp.slots | tojson }}' data-programs='{{ comp.program_breakdown | tojson }}'
+                      onclick="openSubModal(this)">⇄ Sub</button>
+              {% endif %}
             </div>
             {% if comp.program_breakdown | length > 0 %}
             <div class="prod-breakdown-panel" hidden>
@@ -295,9 +336,6 @@
     <button type="button" class="pkg-filter-btn active" data-style-filter="all" onclick="setStyleFilter('all')">All</button>
     <button type="button" class="pkg-filter-btn" data-style-filter="family_style" onclick="setStyleFilter('family_style')">🍽️ Family Style</button>
     <button type="button" class="pkg-filter-btn" data-style-filter="individual" onclick="setStyleFilter('individual')">🍱 Individualized</button>
-    {% if user.role != 'worker' %}
-    <a href="/catering/production/routes?date_str={{ primary_date.isoformat() }}" class="pkg-filter-btn pkg-route-board-link">🗺️ Route Board — reorder stops</a>
-    {% endif %}
   </div>
   <div class="d-flex flex-column gap-3">
     {% for group in route_groups %}
@@ -357,7 +395,9 @@
                     data-count="{{ pkg.count }}" data-vegan="{{ pkg.vegan }}">
                 <span class="count-edit-display">{% if pkg.vegan %}{{ pkg.regular }} Reg · {{ pkg.vegan }} Vegan{% else %}{{ pkg.count }}{% endif %}</span>
                 {% if pkg.is_override %}<span class="prod-count-edited-dot" title="Today's count was edited">●</span>{% endif %}
-                {% if user.role != 'worker' %}
+                {% if pd.invoice_locked %}
+                <span class="prod-lock" title="Invoice locked — route manifest released. Reopen the manifest to change counts.">🔒</span>
+                {% elif user.role != 'worker' %}
                 <button type="button" class="prod-count-edit-btn" title="Edit today's count" onclick="startEditCount(event, this)">&#9998;</button>
                 {% endif %}
               </span>
@@ -378,7 +418,14 @@
                          onchange="togglePackagingComponent(this)">
                   <span class="pkg-check-box"></span>
                   <span class="pkg-component-name">{{ comp.name }}</span>
+                  {% if comp.sub_from %}<span class="prod-sub-badge" title="{{ comp.sub_reason or 'Substituted today' }}">⇄ for {{ comp.sub_from }}</span>{% endif %}
                 </label>
+                {% if can_sub and comp.component_id and not comp.sub_from and not pd.invoice_locked %}
+                <button type="button" class="prod-sub-btn pkg-sub-btn" title="Substitute {{ comp.name }} for {{ pd.program.name }} only"
+                        data-component-id="{{ comp.component_id }}" data-name="{{ comp.name }}" data-type="{{ comp.type_name }}"
+                        data-slots='{{ [pkg.slot] | tojson }}' data-programs='{{ [{"id": pd.program.id, "name": pd.program.name}] | tojson }}'
+                        data-only-program="1" onclick="openSubModal(this)">⇄</button>
+                {% endif %}
               </li>
               {% endfor %}
             </ul>
@@ -453,6 +500,65 @@
   </div>
 </div>
 
+{% endif %}
+
+{% if user.role != 'worker' %}
+<!-- Substitution Modal -->
+<div class="modal fade" id="subModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" style="font-size:1rem;">⇄ Substitute <span id="subModalName"></span> · {{ primary_date.strftime('%b') }} {{ primary_date.day }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label small fw-semibold" for="subReplacement">Replace with</label>
+        <select id="subReplacement" class="form-select form-select-sm mb-1" onchange="checkSubType()">
+          <option value="">Choose an item…</option>
+          {% for group in sub_options | groupby('type') %}
+          <optgroup label="{{ group.grouper }}">
+            {% for o in group.list %}<option value="{{ o.id }}" data-type="{{ o.type }}">{{ o.name }}</option>{% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+        <div id="subTypeWarn" class="sub-type-warn" hidden></div>
+
+        <div class="row g-2 mt-1">
+          <div class="col-7">
+            <label class="form-label small fw-semibold" for="subSlot">Meal</label>
+            <select id="subSlot" class="form-select form-select-sm"></select>
+          </div>
+          <div class="col-5">
+            <label class="form-label small fw-semibold" for="subPortion">Portion (oz)</label>
+            <input id="subPortion" type="number" min="0" step="0.25" class="form-control form-control-sm" placeholder="same as planned">
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <div class="form-label small fw-semibold mb-1">Programs</div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="subScope" id="subScopeAll" value="all" checked onchange="toggleSubScope()">
+            <label class="form-check-label" for="subScopeAll">Every program getting it today (<span id="subProgramCount"></span>)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="subScope" id="subScopeSome" value="some" onchange="toggleSubScope()">
+            <label class="form-check-label" for="subScopeSome">Only these programs:</label>
+          </div>
+          <div id="subProgramList" class="sub-program-list" hidden></div>
+        </div>
+
+        <label class="form-label small fw-semibold mt-3" for="subReason">Reason / who approved</label>
+        <input id="subReason" type="text" class="form-control form-control-sm" maxlength="200" placeholder="e.g. Chicken delivery short — OK'd by center director">
+        <div class="form-text">Prints on the delivery invoice. CACFP vendor contracts require substitutions be agreed with the center.</div>
+        <div id="subError" class="alert alert-danger py-1 px-2 small mt-2 mb-0" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="subSaveBtn" onclick="saveSub()">Save substitution</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endif %}
 
 <!-- Produce Selection Modal -->
@@ -696,7 +802,10 @@
 .prod-mode-panel[hidden] { display: none; }
 
 @media (max-width: 560px) {
-  .prod-mode-switch { grid-template-columns: 1fr; }
+  .prod-mode-switch { gap: 0.45rem; }
+  .prod-mode-btn { gap: 0.5rem; padding: 0.6rem 0.7rem; border-radius: 12px; }
+  .prod-mode-label { font-size: 0.85rem; line-height: 1.15; }
+  .prod-mode-sub { font-size: 0.7rem; }
 }
 
 /* ── Slot group headers ──────────────────────── */
@@ -743,26 +852,6 @@
 .prod-unit-btn.active {
   background: linear-gradient(135deg, var(--accent, #14b8a6), var(--accent-hover, #0d9488));
   color: #fff;
-}
-
-/* ── Program chips ───────────────────────────── */
-.prod-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.prod-chips-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary, #64748b);
-}
-.prod-chip {
-  display: inline-block;
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
-  background: rgba(20,184,166,0.1);
-  color: var(--accent, #14b8a6);
-  font-size: 0.78rem;
-  font-weight: 600;
-  border: 1px solid rgba(20,184,166,0.2);
 }
 
 /* ── Card ────────────────────────────────────── */
@@ -930,29 +1019,7 @@
   padding: 0.35rem 0.6rem;
 }
 
-/* ── Driver manifest banner + per-program link ──────────── */
-.prod-manifest-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  background: var(--surface, #fff);
-  border: 1px solid rgba(20,184,166,0.25);
-  border-left: 4px solid var(--accent, #14b8a6);
-  border-radius: var(--radius, 10px);
-  padding: 0.6rem 0.9rem;
-  font-size: 0.82rem;
-  /* Stays visible while scrolling through a long Packaging list, so "build/release
-     the manifest" is never more than a glance away — pinned just under the app's
-     own sticky top nav (56px) rather than requiring a scroll back to page top. */
-  position: sticky;
-  top: 56px;
-  z-index: 40;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.07);
-}
-.prod-manifest-banner a { color: var(--accent, #14b8a6); font-weight: 600; text-decoration: none; }
-.prod-manifest-banner a:hover { text-decoration: underline; }
+/* ── Per-program manifest link ──────────── */
 
 .prod-manifest-link {
   display: inline-block;
@@ -1160,6 +1227,74 @@
   border-bottom: 1px solid rgba(245,158,11,0.15);
 }
 .pkg-component-list { list-style: none; margin: 0; padding: 0.25rem 0; }
+.pkg-component-item { display: flex; align-items: center; gap: 0.25rem; }
+.pkg-component-item .pkg-component-label { flex: 1; min-width: 0; }
+.prod-date-summary { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary, #64748b); margin-top: 0.1rem; }
+/* Pinned under the app's sticky top nav (56px), so "build/release the manifest"
+   is never more than a glance away while scrolling a long Packaging list. */
+.prod-actions {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;
+  position: sticky; top: 56px; z-index: 40;
+  margin-left: -0.5rem; margin-right: -0.5rem; padding: 0.5rem;
+  background: var(--bg, #f1f5f9); border-radius: 14px;
+}
+.prod-action {
+  display: flex; align-items: center; gap: 0.65rem; min-height: 3.6rem; padding: 0.65rem 0.85rem;
+  border-radius: 12px; border: 1.5px solid rgba(148,163,184,0.3); background: var(--surface, #fff);
+  text-decoration: none; color: var(--text-primary, #1e293b); box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.prod-action:hover { border-color: var(--accent, #14b8a6); transform: translateY(-1px); color: var(--text-primary, #1e293b); }
+.prod-action-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+.prod-action-text { display: flex; flex-direction: column; min-width: 0; }
+.prod-action-label { font-size: 0.92rem; font-weight: 800; letter-spacing: -0.01em; }
+.prod-action-short { display: none; }
+.prod-action-primary { border-color: var(--accent, #14b8a6); box-shadow: 0 3px 10px rgba(20,184,166,0.18); }
+.prod-action-sub { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary, #64748b); }
+.prod-action.is-done { border-color: rgba(22,163,74,0.45); background: rgba(22,163,74,0.05); }
+.prod-action.is-done .prod-action-sub { color: #15803d; }
+.prod-action-invoices { border-color: rgba(22,163,74,0.45); }
+@media (max-width: 640px) {
+  .prod-action-extra { display: none; }
+  .prod-action-short { display: inline !important; }
+  .prod-day-row { gap: 0.5rem; }
+  .prod-week-row { flex-wrap: nowrap; gap: 0.25rem; flex-basis: 100%; }
+  .prod-day-chip { min-width: 0; padding: 0.4rem 0.1rem; }
+  .prod-batch-toggle { margin-left: auto; padding: 0.3rem 0.7rem; font-size: 0.72rem; }
+  .prod-actions { grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+  /* Compact while pinned: icon beside a one-line label + status */
+  .prod-actions { margin-left: -0.35rem; margin-right: -0.35rem; padding: 0.35rem; box-shadow: 0 6px 10px -8px rgba(0,0,0,0.25); }
+  .prod-action { gap: 0.35rem; padding: 0.4rem 0.45rem; min-height: 2.9rem; border-radius: 10px; }
+  .prod-action-icon { font-size: 1.1rem; }
+  .prod-action-label { font-size: 0.74rem; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prod-action-sub { font-size: 0.64rem; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prod-nav-text { display: none; }
+  .prod-nav-print, .prod-nav-calendar { padding: 0 0.6rem; margin-left: 0; }
+  .prod-date-main { font-size: 1.25rem; }
+  .prod-mode-btn { padding: 0.7rem 0.9rem; }
+  .prod-mode-icon { font-size: 1.4rem; }
+}
+.prod-sub-btn {
+  flex-shrink: 0; border: 1px solid var(--border-color, #e2e8f0); background: transparent; color: var(--text-secondary, #64748b);
+  border-radius: 6px; font-size: 0.72rem; font-weight: 600; padding: 0.15rem 0.45rem; line-height: 1.3; cursor: pointer;
+}
+.prod-sub-btn:hover { border-color: #7c3aed; color: #7c3aed; background: rgba(124,58,237,0.06); }
+.pkg-sub-btn { padding: 0.1rem 0.35rem; }
+.prod-sub-badge {
+  display: inline-block; margin-left: 0.35rem; padding: 0.05rem 0.4rem; border-radius: 999px; font-size: 0.68rem; font-weight: 600;
+  background: rgba(124,58,237,0.1); color: #6d28d9; white-space: nowrap;
+}
+.prod-lock { font-size: 0.75rem; margin-left: 0.15rem; cursor: help; }
+.prod-subs-card { border-left: 4px solid #7c3aed; }
+.prod-subs-list { list-style: none; margin: 0; padding: 0.25rem 0.9rem 0.6rem; }
+.prod-subs-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.6rem; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color, #eef2f7); font-size: 0.85rem; }
+.prod-subs-list li:last-child { border-bottom: none; }
+.prod-subs-swap s { color: var(--text-secondary, #94a3b8); }
+.prod-subs-meta { color: var(--text-secondary, #64748b); font-size: 0.78rem; }
+.prod-subs-warn { color: #b45309; font-size: 0.75rem; font-weight: 600; }
+.prod-subs-undo { margin-left: auto; border: none; background: none; color: #dc2626; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+.sub-type-warn { font-size: 0.78rem; color: #b45309; margin-top: 0.15rem; }
+.sub-program-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--border-color, #e2e8f0); border-radius: 6px; padding: 0.35rem 0.6rem; margin-top: 0.25rem; }
 .pkg-component-item { padding: 0 0.5rem; }
 .pkg-component-label {
   display: flex;
@@ -1442,6 +1577,120 @@ function setWeightUnit(unit) {
 
 let produceModal = null;
 let activeProduceCard = null;
+
+/* ── Substitutions ───────────────────────────────────────── */
+const SUB_SAVE_URL = "/catering/production/substitution-save";
+const SLOT_DISPLAY = {{ slot_display | tojson }};
+let subModal = null;
+let subContext = null;
+
+function openSubModal(btn) {
+  const programs = JSON.parse(btn.dataset.programs || '[]');
+  const slots = JSON.parse(btn.dataset.slots || '[]');
+  const onlyProgram = btn.dataset.onlyProgram === '1';
+  subContext = { componentId: btn.dataset.componentId, type: btn.dataset.type || '', programs: programs };
+
+  document.getElementById('subModalName').textContent = btn.dataset.name;
+  const select = document.getElementById('subReplacement');
+  select.value = '';
+  Array.from(select.querySelectorAll('option')).forEach(o => { o.disabled = o.value === subContext.componentId; });
+  document.getElementById('subPortion').value = '';
+  document.getElementById('subReason').value = '';
+  document.getElementById('subError').hidden = true;
+  document.getElementById('subTypeWarn').hidden = true;
+
+  const slotSelect = document.getElementById('subSlot');
+  slotSelect.innerHTML = '';
+  if (slots.length > 1) slotSelect.add(new Option('Every meal it\'s in', ''));
+  slots.forEach(s => slotSelect.add(new Option(SLOT_DISPLAY[s] || s, s)));
+  if (slots.length > 1) slotSelect.value = '';
+
+  document.getElementById('subProgramCount').textContent = programs.length + ' program' + (programs.length === 1 ? '' : 's');
+  const list = document.getElementById('subProgramList');
+  list.innerHTML = '';
+  programs.forEach((p, i) => {
+    const id = 'subProg' + i;
+    const row = document.createElement('div');
+    row.className = 'form-check';
+    row.innerHTML = '<input class="form-check-input sub-program-check" type="checkbox" id="' + id + '">' +
+                    '<label class="form-check-label" for="' + id + '"></label>';
+    row.querySelector('input').value = p.id;
+    row.querySelector('input').checked = onlyProgram;
+    row.querySelector('label').textContent = p.name;
+    list.appendChild(row);
+  });
+  document.getElementById(onlyProgram ? 'subScopeSome' : 'subScopeAll').checked = true;
+  toggleSubScope();
+
+  if (!subModal) {
+    document.body.appendChild(document.getElementById('subModal'));
+    subModal = new bootstrap.Modal(document.getElementById('subModal'));
+  }
+  subModal.show();
+}
+
+function toggleSubScope() {
+  document.getElementById('subProgramList').hidden = !document.getElementById('subScopeSome').checked;
+}
+
+function checkSubType() {
+  const opt = document.getElementById('subReplacement').selectedOptions[0];
+  const warn = document.getElementById('subTypeWarn');
+  if (opt && opt.value && subContext.type && opt.dataset.type !== subContext.type) {
+    warn.textContent = '⚠ ' + opt.textContent + ' is ' + opt.dataset.type + ', the planned item is ' + subContext.type +
+                       ' — make sure the meal still meets the CACFP pattern.';
+    warn.hidden = false;
+  } else {
+    warn.hidden = true;
+  }
+}
+
+async function saveSub() {
+  const errorEl = document.getElementById('subError');
+  const replacement = document.getElementById('subReplacement').value;
+  if (!replacement) { errorEl.textContent = 'Choose what to serve instead.'; errorEl.hidden = false; return; }
+  let programIds = [];
+  if (document.getElementById('subScopeSome').checked) {
+    programIds = Array.from(document.querySelectorAll('.sub-program-check:checked')).map(c => c.value);
+    if (!programIds.length) { errorEl.textContent = 'Pick at least one program.'; errorEl.hidden = false; return; }
+  }
+  const btn = document.getElementById('subSaveBtn');
+  btn.disabled = true;
+  try {
+    const resp = await fetch(SUB_SAVE_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        date: SERVICE_DATE,
+        original_component_id: subContext.componentId,
+        replacement_component_id: replacement,
+        meal_slot: document.getElementById('subSlot').value,
+        program_ids: programIds,
+        portion_oz: document.getElementById('subPortion').value,
+        reason: document.getElementById('subReason').value,
+      })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Could not save the substitution.');
+    location.reload();
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.hidden = false;
+    btn.disabled = false;
+  }
+}
+
+async function deleteSub(subId) {
+  if (!confirm('Undo this substitution? The planned item goes back on the menu everywhere it applied.')) return;
+  try {
+    const resp = await fetch('/catering/production/substitution/' + encodeURIComponent(subId) + '/delete', { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Could not undo the substitution.');
+    location.reload();
+  } catch (e) {
+    alert(e.message);
+  }
+}
 
 // Build initial checked state from server data
 const checkedKeys = {{ checked_keys_json | safe }};
