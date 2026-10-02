@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Friday Payroll · Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body { background: #f6f8fb; }
+    .toolbar { position: sticky; top: 0; z-index: 1010; background: #fff; border-bottom: 1px solid #e9eef5; }
+    .kpi-card { border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.05); border: none; }
+    .week-nav { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+    .week-title { font-size: 1.15rem; font-weight: 700; }
+    .week-sub { color:#64748b; font-size:.85rem; }
+    .worker-row td { vertical-align: middle; }
+    .items-row td { background: #fbfcfe; }
+    .item-line { display:flex; justify-content:space-between; gap:1rem; font-size:.85rem; padding:.2rem 0; border-bottom:1px dashed #e8edf3; }
+    .item-line:last-child { border-bottom:none; }
+    .carried { font-size:.7rem; font-weight:700; color:#6d28d9; background:rgba(124,58,237,.1); border-radius:999px; padding:.05rem .45rem; }
+    .flag { font-size:.75rem; color:#b45309; }
+    .pay-bar { position: sticky; bottom: 0; background:#fff; border-top:1px solid #e2e8f0; box-shadow:0 -4px 14px rgba(0,0,0,.05); z-index: 5; }
+    .sig-done { color:#047857; font-weight:600; }
+    .sig-pending { color:#b45309; font-weight:600; }
+    .sig-dispute { color:#b91c1c; font-weight:600; }
+    @media (max-width: 640px) {
+      .hide-sm { display:none; }
+      .week-title { font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="toolbar py-3 mb-3">
+  <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h4 class="mb-0">💵 Friday Payroll</h4>
+    <div class="d-flex gap-2">
+      <a href="/admin/timeclock?week={{ week.start.isoformat() }}" class="btn btn-outline-secondary btn-sm">⏱️ Time Clock</a>
+      <a href="/admin/dashboard" class="btn btn-outline-secondary btn-sm">🏠 Home</a>
+    </div>
+  </div>
+</div>
+
+<div class="container mb-5 pb-5">
+  {% if request.query_params.get('message') %}<div class="alert alert-success">{{ request.query_params.get('message') }}</div>{% endif %}
+  {% if request.query_params.get('error') %}<div class="alert alert-danger">{{ request.query_params.get('error') }}</div>{% endif %}
+
+  <!-- Week -->
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <div class="week-title">Pay week {{ week.label }}</div>
+      <div class="week-sub">Payday {{ week.payday_label }} · times in {{ clock.tz_abbrev }} · shifts count in the week they started</div>
+    </div>
+    <div class="week-nav">
+      <a class="btn btn-outline-secondary btn-sm" href="?week={{ week.shifted(-1).start.isoformat() }}">← Previous</a>
+      {% if week != this_week %}<a class="btn btn-primary btn-sm" href="/admin/payroll">This week</a>{% endif %}
+      <a class="btn btn-outline-secondary btn-sm" href="?week={{ week.shifted(1).start.isoformat() }}">Next →</a>
+    </div>
+  </div>
+
+  {% if preview.floor > week.start %}
+  <div class="alert alert-secondary small">Pay runs start {{ preview.floor.strftime('%a %b') }} {{ preview.floor.day }}. Work before that was paid the old way and isn't shown here.</div>
+  {% endif %}
+
+  {% if preview.still_open or preview.pending_routes %}
+  <div class="alert alert-warning small">
+    <strong>Not finished yet — not in this payroll (rolls to the next one automatically):</strong>
+    <ul class="mb-0 mt-1">
+      {% for w in preview.still_open %}<li>{{ w }}</li>{% endfor %}
+      {% for w in preview.pending_routes %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><div class="card kpi-card"><div class="card-body"><div class="text-muted small">People to pay</div><div class="h3 mb-0">{{ preview.workers|length }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card kpi-card"><div class="card-body"><div class="text-muted small">Hours</div><div class="h3 mb-0">{{ (preview.total_minutes / 60)|round(2) }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card kpi-card"><div class="card-body"><div class="text-muted small">Total to pay</div><div class="h3 mb-0">${{ '{:,.2f}'.format(preview.total|float) }}</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card kpi-card"><div class="card-body"><div class="text-muted small">From earlier weeks</div><div class="h3 mb-0">{{ preview.carried_count }}</div></div></div></div>
+  </div>
+
+  {% if preview.workers %}
+  <form method="post" action="/admin/payroll/run" id="payForm"
+        onsubmit="return confirm('Record this payroll? Each person gets a pay stub to sign, and this work is marked paid.');">
+    <input type="hidden" name="week" value="{{ week.start.isoformat() }}">
+    <div class="table-responsive">
+      <table class="table align-middle bg-white mb-0">
+        <thead>
+          <tr>
+            <th style="width:36px;"><input class="form-check-input" type="checkbox" id="checkAll" checked></th>
+            <th>Worker</th>
+            <th class="text-end">Hours</th>
+            <th class="text-end hide-sm">Hourly</th>
+            <th class="text-end hide-sm">Routes</th>
+            <th class="text-end">Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for w in preview.workers %}
+          <tr class="worker-row">
+            <td><input class="form-check-input pay-check" type="checkbox" name="user_ids" value="{{ w.user_id }}" data-total="{{ w.total }}" checked></td>
+            <td>
+              <strong>{{ w.name }}</strong>
+              {% if w.flag_count %}<span class="badge text-bg-warning ms-1" title="Needs a look">⚠ {{ w.flag_count }}</span>{% endif %}
+              <div class="text-muted small">{{ w.shifts|length }} shift{{ 's' if w.shifts|length != 1 }}{% if w.routes %} · {{ w.routes|length }} route{{ 's' if w.routes|length != 1 }}{% endif %}</div>
+            </td>
+            <td class="text-end">{{ w.hours }}</td>
+            <td class="text-end hide-sm">${{ '{:,.2f}'.format(w.hourly|float) }}</td>
+            <td class="text-end hide-sm">{% if w.routes %}${{ '{:,.2f}'.format(w.route_pay|float) }}{% else %}—{% endif %}</td>
+            <td class="text-end fw-bold">${{ '{:,.2f}'.format(w.total|float) }}</td>
+            <td class="text-end"><button type="button" class="btn btn-link btn-sm p-0" data-bs-toggle="collapse" data-bs-target="#items-{{ loop.index }}">Details</button></td>
+          </tr>
+          <tr class="items-row collapse {% if w.flag_count %}show{% endif %}" id="items-{{ loop.index }}">
+            <td></td>
+            <td colspan="6">
+              {% for i in w.items %}
+              <div class="item-line">
+                <span>
+                  {{ i.work_date.strftime('%a %b') }} {{ i.work_date.day }} ·
+                  {% if i.kind == 'shift' %}{{ i.time_in }} – {{ i.time_out }} ({{ i.minutes // 60 }}h {{ '%02d'|format(i.minutes % 60) }}m @ ${{ i.rate }}){% else %}{{ i.label }}{% endif %}
+                  {% if i.carried %}<span class="carried">earlier week</span>{% endif %}
+                  {% for f in i.flags %}<div class="flag">⚠ {{ f }}</div>{% endfor %}
+                </span>
+                <span class="fw-semibold">${{ '{:,.2f}'.format(i.amount|float) }}</span>
+              </div>
+              {% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pay-bar py-3 mt-3">
+      <div class="container d-flex flex-wrap align-items-end gap-2">
+        <div>
+          <label class="form-label small mb-1">Paid by</label>
+          <select name="payment_method" class="form-select form-select-sm">
+            {% for m in payment_methods %}<option>{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="flex-grow-1" style="min-width:180px;">
+          <label class="form-label small mb-1">Note (optional)</label>
+          <input name="notes" class="form-control form-control-sm" maxlength="300" placeholder="e.g. Includes Sunday prep">
+        </div>
+        <button class="btn btn-success" id="payBtn" {% if is_future %}disabled{% endif %}>Pay <span id="payCount">{{ preview.workers|length }}</span> · $<span id="payTotal">{{ '{:,.2f}'.format(preview.total|float) }}</span></button>
+      </div>
+    </div>
+  </form>
+  {% else %}
+  <div class="alert alert-info">Nothing to pay for this week{% if preview.still_open or preview.pending_routes %} yet{% endif %}.</div>
+  {% endif %}
+
+  <!-- History -->
+  <h5 class="mt-5 mb-2">Recent pay runs</h5>
+  {% if runs %}
+  <div class="table-responsive">
+    <table class="table bg-white align-middle">
+      <thead><tr><th>Paid</th><th class="hide-sm">Week</th><th class="text-end">People</th><th class="text-end">Total</th><th>Signed</th><th></th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        {% set signed = r.stubs|selectattr('status','equalto','acknowledged')|list|length %}
+        {% set disputed = r.stubs|selectattr('status','equalto','disputed')|list|length %}
+        <tr>
+          <td>{{ clock.fmt_datetime(r.paid_at) }}<div class="text-muted small">{{ r.payment_method or '' }}</div></td>
+          <td class="hide-sm">{{ r.period_start.strftime('%b') }} {{ r.period_start.day }} – {{ r.period_end.strftime('%b') }} {{ r.period_end.day }}</td>
+          <td class="text-end">{{ r.worker_count }}</td>
+          <td class="text-end fw-semibold">${{ '{:,.2f}'.format(r.total_gross|float) }}</td>
+          <td>
+            <span class="{{ 'sig-done' if signed == r.stubs|length else 'sig-pending' }}">{{ signed }}/{{ r.stubs|length }}</span>
+            {% if disputed %}<span class="sig-dispute ms-1">· {{ disputed }} problem{{ 's' if disputed != 1 }}</span>{% endif %}
+          </td>
+          <td class="text-end"><a href="/admin/payroll/runs/{{ r.id }}" class="btn btn-outline-primary btn-sm">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-muted small">No pay runs yet.</div>
+  {% endif %}
+
+  <!-- Settings -->
+  <details class="mt-4">
+    <summary class="text-muted small" style="cursor:pointer;">Payroll settings — {{ clock.tz_name }}, payday {{ clock.pay_week_end_name }}</summary>
+    <form method="post" action="/admin/payroll/settings" class="d-flex flex-wrap gap-2 align-items-end mt-2">
+      <div>
+        <label class="form-label small mb-1">Business timezone</label>
+        <select name="timezone_name" class="form-select form-select-sm">
+          {% for tz in timezones %}<option value="{{ tz }}" {{ 'selected' if tz == clock.tz_name }}>{{ tz }}</option>{% endfor %}
+          {% if clock.tz_name not in timezones %}<option value="{{ clock.tz_name }}" selected>{{ clock.tz_name }}</option>{% endif %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label small mb-1">Payday (pay week ends)</label>
+        <select name="pay_week_end_weekday" class="form-select form-select-sm">
+          {% for d in weekdays %}<option value="{{ loop.index0 }}" {{ 'selected' if loop.index0 == clock.pay_week_end }}>{{ d }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-outline-primary btn-sm">Save</button>
+    </form>
+  </details>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const checks = Array.from(document.querySelectorAll('.pay-check'));
+  const checkAll = document.getElementById('checkAll');
+  function refresh() {
+    const picked = checks.filter(c => c.checked);
+    const total = picked.reduce((s, c) => s + parseFloat(c.dataset.total || 0), 0);
+    document.getElementById('payCount').textContent = picked.length;
+    document.getElementById('payTotal').textContent = total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.getElementById('payBtn').disabled = !picked.length || {{ 'true' if is_future else 'false' }};
+    if (checkAll) checkAll.checked = picked.length === checks.length;
+  }
+  checks.forEach(c => c.addEventListener('change', refresh));
+  checkAll?.addEventListener('change', () => { checks.forEach(c => c.checked = checkAll.checked); refresh(); });
+</script>
+</body>
+</html>

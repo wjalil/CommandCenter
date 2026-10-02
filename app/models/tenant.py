@@ -1,5 +1,5 @@
 # app/models/tenant.py
-from sqlalchemy import Column, Integer, String, Boolean, Text
+from sqlalchemy import Column, Integer, String, Boolean, Text, Date
 from app.models.base import Base
 from sqlalchemy.orm import relationship, foreign
 
@@ -15,6 +15,11 @@ class Tenant(Base):
     order_notification_email = Column(String, nullable=True)  # Where to send order alerts
     from_email = Column(String, nullable=True)  # Sender email (e.g., "orders@business.com")
     enable_order_emails = Column(Boolean, default=False, nullable=False)  # Toggle email notifications  
+
+    # Business time + payroll (see app/utils/business_time.py)
+    timezone = Column(String, nullable=True)  # IANA name; NULL = America/New_York
+    pay_week_end_weekday = Column(Integer, nullable=True)  # Monday=0 … Sunday=6; NULL = Friday (payday)
+    payroll_start_date = Column(Date, nullable=True)  # Friday Payroll ignores unpaid work before this (pre-pay-run history)
 
  # Back-populated relationships
     users = relationship("User", back_populates="tenant")

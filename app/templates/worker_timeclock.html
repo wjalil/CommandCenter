@@ -3,32 +3,21 @@
 {% block nav_title %}{% if is_driver %}My Pay{% else %}Time Clock{% endif %}{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-  <h2 class="section-title">{% if is_driver %}My Pay{% else %}My Time Clock{% endif %}</h2>
-  <p style="color: var(--text-secondary);">
-    {% if is_driver %}Pay earned from completed delivery routes{% else %}View your clock in/out history{% endif %}
-  </p>
+<div class="mb-3 d-flex justify-content-between align-items-start gap-2 flex-wrap">
+  <div>
+    <h2 class="section-title mb-1">{% if is_driver %}My Routes{% else %}My Time Clock{% endif %}</h2>
+    <div style="color: var(--text-secondary);">
+      Pay week <strong>{{ pay_week.label }}</strong> · payday {{ pay_week.payday_label }}
+    </div>
+  </div>
+  <a href="/worker/pay" class="btn btn-success btn-sm">💵 My pay stubs</a>
 </div>
 
-<!-- Date Range Filter -->
-<div class="glass-card p-3 mb-4">
-  <form method="get" class="d-flex flex-wrap align-items-end gap-3">
-    <div>
-      <label class="form-label mb-1 small fw-bold">Start</label>
-      <input type="date" class="form-control" name="start" id="startInput" value="{{ start }}">
-    </div>
-    <div>
-      <label class="form-label mb-1 small fw-bold">End</label>
-      <input type="date" class="form-control" name="end" id="endInput" value="{{ end }}">
-    </div>
-    <div>
-      <button class="btn btn-primary btn-sm">Apply</button>
-    </div>
-    <div class="ms-auto d-flex gap-2">
-      <button type="button" class="btn btn-outline-secondary btn-sm" id="presetThisWeek">This Week</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" id="presetLastWeek">Last Week</button>
-    </div>
-  </form>
+<!-- Week navigation -->
+<div class="d-flex gap-2 mb-4">
+  <a class="btn btn-outline-secondary btn-sm flex-fill" href="?week={{ pay_week.shifted(-1).start.isoformat() }}">← Last week</a>
+  {% if not is_this_week %}<a class="btn btn-primary btn-sm flex-fill" href="/worker/timeclock">This week</a>{% endif %}
+  {% if pay_week.start < this_week.start %}<a class="btn btn-outline-secondary btn-sm flex-fill" href="?week={{ pay_week.shifted(1).start.isoformat() }}">Next week →</a>{% endif %}
 </div>
 
 <!-- Summary Cards -->
@@ -58,8 +47,8 @@
     <div class="d-flex justify-content-between align-items-start">
       <div class="flex-grow-1">
         <div class="d-flex align-items-center gap-2 mb-1">
-          <span class="fw-bold">{{ route.date.strftime('%b %d, %Y') }}</span>
-          <span class="badge bg-success">Completed</span>
+          <span class="fw-bold">{{ route.date.strftime('%a %b') }} {{ route.date.day }}</span>
+          {% if route.pay_run_id %}<span class="badge bg-success">Paid</span>{% else %}<span class="badge bg-secondary">Completed · paid {{ pay_week.payday_label if is_this_week else 'next payday' }}</span>{% endif %}
         </div>
         <div class="d-flex flex-wrap gap-3" style="font-size: 0.9rem;">
           <div>
@@ -81,7 +70,7 @@
 </div>
 {% else %}
 <div class="alert alert-info">
-  <p class="mb-0">No completed routes found for this period.</p>
+  <p class="mb-0">No completed routes this pay week.</p>
 </div>
 {% endif %}
 
@@ -95,7 +84,7 @@
       <div class="flex-grow-1">
         <div class="d-flex align-items-center gap-2 mb-1">
           <span class="fw-bold">
-            <span class="ts-et" data-iso="{{ entry.clock_in.isoformat() }}Z">{{ entry.clock_in.strftime('%b %d, %Y') }}</span>
+            {{ clock.fmt_date(entry.clock_in) }}
           </span>
           {% if entry.status.value == 'OPEN' %}
           <span class="badge bg-warning">Clocked In</span>
@@ -106,17 +95,18 @@
           {% elif entry.status.value == 'PAID' %}
           <span class="badge bg-success">Paid</span>
           {% endif %}
+          {% if entry.status.value in ('CLOSED', 'APPROVED') %}<span class="text-muted small">paid {{ pay_week.payday_label if is_this_week else 'next payday' }}</span>{% endif %}
         </div>
 
         <div class="d-flex flex-wrap gap-3" style="font-size: 0.9rem;">
           <div>
             <span style="color: var(--text-secondary);">In:</span>
-            <span class="fw-bold ts-time" data-iso="{{ entry.clock_in.isoformat() }}Z">{{ entry.clock_in.strftime('%I:%M %p') }}</span>
+            <span class="fw-bold">{{ clock.fmt_time(entry.clock_in) }}</span>
           </div>
           <div>
             <span style="color: var(--text-secondary);">Out:</span>
             {% if entry.clock_out %}
-            <span class="fw-bold ts-time" data-iso="{{ entry.clock_out.isoformat() }}Z">{{ entry.clock_out.strftime('%I:%M %p') }}</span>
+            <span class="fw-bold">{{ clock.fmt_time(entry.clock_out) }}{% if clock.local_date(entry.clock_out) != clock.local_date(entry.clock_in) %} <span class="text-muted small">({{ clock.fmt_date(entry.clock_out) }})</span>{% endif %}</span>
             {% else %}
             <span style="color: var(--accent-amber);" class="fw-bold">Still clocked in</span>
             {% endif %}
@@ -147,69 +137,10 @@
 </div>
 {% else %}
 <div class="alert alert-info">
-  <p class="mb-0">No time entries found for this period.</p>
+  <p class="mb-0">No shifts this pay week.</p>
 </div>
 {% endif %}
 {% endif %}
 {% endblock %}
 
-{% block extra_js %}
-<script>
-  // Format times to Eastern Time
-  const ET = "America/New_York";
-  const fmtDate = new Intl.DateTimeFormat('en-US', {
-    timeZone: ET, weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
-  });
-  const fmtTime = new Intl.DateTimeFormat('en-US', {
-    timeZone: ET, hour: 'numeric', minute: '2-digit'
-  });
-
-  document.querySelectorAll('.ts-et').forEach(el => {
-    const iso = el.getAttribute('data-iso');
-    if (!iso) return;
-    el.textContent = fmtDate.format(new Date(iso));
-  });
-
-  document.querySelectorAll('.ts-time').forEach(el => {
-    const iso = el.getAttribute('data-iso');
-    if (!iso) return;
-    el.textContent = fmtTime.format(new Date(iso));
-  });
-
-  // Preset buttons
-  const startInput = document.getElementById('startInput');
-  const endInput = document.getElementById('endInput');
-
-  function toYMD(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-
-  function mondayOfWeekET(d) {
-    const et = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: ET, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d));
-    const dow = new Intl.DateTimeFormat('en-US', { timeZone: ET, weekday: 'short' }).format(d);
-    const idx = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[dow];
-    return new Date(et.getTime() - idx * 24 * 3600 * 1000);
-  }
-
-  function addDays(d, n) { return new Date(d.getTime() + n * 24 * 3600 * 1000); }
-
-  function applyPreset(s, e) {
-    startInput.value = toYMD(s);
-    endInput.value = toYMD(e);
-    startInput.closest('form').submit();
-  }
-
-  document.getElementById('presetThisWeek')?.addEventListener('click', () => {
-    const mon = mondayOfWeekET(new Date());
-    applyPreset(mon, addDays(mon, 7));
-  });
-
-  document.getElementById('presetLastWeek')?.addEventListener('click', () => {
-    const thisMon = mondayOfWeekET(new Date());
-    applyPreset(addDays(thisMon, -7), thisMon);
-  });
-</script>
-{% endblock %}
+{% block extra_js %}{% endblock %}

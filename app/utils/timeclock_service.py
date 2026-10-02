@@ -98,10 +98,16 @@ async def autoclose_stale_entries(db: AsyncSession, tenant_id: int, max_hours: i
 
     count = 0
     for e in entries:
+        u = await db.get(User, e.user_id)
+        rate = float(u.hourly_rate or 0) if u else 0.0
         e.clock_out = datetime.utcnow()
         delta = e.clock_out - e.clock_in
         e.duration_minutes = max(0, int(delta.total_seconds() // 60))
         e.status = TimeStatus.CLOSED
+        # Same pay snapshot as a normal clock-out; Friday Payroll flags auto-closed
+        # shifts so the hours get checked before anyone is paid for them.
+        e.hourly_rate = rate
+        e.gross_pay = round((e.duration_minutes / 60) * rate, 2)
         e.notes = (e.notes or "") + " | auto-closed (stale)"
         count += 1
 

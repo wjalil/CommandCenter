@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Request, Query, Form
 from fastapi.responses import JSONResponse, Response, RedirectResponse
+from urllib.parse import quote_plus
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, and_, func, update, or_, literal_column, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,7 @@ from app.models.timeclock import TimeEntry, TimeStatus
 from app.models.user import User
 from app.models.delivery.route import DeliveryRoute
 from app.utils.timeclock_service import autoclose_stale_entries, get_open_entry
+from app.utils.business_time import BusinessClock, get_business_clock, parse_week_param
 
 log = logging.getLogger(__name__)
 
@@ -28,29 +30,28 @@ templates = Jinja2Templates(directory="app/templates")
 
 # --- Helpers ---------------------------------------------------------------
 
-def parse_date(s: Optional[str], default: Optional[datetime.date] = None):
-    if s:
-        return datetime.fromisoformat(s).date()
-    return default
+def _range(clock: BusinessClock, week: Optional[str], start: Optional[str], end: Optional[str]):
+    """The admin's date window as local calendar days [s_date, e_date) plus the
+    naive-UTC bounds for filtering stored timestamps. ?week= (or nothing) means a
+    pay week; explicit start/end (end exclusive) is a custom range."""
+    if start and end and not week:
+        try:
+            s_date = datetime.fromisoformat(start).date()
+            e_date = datetime.fromisoformat(end).date()
+            if e_date > s_date:
+                lo, hi = clock.utc_bounds(s_date, e_date)
+                return s_date, e_date, lo, hi, None
+        except ValueError:
+            pass
+    pay_week = parse_week_param(clock, week or start)
+    lo, hi = clock.week_utc_bounds(pay_week)
+    return pay_week.start, pay_week.end_exclusive, lo, hi, pay_week
 
-def week_bounds_utc(today_utc: datetime):
-    d = today_utc.date()
-    start = d - timedelta(days=d.weekday())        # Monday
-    end = start + timedelta(days=7)
-    return start, end
 
-def et_to_utc(datetime_str: str) -> datetime:
-    """Convert datetime-local string from ET to UTC datetime (naive, for DB storage)"""
-    if not datetime_str:
-        return None
-    # Parse the datetime string (format: "YYYY-MM-DDTHH:MM" or "YYYY-MM-DDTHH:MM:SS")
-    dt_naive = datetime.fromisoformat(datetime_str.replace("Z", ""))
-    # Treat as ET timezone
-    et_tz = ZoneInfo("America/New_York")
-    dt_et = dt_naive.replace(tzinfo=et_tz)
-    # Convert to UTC and remove timezone info (for naive datetime storage)
-    dt_utc = dt_et.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
-    return dt_utc
+def _overlap_message(clock: BusinessClock, entry: TimeEntry) -> str:
+    end = clock.fmt_datetime(entry.clock_out) if entry.clock_out else "still open"
+    return quote_plus(f"Overlaps another shift: {clock.fmt_datetime(entry.clock_in)} to {end}")
+
 
 async def _check_overlap(
     db: AsyncSession,
@@ -99,26 +100,24 @@ async def admin_timeclock_view(
     user = Depends(get_current_user),
 
     # filters
-    start: Optional[str] = Query(default=None),      # 'YYYY-MM-DD'
-    end:   Optional[str] = Query(default=None),      # 'YYYY-MM-DD' (exclusive)
+    week: Optional[str] = Query(default=None),       # any 'YYYY-MM-DD' in a pay week
+    start: Optional[str] = Query(default=None),      # 'YYYY-MM-DD' local, custom range
+    end:   Optional[str] = Query(default=None),      # 'YYYY-MM-DD' local (exclusive)
     status: Optional[str] = Query(default="all"),    # all|open|closed|approved|paid|unpaid
     q_user: Optional[str] = Query(default=None),     # user_id filter
 ):
     if user.role not in ("admin", "owner"):
         return templates.TemplateResponse("unauthorized.html", {"request": request})
 
-    # Default to current week (UTC) if not provided
-    now_utc = datetime.utcnow()
-    def_start, def_end = week_bounds_utc(now_utc)
+    # Default: the current pay week, in the business's own timezone
+    clock = await get_business_clock(db, user.tenant_id)
+    s_date, e_date, lo, hi, pay_week = _range(clock, week, start, end)
 
-    s_date = parse_date(start, def_start)
-    e_date = parse_date(end, def_end)
-
-    # Base filter for range entries (only entries that started inside the range)
+    # Base filter for range entries (shifts that *started* inside the range, local days)
     range_filter = and_(
         TimeEntry.tenant_id == user.tenant_id,
-        TimeEntry.clock_in >= s_date,
-        TimeEntry.clock_in < e_date,
+        TimeEntry.clock_in >= lo,
+        TimeEntry.clock_in < hi,
     )
 
     # Status filter
@@ -257,8 +256,15 @@ async def admin_timeclock_view(
     ]
     all_rows = sorted(list(per_user) + extra_rows, key=lambda r: (r.user_name or "").lower())
 
+    last_day = e_date - timedelta(days=1)
+    this_week = clock.pay_week()
     ctx = {
         "request": request,
+        "clock": clock,
+        "pay_week": pay_week,
+        "this_week": this_week,
+        "range_label": (f"Pay week {pay_week.label}" if pay_week else
+                        f"{s_date.strftime('%a %b')} {s_date.day} – {last_day.strftime('%a %b')} {last_day.day}"),
         "start": s_date.isoformat(),
         "end": e_date.isoformat(),
         "status": status,
@@ -292,14 +298,14 @@ async def admin_timeclock_entries(
     if user.role not in ("admin", "owner"):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
 
-    s_date = datetime.fromisoformat(start).date()
-    e_date = datetime.fromisoformat(end).date()
+    clock = await get_business_clock(db, user.tenant_id)
+    _, _, lo, hi, _ = _range(clock, None, start, end)
 
     base = and_(
         TimeEntry.tenant_id == user.tenant_id,
         TimeEntry.user_id == user_id,
-        TimeEntry.clock_in >= s_date,
-        TimeEntry.clock_in < e_date,
+        TimeEntry.clock_in >= lo,
+        TimeEntry.clock_in < hi,
     )
 
     status_filter = True
@@ -344,6 +350,11 @@ async def admin_timeclock_entries(
             "id": r.id,
             "clock_in": (r.clock_in.isoformat() + "Z" if r.clock_in else None),
             "clock_out": (r.clock_out.isoformat() + "Z" if r.clock_out else None),
+            # Server-formatted in the business timezone — what the drawer shows
+            "clock_in_text": clock.fmt_datetime(r.clock_in),
+            "clock_out_text": clock.fmt_datetime(r.clock_out) if r.clock_out else "Still clocked in",
+            "clock_in_input": clock.to_local_input(r.clock_in),
+            "clock_out_input": clock.to_local_input(r.clock_out),
             "minutes": r.duration_minutes,
             "hourly_rate": float(r.hourly_rate or 0),
             "gross_pay": float(r.gross_pay or 0),
@@ -352,6 +363,7 @@ async def admin_timeclock_entries(
             "is_manual": r.is_manual or False,
             "edited_by_name": r.edited_by_name,
             "edited_at": (r.edited_at.isoformat() + "Z") if r.edited_at else None,
+            "edited_at_text": clock.fmt_datetime(r.edited_at) if r.edited_at else None,
             "edit_reason": r.edit_reason or "",
             "clock_in_lat": float(r.clock_in_lat) if r.clock_in_lat is not None else None,
             "clock_in_lng": float(r.clock_in_lng) if r.clock_in_lng is not None else None,
@@ -359,39 +371,6 @@ async def admin_timeclock_entries(
         for r in rows
     ]
     return JSONResponse({"entries": data})
-
-# --- Bulk mark-paid for a set of users in range ----------------------------
-
-@router.post("/admin/timeclock/mark-paid-bulk")
-async def admin_timeclock_mark_paid_bulk(
-    db: AsyncSession = Depends(get_db),
-    user = Depends(get_current_user),
-    start: str = Form(...),
-    end: str = Form(...),
-    user_ids: str = Form(...),   # comma-separated list of user ids
-):
-    if user.role not in ("admin", "owner"):
-        return JSONResponse({"error": "Forbidden"}, status_code=403)
-
-    s_date = datetime.fromisoformat(start).date()
-    e_date = datetime.fromisoformat(end).date()
-    ids: List[str] = [x for x in (user_ids or "").split(",") if x]
-
-    if not ids:
-        return JSONResponse({"ok": True, "updated": 0})
-
-    upd = (
-        update(TimeEntry)
-        .where(TimeEntry.tenant_id == user.tenant_id)
-        .where(TimeEntry.user_id.in_(ids))
-        .where(TimeEntry.clock_in >= s_date, TimeEntry.clock_in < e_date)
-        .where(TimeEntry.status.in_([TimeStatus.CLOSED, TimeStatus.APPROVED]))
-        .values(status=TimeStatus.PAID)
-    )
-    res = await db.execute(upd)
-    await db.commit()
-    # res.rowcount is not guaranteed on all backends, but on PG it is
-    return JSONResponse({"ok": True, "updated": res.rowcount or 0})
 
 # --- Autoclose stale -------------------------------------------------------
 
@@ -420,8 +399,8 @@ async def admin_timeclock_export(
     if user.role not in ("admin", "owner"):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
 
-    s_date = datetime.fromisoformat(start).date()
-    e_date = datetime.fromisoformat(end).date()
+    clock = await get_business_clock(db, user.tenant_id)
+    s_date, e_date, lo, hi, _ = _range(clock, None, start, end)
 
     status_filter = True
     if status == "open":
@@ -446,7 +425,7 @@ async def admin_timeclock_export(
         .select_from(TimeEntry)
         .join(User, User.id == TimeEntry.user_id)
         .where(TimeEntry.tenant_id == user.tenant_id)
-        .where(TimeEntry.clock_in >= s_date, TimeEntry.clock_in < e_date)
+        .where(TimeEntry.clock_in >= lo, TimeEntry.clock_in < hi)
         .where(status_filter)
         .group_by(User.id, User.name)
         .order_by(func.lower(User.name))
@@ -502,14 +481,15 @@ async def admin_timeclock_edit_entry(
     if not entry:
         return RedirectResponse(f"/admin/timeclock?error=Entry+not+found&start={start}&end={end}", status_code=303)
 
-    # Prevent editing PAID entries
-    if entry.status == TimeStatus.PAID:
+    # Prevent editing PAID entries (paid through a pay run, or marked paid before pay runs)
+    if entry.status == TimeStatus.PAID or entry.pay_run_id:
         return RedirectResponse(f"/admin/timeclock?error=Cannot+edit+PAID+entries&start={start}&end={end}", status_code=303)
 
-    # Parse and validate times (convert from ET to UTC)
+    # Parse and validate times (typed in the business timezone -> stored UTC)
+    clock = await get_business_clock(db, user.tenant_id)
     try:
-        new_clock_in = et_to_utc(clock_in)
-        new_clock_out = et_to_utc(clock_out) if clock_out else None
+        new_clock_in = clock.parse_local_input(clock_in)
+        new_clock_out = clock.parse_local_input(clock_out) if clock_out else None
     except (ValueError, AttributeError):
         return RedirectResponse(f"/admin/timeclock?error=Invalid+datetime+format&start={start}&end={end}", status_code=303)
 
@@ -526,11 +506,7 @@ async def admin_timeclock_edit_entry(
     # Validation: check for overlapping entries
     overlapping_entry = await _check_overlap(db, user.tenant_id, entry.user_id, new_clock_in, new_clock_out, exclude_entry_id=entry_id)
     if overlapping_entry:
-        # Format times for error message
-        overlap_in = overlapping_entry.clock_in.strftime("%Y-%m-%d %H:%M")
-        overlap_out = overlapping_entry.clock_out.strftime("%Y-%m-%d %H:%M") if overlapping_entry.clock_out else "OPEN"
-        error_msg = f"Overlapping+shift:+{overlap_in}+to+{overlap_out}+(entry+{overlapping_entry.id[:8]})"
-        return RedirectResponse(f"/admin/timeclock?error={error_msg}&start={start}&end={end}", status_code=303)
+        return RedirectResponse(f"/admin/timeclock?error={_overlap_message(clock, overlapping_entry)}&start={start}&end={end}", status_code=303)
 
     # Update entry
     old_clock_in = entry.clock_in
@@ -589,10 +565,11 @@ async def admin_timeclock_create_entry(
     if not worker:
         return RedirectResponse(f"/admin/timeclock?error=Worker+not+found&start={start}&end={end}", status_code=303)
 
-    # Parse times (convert from ET to UTC)
+    # Parse times (typed in the business timezone -> stored UTC)
+    clock = await get_business_clock(db, user.tenant_id)
     try:
-        new_clock_in = et_to_utc(clock_in)
-        new_clock_out = et_to_utc(clock_out) if clock_out else None
+        new_clock_in = clock.parse_local_input(clock_in)
+        new_clock_out = clock.parse_local_input(clock_out) if clock_out else None
     except (ValueError, AttributeError):
         return RedirectResponse(f"/admin/timeclock?error=Invalid+datetime+format&start={start}&end={end}", status_code=303)
 
@@ -603,11 +580,7 @@ async def admin_timeclock_create_entry(
     # Validation: overlap check
     overlapping_entry = await _check_overlap(db, user.tenant_id, user_id, new_clock_in, new_clock_out)
     if overlapping_entry:
-        # Format times for error message
-        overlap_in = overlapping_entry.clock_in.strftime("%Y-%m-%d %H:%M")
-        overlap_out = overlapping_entry.clock_out.strftime("%Y-%m-%d %H:%M") if overlapping_entry.clock_out else "OPEN"
-        error_msg = f"Overlapping+shift:+{overlap_in}+to+{overlap_out}+(entry+{overlapping_entry.id[:8]})"
-        return RedirectResponse(f"/admin/timeclock?error={error_msg}&start={start}&end={end}", status_code=303)
+        return RedirectResponse(f"/admin/timeclock?error={_overlap_message(clock, overlapping_entry)}&start={start}&end={end}", status_code=303)
 
     # Validation: if creating OPEN entry, ensure no existing OPEN entry for this worker
     if not new_clock_out:
@@ -670,7 +643,7 @@ async def admin_timeclock_delete_entry(
         return JSONResponse({"error": "Entry not found"}, status_code=404)
 
     # Prevent deleting PAID entries
-    if entry.status == TimeStatus.PAID:
+    if entry.status == TimeStatus.PAID or entry.pay_run_id:
         return JSONResponse({"error": "Cannot delete PAID entries"}, status_code=400)
 
     await db.delete(entry)

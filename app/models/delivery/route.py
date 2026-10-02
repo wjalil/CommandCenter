@@ -20,6 +20,7 @@ class DeliveryRoute(Base):
 
     template_id = Column(String, ForeignKey("delivery_route_templates.id"), nullable=True)
     driver_pay_rate = Column(Numeric(10, 2), nullable=True)  # stamped at generation
+    pay_run_id = Column(String, ForeignKey("payroll_runs.id", ondelete="SET NULL"), nullable=True, index=True)  # Friday payroll that paid it
     # The catering manifest this route delivers (one route per manifest), when it
     # was created from a released catering manifest rather than generated weekly.
     catering_manifest_id = Column(String, ForeignKey("catering_daily_manifests.id", ondelete="SET NULL"), nullable=True, unique=True)

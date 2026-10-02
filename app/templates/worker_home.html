@@ -52,6 +52,22 @@
   .card-shopping  { --card-accent: var(--accent-emerald); }
   .card-recipes   { --card-accent: var(--accent-amber); }
   .card-timeclock { --card-accent: var(--accent-blue); }
+  .prod-hero { display:flex; align-items:center; gap:1rem; padding:1.15rem 1.25rem; border-radius:18px; text-decoration:none;
+    background:linear-gradient(135deg,#14b8a6,#0d9488); color:#fff; box-shadow:0 10px 24px rgba(13,148,136,.28); }
+  .prod-hero:hover { color:#fff; filter:brightness(1.05); }
+  .prod-hero-icon { font-size:2.2rem; line-height:1; }
+  .prod-hero-text { display:flex; flex-direction:column; flex:1; min-width:0; }
+  .prod-hero-text strong { font-size:1.25rem; letter-spacing:-0.01em; }
+  .prod-hero-text span { font-size:.88rem; opacity:.92; }
+  .prod-hero-go { font-size:2rem; line-height:1; opacity:.8; }
+  .pay-alert { display:flex; align-items:center; gap:.85rem; padding:.9rem 1rem; border-radius:16px; text-decoration:none;
+    background:linear-gradient(135deg,#10b981,#059669); color:#fff; box-shadow:0 8px 20px rgba(16,185,129,.28); }
+  .pay-alert:hover { color:#fff; filter:brightness(1.04); }
+  .pay-alert-icon { font-size:1.8rem; line-height:1; }
+  .pay-alert-text { display:flex; flex-direction:column; flex:1; min-width:0; }
+  .pay-alert-text strong { font-size:1.05rem; }
+  .pay-alert-sub { font-size:.82rem; opacity:.92; }
+  .pay-alert-go { font-size:1.8rem; line-height:1; opacity:.8; }
   .card-menus     { --card-accent: var(--accent-amber); }
   .card-driver    { --card-accent: var(--accent-teal); }
 
@@ -147,6 +163,19 @@
 {% set em = enabled_modules or {} %}
 {% set is_driver = user.worker_type == "Driver" %}
 
+{% if unsigned_stubs %}
+{% set latest = unsigned_stubs[0] %}
+<!-- Payday: sign for your pay -->
+<a href="/worker/pay/{{ latest.id }}" class="pay-alert mb-3">
+  <span class="pay-alert-icon">💵</span>
+  <span class="pay-alert-text">
+    <strong><span data-i18n="you_got_paid">You got paid</span> ${{ '{:,.2f}'.format(latest.total_gross|float) }}</strong>
+    <span class="pay-alert-sub">{{ latest.period_start.strftime('%b') }} {{ latest.period_start.day }} – {{ latest.period_end.strftime('%b') }} {{ latest.period_end.day }}{% if unsigned_stubs|length > 1 %} · {{ unsigned_stubs|length }} to sign{% endif %} · <span data-i18n="tap_to_sign">tap to review &amp; sign</span></span>
+  </span>
+  <span class="pay-alert-go">›</span>
+</a>
+{% endif %}
+
 {% if is_driver %}
   <!-- Next Route strip — always surfaces the driver's next route, whether
        that's today or a future date, instead of a misleading "nothing
@@ -209,8 +238,7 @@
       {% if open_entry %}
         <div class="fw-bold" style="font-size: 1.1rem; color: var(--text-primary);">
           ✅ <span data-i18n="on_clock">On the clock — started at</span>
-          {% set est_time = open_entry.clock_in.astimezone(pytz.timezone('America/New_York')) %}
-          <span id="clockInTime">{{ est_time.strftime('%I:%M %p') }}</span>
+          <span id="clockInTime">{{ clock.fmt_time(open_entry.clock_in) }}</span>
         </div>
         <div class="clock-meta mt-1">
           <span data-i18n="elapsed">Elapsed</span>: <span id="elapsed" data-start="{{ open_entry.clock_in.isoformat() }}Z" style="font-weight: 700; font-size: 1rem; color: var(--text-primary);">--:--:--</span>
@@ -245,70 +273,119 @@
 </div>
 {% endif %}
 
+{#- Catering is on unless a tenant explicitly turns it off. The shift schedule
+    only shows for tenants that explicitly run scheduling (core_ops); catering
+    kitchens use the Master Calendar instead. -#}
+{% set catering_on = em.get("catering", True) %}
+
+{% if not is_driver and catering_on %}
+<!-- Production Sheet: the kitchen's main screen -->
+<a href="/catering/production" class="prod-hero mb-4">
+  <span class="prod-hero-icon">🍳</span>
+  <span class="prod-hero-text">
+    <strong data-i18n="production_sheet">Production Sheet</strong>
+    <span data-i18n="production_hero_sub">Today's prep, packing &amp; substitutions</span>
+  </span>
+  <span class="prod-hero-go">›</span>
+</a>
+{% endif %}
+
 <!-- Quick Actions -->
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <h5 class="section-title m-0" data-i18n="quick_actions">Quick Actions</h5>
-</div>
+<div class="quick-actions row g-3">
 
-<div class="quick-actions row g-4">
-
-  {% if not is_driver and em.get("taskboard", True) %}
-  <div class="col-12 col-sm-6 col-lg-4">
-    <a href="/worker/taskboard" class="text-decoration-none">
-      <div class="card card-taskboard h-100">
-        <div class="card-body qa-body">
-          <div class="qa-ico">📋</div>
-          <div class="qa-text">
-            <h5 data-i18n="task_board">Today's Task Board</h5>
-            <p data-i18n="task_board_sub">Check off your assigned tasks</p>
-          </div>
+{% if is_driver %}
         </div>
       </div>
     </a>
   </div>
-  {% endif %}
-
-  <!-- View Schedule — always shown; for drivers this is a calendar of
-       their assigned routes, not generic shifts. -->
   <div class="col-12 col-sm-6 col-lg-4">
-    <a href="{% if is_driver %}/delivery/driver/schedule{% else %}/worker/shifts{% endif %}" class="text-decoration-none">
-      <div class="card card-schedule h-100">
+    <a href="/delivery/driver/schedule" class="text-decoration-none">
+      <div class="card h-100 card-schedule">
         <div class="card-body qa-body">
           <div class="qa-ico">🗓️</div>
           <div class="qa-text">
-            {% if is_driver %}
             <h5 data-i18n="view_schedule">My Route Calendar</h5>
-            <p data-i18n="view_schedule_sub">See your upcoming routes by day</p>
-            {% else %}
-            <h5 data-i18n="view_schedule">View Schedule</h5>
-            <p data-i18n="view_schedule_sub">See all your assigned shifts</p>
-            {% endif %}
+            <p data-i18n="view_schedule_sub">Your upcoming routes by day</p>
           </div>
         </div>
       </div>
     </a>
   </div>
-
-  {% if not is_driver and em.get("customer_ordering", True) %}
   <div class="col-12 col-sm-6 col-lg-4">
-    <a href="/worker/orders" class="text-decoration-none">
-      <div class="card card-orders h-100">
+    <a href="/worker/timeclock" class="text-decoration-none">
+      <div class="card h-100 card-timeclock">
         <div class="card-body qa-body">
-          <div class="qa-ico">🛒</div>
+          <div class="qa-ico">💵</div>
           <div class="qa-text">
-            <h5 data-i18n="view_orders">View Orders</h5>
-            <p data-i18n="view_orders_sub">Check customer orders</p>
+            <h5 data-i18n="my_pay">My Pay</h5>
+            <p data-i18n="my_pay_sub">Route pay &amp; pay stubs</p>
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
+{% else %}
+  {% if catering_on %}
+  <div class="col-12 col-sm-6 col-lg-4">
+    <a href="/catering/master-calendar" class="text-decoration-none">
+      <div class="card h-100 card-schedule">
+        <div class="card-body qa-body">
+          <div class="qa-ico">📅</div>
+          <div class="qa-text">
+            <h5 data-i18n="master_calendar">Master Calendar</h5>
+            <p data-i18n="master_calendar_sub">Every program's menu, by day</p>
           </div>
         </div>
       </div>
     </a>
   </div>
   {% endif %}
+  <div class="col-12 col-sm-6 col-lg-4">
+    <a href="/worker/timeclock" class="text-decoration-none">
+      <div class="card h-100 card-timeclock">
+        <div class="card-body qa-body">
+          <div class="qa-ico">⏱️</div>
+          <div class="qa-text">
+            <h5 data-i18n="hours_pay">My Hours &amp; Pay</h5>
+            <p data-i18n="hours_pay_sub">Your shifts, pay stubs &amp; sign-off</p>
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div class="col-12 col-sm-6 col-lg-4">
+    <a href="/documents/worker/documents" class="text-decoration-none">
+      <div class="card h-100 ">
+        <div class="card-body qa-body">
+          <div class="qa-ico">📖</div>
+          <div class="qa-text">
+            <h5 data-i18n="view_recipes">Recipes &amp; SOPs</h5>
+            <p data-i18n="view_recipes_sub">Recipes and procedures</p>
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
 
-  {% if not is_driver and em.get("shopping", True) %}
+  {% if em.get("core_ops") %}
+  <div class="col-12 col-sm-6 col-lg-4">
+    <a href="/worker/shifts" class="text-decoration-none">
+      <div class="card h-100 card-schedule">
+        <div class="card-body qa-body">
+          <div class="qa-ico">🗓️</div>
+          <div class="qa-text">
+            <h5 data-i18n="view_schedule">View Schedule</h5>
+            <p data-i18n="view_schedule_sub">See all your assigned shifts</p>
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if em.get("shopping", True) %}
   <div class="col-12 col-sm-6 col-lg-4">
     <a href="/shopping/items" class="text-decoration-none">
-      <div class="card card-shopping h-100">
+      <div class="card h-100 ">
         <div class="card-body qa-body">
           <div class="qa-ico">📦</div>
           <div class="qa-text">
@@ -320,123 +397,22 @@
     </a>
   </div>
   {% endif %}
-
-  {% if not is_driver %}
-  <!-- Recipes / SOPs -->
-  <div class="col-12 col-sm-6 col-lg-4">
-    <a href="/documents/worker/documents" class="text-decoration-none">
-      <div class="card card-recipes h-100">
-        <div class="card-body qa-body">
-          <div class="qa-ico">📄</div>
-          <div class="qa-text">
-            <h5 data-i18n="view_recipes">View Recipes</h5>
-            <p data-i18n="view_recipes_sub">Recipes & SOP repository</p>
-          </div>
-        </div>
-      </div>
-    </a>
-  </div>
-  {% endif %}
-
-  {% if not is_driver and em.get("driver_order", True) %}
-  <div class="col-12 col-sm-6 col-lg-4">
-    <a href="/modules/driver_order" class="text-decoration-none">
-      <div class="card card-driver h-100">
-        <div class="card-body qa-body">
-          <div class="qa-ico">📝</div>
-          <div class="qa-text">
-            <h5 data-i18n="driver_log">Driver Log</h5>
-            <p data-i18n="driver_log_sub">Submit delivery notes & photo</p>
-          </div>
-        </div>
-      </div>
-    </a>
-  </div>
-  {% endif %}
-
-  <!-- Time Clock History / My Pay — always shown -->
-  <div class="col-12 col-sm-6 col-lg-4">
-    <a href="/worker/timeclock" class="text-decoration-none">
-      <div class="card card-timeclock h-100">
-        <div class="card-body qa-body">
-          {% if is_driver %}
-          <div class="qa-ico">💵</div>
-          <div class="qa-text">
-            <h5 data-i18n="my_pay">My Pay</h5>
-            <p data-i18n="my_pay_sub">See what you've earned from routes</p>
-          </div>
-          {% else %}
-          <div class="qa-ico">⏱️</div>
-          <div class="qa-text">
-            <h5 data-i18n="timeclock_hist">Time Clock History</h5>
-            <p data-i18n="timeclock_hist_sub">View your hours & pay</p>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </a>
-  </div>
-
-  {% if not is_driver and em.get("catering", True) %}
-  <div class="col-12 col-sm-6 col-lg-4">
-    <a href="/catering/production" class="text-decoration-none">
-      <div class="card card-menus h-100">
-        <div class="card-body qa-body">
-          <div class="qa-ico">📋</div>
-          <div class="qa-text">
-            <h5 data-i18n="production_sheet">Production Sheet</h5>
-            <p data-i18n="production_sheet_sub">Today's kitchen prep & deliveries</p>
-          </div>
-        </div>
-      </div>
-    </a>
-  </div>
-  <div class="col-12 col-sm-6 col-lg-4">
-    <a href="/worker/menus" class="text-decoration-none">
-      <div class="card card-menus h-100">
-        <div class="card-body qa-body">
-          <div class="qa-ico">🍽️</div>
-          <div class="qa-text">
-            <h5 data-i18n="view_menus">View Menus</h5>
-            <p data-i18n="view_menus_sub">Program menus & PDF downloads</p>
-          </div>
-        </div>
-      </div>
-    </a>
-  </div>
-  {% endif %}
-
-  {% if em.get("delivery", True) %}
-  <div class="col-12 col-sm-6 col-lg-4">
-    <a href="/delivery/driver/" class="text-decoration-none">
-      <div class="card card-driver h-100">
-        <div class="card-body qa-body">
-          <div class="qa-ico">🚛</div>
-          <div class="qa-text">
-            <h5 data-i18n="delivery_routes">My Delivery Routes</h5>
-            <p data-i18n="delivery_routes_sub">View & track deliveries</p>
-          </div>
-        </div>
-      </div>
-    </a>
-  </div>
-  {% endif %}
-
-  {% if not is_driver and em.get("auto_shop") %}
+  {% if em.get("auto_shop") %}
   <div class="col-12 col-sm-6 col-lg-4">
     <a href="/auto_shop/worker/jobs" class="text-decoration-none">
-      <div class="card h-100" style="--card-accent: #f59e0b;">
+      <div class="card h-100 " style="--card-accent: #f59e0b;">
         <div class="card-body qa-body">
-          <div class="qa-ico" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3);">🔧</div>
+          <div class="qa-ico">🔧</div>
           <div class="qa-text">
             <h5 data-i18n="repair_orders">Repair Orders</h5>
-            <p data-i18n="repair_orders_sub">View & update active jobs</p>
+            <p data-i18n="repair_orders_sub">View &amp; update active jobs</p>
           </div>
         </div>
       </div>
     </a>
   </div>
   {% endif %}
+{% endif %}
 
 </div><!-- /quick-actions -->
 
@@ -540,6 +516,13 @@
       driver_log_sub:       'Enviar notas y foto de entrega',
       timeclock_hist:       'Historial de Horas',
       timeclock_hist_sub:   'Ver tus horas y pago',
+      production_hero_sub:  'Preparación, empaque y sustituciones de hoy',
+      master_calendar:      'Calendario General',
+      master_calendar_sub:  'El menú de cada programa, por día',
+      hours_pay:            'Mis Horas y Pago',
+      hours_pay_sub:        'Tus turnos, recibos de pago y firma',
+      you_got_paid:         'Te pagaron',
+      tap_to_sign:          'toca para revisar y firmar',
       my_pay:               'Mi Pago',
       my_pay_sub:           'Ver lo que has ganado en rutas',
       production_sheet:     'Hoja de Producción',

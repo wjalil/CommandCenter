@@ -46,6 +46,9 @@ class TimeEntry(Base):
 
     is_seed = Column(Boolean, default=False)
 
+    # Which Friday payroll paid this entry (NULL = not paid through a pay run)
+    pay_run_id = Column(String, ForeignKey("payroll_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Audit trail for edits/manual entries
     created_by_id = Column(String, ForeignKey("users.id"), nullable=True)
     edited_by_id = Column(String, ForeignKey("users.id"), nullable=True)

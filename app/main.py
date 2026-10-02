@@ -33,6 +33,7 @@ from app.utils.auth import hash_secret, is_hashed
 configure_mappers()
 from fastapi.staticfiles import StaticFiles
 from app.api.admin import admin_timeclock_routes
+from app.api import payroll_routes
 from app.api.admin import schedule_grid_routes
 from app.api.admin import admin_settings_routes
 from app.api.admin import admin_customer_routes
@@ -362,6 +363,7 @@ app.include_router(admin_menu_item_routes.router)
 app.include_router(customer_routes.router)
 app.include_router(shopping_router)
 app.include_router(admin_timeclock_routes.router)
+app.include_router(payroll_routes.router)
 app.include_router(schedule_grid_routes.router)
 app.include_router(admin_settings_routes.router)
 app.include_router(admin_customer_routes.router)

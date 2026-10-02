@@ -1,0 +1,40 @@
+{% extends "worker_base.html" %}
+{% block title %}My Pay{% endblock %}
+{% block nav_title %}My Pay{% endblock %}
+
+{% block extra_css %}
+  .pay-row { display:flex; align-items:center; justify-content:space-between; gap:.75rem; text-decoration:none; color:inherit; }
+  .pay-row:hover { color:inherit; }
+  .pay-amount { font-size:1.25rem; font-weight:800; }
+  .pay-sub { color:var(--text-secondary); font-size:.85rem; }
+  .pay-pill { display:inline-block; padding:.15rem .6rem; border-radius:999px; font-weight:700; font-size:.75rem; }
+  .pay-pill.issued { background:#fef3c7; color:#92400e; }
+  .pay-pill.acknowledged { background:#d1fae5; color:#065f46; }
+  .pay-pill.disputed { background:#fee2e2; color:#991b1b; }
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="pay-sub">Every payment, with your sign-off.</div>
+  <a href="/worker/timeclock" class="btn btn-outline-secondary btn-sm">Hours this week</a>
+</div>
+
+{% if stubs %}
+<div class="vstack gap-2">
+  {% for s in stubs %}
+  <a class="glass-card p-3 pay-row" href="/worker/pay/{{ s.id }}">
+    <div>
+      <div class="fw-bold">Paid {{ clock.fmt_date(s.pay_run.paid_at) }}</div>
+      <div class="pay-sub">Week {{ s.period_start.strftime('%b') }} {{ s.period_start.day }} – {{ s.period_end.strftime('%b') }} {{ s.period_end.day }}{% if s.minutes %} · {{ (s.minutes // 60) }}h {{ '%02d'|format(s.minutes % 60) }}m{% endif %}</div>
+    </div>
+    <div class="text-end">
+      <div class="pay-amount">${{ '{:,.2f}'.format(s.total_gross|float) }}</div>
+      <span class="pay-pill {{ s.status }}">{% if s.status == 'acknowledged' %}✓ Signed{% elif s.status == 'disputed' %}Problem reported{% else %}Tap to sign{% endif %}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">No pay stubs yet. After payday, your pay shows up here to review and sign.</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Pay run {{ run.period_end.strftime('%b %d') }} · Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body { background: #f6f8fb; }
+    .toolbar { position: sticky; top: 0; z-index: 1010; background: #fff; border-bottom: 1px solid #e9eef5; }
+    .sig-done { color:#047857; font-weight:600; }
+    .sig-pending { color:#b45309; font-weight:600; }
+    .sig-dispute { color:#b91c1c; font-weight:600; }
+    .muted { color:#64748b; font-size:.82rem; }
+    @media print { .no-print { display:none !important; } }
+  </style>
+</head>
+<body>
+<div class="toolbar py-3 mb-3 no-print">
+  <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h4 class="mb-0">💵 Pay run · {{ run.period_start.strftime('%b') }} {{ run.period_start.day }} – {{ run.period_end.strftime('%b') }} {{ run.period_end.day }}</h4>
+    <div class="d-flex gap-2">
+      <a href="/admin/payroll?week={{ run.period_start.isoformat() }}" class="btn btn-outline-secondary btn-sm">← Payroll</a>
+      <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">🖨 Print</button>
+    </div>
+  </div>
+</div>
+
+<div class="container mb-5">
+  {% if request.query_params.get('message') %}<div class="alert alert-success no-print">{{ request.query_params.get('message') }}</div>{% endif %}
+  {% if request.query_params.get('error') %}<div class="alert alert-danger no-print">{{ request.query_params.get('error') }}</div>{% endif %}
+
+  {% set signed = stubs|selectattr('status','equalto','acknowledged')|list|length %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body d-flex flex-wrap justify-content-between gap-3">
+      <div>
+        <div class="muted">Paid {{ clock.fmt_datetime(run.paid_at) }}{% if run.paid_by %} by {{ run.paid_by.name }}{% endif %}{% if run.payment_method %} · {{ run.payment_method }}{% endif %}</div>
+        <div class="h3 mb-0">${{ '{:,.2f}'.format(run.total_gross|float) }}</div>
+        <div class="muted">{{ run.worker_count }} people · {{ (run.total_minutes / 60)|round(2) }} hours{% if run.total_route_pay|float %} · ${{ '{:,.2f}'.format(run.total_route_pay|float) }} route pay{% endif %}</div>
+        {% if run.notes %}<div class="muted mt-1">Note: {{ run.notes }}</div>{% endif %}
+      </div>
+      <div class="text-end">
+        <div class="muted">Signed for</div>
+        <div class="h3 mb-0 {{ 'sig-done' if signed == stubs|length else 'sig-pending' }}">{{ signed }}/{{ stubs|length }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table bg-white align-middle">
+      <thead><tr><th>Worker</th><th class="text-end">Paid</th><th>Sign-off</th><th class="no-print"></th></tr></thead>
+      <tbody>
+        {% for s in stubs %}
+        <tr>
+          <td><strong>{{ s.worker_name }}</strong>{% if s.minutes %}<div class="muted">{{ (s.minutes // 60) }}h {{ '%02d'|format(s.minutes % 60) }}m</div>{% endif %}</td>
+          <td class="text-end fw-semibold">${{ '{:,.2f}'.format(s.total_gross|float) }}</td>
+          <td>
+            {% if s.status == 'acknowledged' %}
+              <span class="sig-done">✓ Signed “{{ s.signature_name }}”</span>
+              <div class="muted">{{ clock.fmt_datetime(s.acknowledged_at) }} · IP {{ s.ack_ip or '—' }}</div>
+            {% elif s.status == 'disputed' %}
+              <span class="sig-dispute">⚠ Problem reported {{ clock.fmt_datetime(s.disputed_at) }}</span>
+              <div class="muted">“{{ s.dispute_note }}”</div>
+              <form method="post" action="/admin/payroll/stubs/{{ s.id }}/resolve" class="d-flex gap-1 mt-1 no-print">
+                <input name="resolution_note" class="form-control form-control-sm" maxlength="300" placeholder="What you did (e.g. added missing shift to next payroll)">
+                <button class="btn btn-sm btn-outline-success text-nowrap">Mark resolved</button>
+              </form>
+            {% else %}
+              <span class="sig-pending">Waiting for signature</span>
+              {% if s.resolution_note %}<div class="muted">Resolved earlier: {{ s.resolution_note }}</div>{% endif %}
+            {% endif %}
+          </td>
+          <td class="text-end no-print"><a class="btn btn-outline-primary btn-sm" href="/admin/payroll/stubs/{{ s.id }}">Stub</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if can_void %}
+  <form method="post" action="/admin/payroll/runs/{{ run.id }}/void" class="mt-4 no-print"
+        onsubmit="return confirm('Void this pay run? Its shifts and routes go back to unpaid and the pay stubs are removed. Only do this if the payment did not happen.');">
+    <button class="btn btn-outline-danger btn-sm">Void this pay run</button>
+    <span class="muted ms-2">Only possible until someone signs for it.</span>
+  </form>
+  {% endif %}
+</div>
+</body>
+</html>

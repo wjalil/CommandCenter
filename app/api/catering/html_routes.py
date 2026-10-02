@@ -17,7 +17,7 @@ import io
 import zipfile
 
 from app.db import get_db
-from app.auth.dependencies import get_current_admin_user
+from app.auth.dependencies import get_current_admin_user, get_current_admin_or_worker
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.utils.email_service import send_portal_invite_email
@@ -795,9 +795,10 @@ async def master_calendar_view(
     month: Optional[int] = None,
     year: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_admin_user)
+    user: User = Depends(get_current_admin_or_worker)
 ):
-    """Aggregated month view: every active program's menu on one calendar"""
+    """Aggregated month view: every active program's menu on one calendar.
+    Read-only for kitchen workers (worker layout, no admin nav)."""
     tenant_id = request.state.tenant_id
     from calendar import monthcalendar, month_name as month_name_arr, setfirstweekday, SUNDAY
     from datetime import date as dt_date
@@ -976,6 +977,8 @@ async def master_calendar_view(
 
     return templates.TemplateResponse("catering/master_calendar.html", {
         "request": request,
+        "user": user,
+        "base_template": "worker_base.html" if user.role == "worker" else "base.html",
         "month": month,
         "year": year,
         "month_name": month_name_arr[month],

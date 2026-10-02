@@ -1,9 +1,13 @@
-{% extends "base.html" %}
+{% extends base_template or "base.html" %}
 {% block title %}Master Calendar{% endblock %}
+{% block nav_title %}Master Calendar{% endblock %}
 
 {% block content %}
+{% set is_worker = user and user.role == 'worker' %}
+{% if not is_worker %}
 {% set active = 'master_calendar' %}
 {% include "catering/_nav.html" %}
+{% endif %}
 
 <div class="mcal-header mb-3">
   <div>
@@ -108,7 +112,7 @@
 <div class="alert alert-info">
   <h5>No Active Programs</h5>
   <p>Create a catering program to see it on the master calendar.</p>
-  <a href="/catering/programs/create" class="btn btn-primary">+ Create Program</a>
+  {% if not is_worker %}<a href="/catering/programs/create" class="btn btn-primary">+ Create Program</a>{% endif %}
 </div>
 {% endif %}
 

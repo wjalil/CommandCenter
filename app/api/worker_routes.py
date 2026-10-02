@@ -17,6 +17,8 @@ from app.auth.dependencies import get_current_user
 from app.auth.module_gates import get_enabled_modules
 from app.models.timeclock import TimeEntry, TimeStatus
 from app.utils.timeclock_service import clock_in as svc_clock_in, clock_out as svc_clock_out
+from app.utils.business_time import get_business_clock, parse_week_param
+from app.services import payroll as payroll_svc
 from app.models.customer.customer_order import CustomerOrder, OrderItem
 from app.models.catering import CateringProgram, CateringMonthlyMenu
 from app.models.delivery import DeliveryRoute, DeliveryRouteStop
@@ -170,6 +172,8 @@ async def worker_home(
     open_entry = res.scalars().first()
 
     enabled_modules = await get_enabled_modules(db, user.tenant_id)
+    clock = await get_business_clock(db, user.tenant_id)
+    unsigned_stubs = await payroll_svc.unsigned_stubs(db, user.tenant_id, user.id)
 
     driver_active_count = 0
     driver_done_today_count = 0
@@ -204,6 +208,8 @@ async def worker_home(
         "user": user,
         "worker_name": getattr(user, "name", "Worker"),
         "open_entry": open_entry,
+        "clock": clock,
+        "unsigned_stubs": unsigned_stubs,
         "pytz": pytz,
         "enabled_modules": enabled_modules,
         "driver_active_count": driver_active_count,
@@ -563,25 +569,23 @@ async def worker_timeclock_history(
     request: Request,
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
-    start: Optional[str] = None,
-    end: Optional[str] = None,
+    week: Optional[str] = None,
 ):
-    """View personal clock in/out history"""
+    """Your hours (or route pay) for one pay week, in business time."""
     if getattr(user, "role", None) not in {"worker", "admin", "manager", "office_admin"}:
         return templates.TemplateResponse("unauthorized.html", {"request": request})
 
-    # Default to current week (Monday to next Monday)
-    today = dt_date.today()
-    if not start:
-        monday = today - timedelta(days=today.weekday())
-        start = monday.isoformat()
-    if not end:
-        monday = today - timedelta(days=today.weekday())
-        end_date = monday + timedelta(days=7)
-        end = end_date.isoformat()
-
-    s_date = datetime.fromisoformat(start).date() if isinstance(start, str) else start
-    e_date = datetime.fromisoformat(end).date() if isinstance(end, str) else end
+    clock = await get_business_clock(db, user.tenant_id)
+    pay_week = parse_week_param(clock, week)
+    this_week = clock.pay_week()
+    s_date, e_date = pay_week.start, pay_week.end_exclusive
+    lo, hi = clock.week_utc_bounds(pay_week)
+    week_ctx = {
+        "clock": clock,
+        "pay_week": pay_week,
+        "this_week": this_week,
+        "is_this_week": pay_week == this_week,
+    }
 
     is_driver = getattr(user, "worker_type", None) == "Driver"
 
@@ -604,10 +608,9 @@ async def worker_timeclock_history(
 
         return templates.TemplateResponse("worker_timeclock.html", {
             "request": request,
+            **week_ctx,
             "is_driver": True,
             "completed_routes": completed_routes,
-            "start": start,
-            "end": end,
             "total_routes": len(completed_routes),
             "total_gross": round(total_gross, 2),
             "worker_name": getattr(user, "name", "Worker"),
@@ -620,8 +623,8 @@ async def worker_timeclock_history(
         .where(
             TimeEntry.tenant_id == user.tenant_id,
             TimeEntry.user_id == user.id,
-            TimeEntry.clock_in >= s_date,
-            TimeEntry.clock_in < e_date,
+            TimeEntry.clock_in >= lo,
+            TimeEntry.clock_in < hi,
         )
         .order_by(TimeEntry.clock_in.desc())
     )
@@ -634,10 +637,9 @@ async def worker_timeclock_history(
 
     return templates.TemplateResponse("worker_timeclock.html", {
         "request": request,
+        **week_ctx,
         "is_driver": False,
         "entries": entries,
-        "start": start,
-        "end": end,
         "total_hours": total_hours,
         "total_gross": round(total_gross, 2),
         "worker_name": getattr(user, "name", "Worker"),
