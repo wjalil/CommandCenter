@@ -1,0 +1,77 @@
+{# The Daily Manifest for one route — the same sheet on screen (View Manifest)
+   and on paper (its Print button, and the last page of the route print pack).
+   Expects: manifest, stops, route_code, service_date, driver_name, item_count,
+   confirmed_count. Styles: catering/_manifest_styles.html. #}
+<header class="dm-hero">
+  <div class="dm-hero-main">
+    <span class="dm-route-badge">{{ route_code }}</span>
+    <div>
+      <div class="dm-eyebrow">Daily Manifest</div>
+      <div class="dm-date">{{ service_date.strftime('%A, %B ') ~ service_date.day ~ service_date.strftime(', %Y') }}</div>
+    </div>
+  </div>
+  {% if manifest and stops %}
+  <dl class="dm-stats">
+    <div><dt>Driver</dt><dd>{{ driver_name or 'Unassigned' }}</dd></div>
+    <div><dt>Stops</dt><dd>{{ stops|length }}</dd></div>
+    <div><dt>Items</dt><dd>{{ item_count }}</dd></div>
+  </dl>
+  <div class="dm-progress dm-no-print">
+    <div class="dm-progress-bar"><span id="dmProgressFill" style="width: {{ (confirmed_count / item_count * 100) if item_count else 0 }}%;"></span></div>
+    <span class="dm-progress-text"><strong id="dmConfirmed">{{ confirmed_count }}</strong> of {{ item_count }} loaded</span>
+  </div>
+  {% endif %}
+</header>
+
+{% if not manifest or not stops %}
+<div class="dm-empty">
+  <div style="font-size:2rem;">📋</div>
+  <p class="text-muted mb-0">This route's manifest isn't released for this day.</p>
+</div>
+{% else %}
+<ol class="dm-stops">
+  {% for stop in stops %}
+  {% set program = stop.program %}
+  <li class="dm-stop">
+    <div class="dm-stop-num" title="Stop {{ loop.index }}">{{ loop.index }}</div>
+    <div class="dm-stop-body">
+      <div class="dm-stop-head">
+        <h4 class="dm-stop-name">{{ program.name if program else 'Unknown Program' }}</h4>
+        {% if stop.items %}<span class="dm-stop-count dm-no-print">{{ stop.items|length }} item{{ 's' if stop.items|length != 1 }}</span>{% endif %}
+      </div>
+      {% if program and (program.address or program.client_phone) %}
+      <div class="dm-stop-meta">
+        {% if program.address %}
+        <a href="https://www.google.com/maps/search/?api=1&query={{ program.address|replace('\n', ' ')|urlencode }}" target="_blank" rel="noopener" class="dm-address">📍 {{ program.address|replace('\n', ', ') }}</a>
+        {% endif %}
+        {% if program.client_phone %}
+        <a href="tel:{{ program.client_phone }}" class="dm-phone">📞 {{ program.client_phone }}</a>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if stop.special_instructions %}
+      <div class="dm-stop-note"><strong>Note:</strong> {{ stop.special_instructions }}</div>
+      {% endif %}
+      {% if stop.items %}
+      <ul class="dm-item-list">
+        {% for item in stop.items %}
+        <li class="dm-item {% if item.driver_confirmed %}dm-item-done{% endif %}" data-item-id="{{ item.id }}" onclick="dmToggleItem(this)">
+          <span class="dm-item-check">{% if item.driver_confirmed %}✓{% endif %}</span>
+          <span class="dm-item-label">{{ item.label }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="dm-no-items">No items for this stop.</div>
+      {% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+
+<footer class="dm-print-footer">
+  <span>Driver signature: ______________________</span>
+  <span>Time out: ________</span>
+  <span>Time back: ________</span>
+</footer>
+{% endif %}

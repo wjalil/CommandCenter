@@ -9,8 +9,10 @@ class CateringInvoice(Base):
     """Daily Delivery Invoice (DDI) for one program on one service date — no pricing.
 
     What was delivered lives in `lines`, frozen when the invoice is built, so later
-    menu edits never rewrite history. A draft is rebuilt freely; it locks
-    (status 'finalized') when its route's manifest is released."""
+    menu edits never rewrite history. A draft follows the kitchen until someone
+    edits it by hand (edited_at); it locks (status 'finalized') when its route's
+    manifest is released. Lines with meal_slot 'supplies' are one-off extras
+    (spoons, sporks...) billed separately — not meals."""
     __tablename__ = "catering_invoices"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -44,6 +46,10 @@ class CateringInvoice(Base):
 
     status = Column(String, default="draft", nullable=False)  # draft, finalized, sent
     finalized_at = Column(DateTime, nullable=True)
+    # Set when the meal lines were edited by hand: the draft stops following the
+    # kitchen until "Reset from kitchen" clears it.
+    edited_at = Column(DateTime, nullable=True)
+    edited_by_user_id = Column(String, nullable=True)
     pdf_filename = Column(String, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -77,7 +83,7 @@ class CateringInvoiceLine(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     invoice_id = Column(String, ForeignKey("catering_invoices.id", ondelete="CASCADE"), nullable=False)
-    meal_slot = Column(String, nullable=False)
+    meal_slot = Column(String, nullable=False)  # breakfast..pm_snack, or 'supplies' (portion_qty = quantity)
     is_vegan = Column(Boolean, default=False, nullable=False)
     meal_count = Column(Integer, nullable=False)
     component_type = Column(String, nullable=True)  # CACFP component, e.g. "Grain", "Milk"

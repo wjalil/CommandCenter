@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Invoices — {{ manifest.route_code }}{% endblock %}
+
+{% block content %}
+{% set active = 'production' %}
+{% include "catering/_nav.html" %}
+{% set released = manifest.status == 'released' %}
+{% set here = '/catering/production/manifest/' ~ manifest.id ~ '/invoices' %}
+
+<div class="ri-page" style="--ri-route: {{ route_color }};">
+
+<div class="ri-head">
+  <div class="ri-head-main">
+    <span class="ri-route-badge">{{ manifest.route_code }}</span>
+    <div>
+      <div class="ri-eyebrow">Delivery Invoices</div>
+      <div class="ri-date">{{ service_date.strftime('%A, %B ') ~ service_date.day ~ service_date.strftime(', %Y') }}</div>
+    </div>
+  </div>
+  <a href="/catering/production/manifest/builder?date_str={{ service_date.isoformat() }}" class="btn btn-outline-secondary btn-sm">&lsaquo; Manifest Builder</a>
+</div>
+
+<ol class="ri-steps">
+  <li class="done">Packaging</li>
+  <li class="done">Manifest</li>
+  <li class="{{ 'done' if released else 'current' }}">Invoices</li>
+  <li class="{{ 'done' if released else '' }}">Release</li>
+  <li class="{{ 'current' if released else '' }}">Print</li>
+</ol>
+
+<div class="ri-bar">
+  {% if released %}
+  <a href="/catering/production/manifest/{{ manifest.id }}/print-pack?autoprint=1" target="_blank" class="btn btn-primary">🖨️ Print Route Pack</a>
+  <span class="ri-bar-text">✓ Released{% if manifest.released_at %} {{ manifest.released_at.strftime('%H:%M') }}{% endif %} &mdash; invoices + manifest are locked. Prints {{ print_count }} CACFP invoice{{ 's' if print_count != 1 }} (last stop first) then the manifest.</span>
+  <span style="flex:1"></span>
+  <a href="/catering/production/manifest/driver/view/{{ manifest.route_code }}?date_str={{ service_date.isoformat() }}" target="_blank" class="btn btn-outline-primary btn-sm">👀 View Manifest</a>
+  <form action="/catering/production/manifest/{{ manifest.id }}/reopen?next={{ here|urlencode }}" method="POST">
+    <button type="submit" class="btn btn-outline-warning btn-sm">Reopen for Editing</button>
+  </form>
+  {% else %}
+  <form action="/catering/production/manifest/{{ manifest.id }}/release?next={{ here|urlencode }}" method="POST" id="riReleaseForm">
+    <button type="submit" class="btn btn-success">Release {{ manifest.route_code }} for Print</button>
+  </form>
+  <span class="ri-bar-text">Check each stop's invoice, add any supplies, then release &mdash; that locks the invoices and the manifest and sends the route to the driver.</span>
+  {% endif %}
+</div>
+
+{% for card in cards %}
+{% set inv = card.invoice %}
+<details class="ri-card" {% if not released %}open{% endif %}>
+  <summary class="ri-card-head">
+    <span class="ri-stop-num">{{ card.stop_no }}</span>
+    <span class="ri-stop-name">{{ card.program.name }}</span>
+    {% if card.program.cacfp_eligible %}<span class="ri-tag">CACFP</span>{% else %}<span class="ri-tag ri-tag-muted" title="Kept on record; the route pack prints CACFP invoices only unless you choose All">not printed</span>{% endif %}
+    {% if inv %}
+      <span class="ri-meta">{{ inv.invoice_number }} &middot; {{ card.page.total_meals }} meals{% if card.page.supplies %} &middot; {{ card.page.supplies|length }} suppl{{ 'ies' if card.page.supplies|length != 1 else 'y' }}{% endif %}</span>
+      {% if card.locked %}<span class="ri-status ri-locked">🔒 Locked</span>
+      {% elif inv.edited_at %}<span class="ri-status ri-edited" title="Edited by hand — Produce card / count / sub changes no longer flow in until you reset">✎ Edited {{ inv.edited_at.strftime('%H:%M') }}</span>
+      {% else %}<span class="ri-status ri-live" title="Follows the kitchen until you edit it">Live from kitchen</span>{% endif %}
+      <a href="/catering/invoices/{{ inv.id }}/view" target="_blank" class="ri-preview" onclick="event.stopPropagation()">Preview</a>
+    {% else %}
+      <span class="ri-meta">no menu today &mdash; no invoice</span>
+    {% endif %}
+  </summary>
+  {% if inv %}
+  <div class="ri-card-body">
+    {% if card.locked %}
+    <div class="ri-doc">
+      {% set page = card.page %}
+      {% include "catering/_ddi_page.html" %}
+    </div>
+    {% else %}
+    {% set page = card.page %}
+    {% include "catering/_invoice_editor.html" %}
+    {% endif %}
+  </div>
+  {% endif %}
+</details>
+{% else %}
+<div class="text-muted text-center py-5">No stops on this route today.</div>
+{% endfor %}
+
+</div>
+
+{% include "catering/_ddi_styles.html" %}
+{% include "catering/_invoice_editor_assets.html" %}
+
+<style>
+.ri-page { --ri-route: #2563EB; max-width: 980px; margin: 0 auto; }
+.ri-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+.ri-head-main { display: flex; align-items: center; gap: 0.8rem; }
+.ri-route-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 3rem; height: 3rem; padding: 0 0.6rem; border-radius: 12px; background: var(--ri-route); color: #fff; font-size: 1.25rem; font-weight: 800; }
+.ri-eyebrow { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ri-route); }
+.ri-date { font-size: 1.1rem; font-weight: 700; color: var(--text-primary, #0f172a); }
+
+.ri-steps { list-style: none; display: flex; gap: 0.35rem; padding: 0; margin: 0 0 0.9rem; flex-wrap: wrap; counter-reset: step; }
+.ri-steps li { counter-increment: step; font-size: 0.75rem; font-weight: 600; color: var(--text-muted, #94a3b8); padding: 0.25rem 0.7rem 0.25rem 0.35rem; border-radius: 999px; background: var(--bg, #f1f5f9); display: flex; align-items: center; gap: 0.35rem; }
+.ri-steps li::before { content: counter(step); display: inline-flex; align-items: center; justify-content: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: #cbd5e1; color: #fff; font-size: 0.68rem; }
+.ri-steps li.done { color: #059669; }
+.ri-steps li.done::before { content: "✓"; background: #10b981; }
+.ri-steps li.current { color: #fff; background: var(--ri-route); }
+.ri-steps li.current::before { background: rgba(255,255,255,0.3); }
+
+.ri-bar { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-left: 4px solid var(--ri-route); border-radius: 10px; padding: 0.7rem 0.9rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05)); }
+.ri-bar form { margin: 0; }
+.ri-bar-text { font-size: 0.8rem; color: var(--text-secondary, #64748b); flex: 1 1 260px; }
+
+.ri-card { background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 12px; margin-bottom: 0.8rem; box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05)); overflow: hidden; }
+.ri-card-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.7rem 0.9rem; cursor: pointer; list-style: none; }
+.ri-card-head::-webkit-details-marker { display: none; }
+.ri-card[open] .ri-card-head { border-bottom: 1px solid var(--border, #e2e8f0); }
+.ri-stop-num { width: 1.8rem; height: 1.8rem; border-radius: 50%; background: var(--ri-route); color: #fff; font-weight: 800; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; }
+.ri-stop-name { font-weight: 700; font-size: 1rem; color: var(--text-primary, #0f172a); }
+.ri-tag { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.1rem 0.45rem; border-radius: 5px; background: rgba(37,99,235,0.1); color: #1d4ed8; }
+.ri-tag-muted { background: var(--bg, #f1f5f9); color: var(--text-muted, #94a3b8); }
+.ri-meta { font-size: 0.8rem; color: var(--text-secondary, #64748b); }
+.ri-status { font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 999px; }
+.ri-live { background: rgba(16,185,129,0.12); color: #047857; }
+.ri-edited { background: rgba(245,158,11,0.15); color: #b45309; }
+.ri-locked { background: var(--bg, #f1f5f9); color: var(--text-secondary, #475569); }
+.ri-preview { margin-left: auto; font-size: 0.78rem; font-weight: 600; }
+.ri-card-body { padding: 0.8rem 0.9rem; background: var(--bg, #f8fafc); }
+.ri-doc { background: #fff; border: 1px solid #ddd; padding: 0.35in; max-width: 8.5in; margin: 0 auto; overflow-x: auto; }
+@media (max-width: 640px) {
+  .ri-preview { margin-left: 0; }
+  .ri-doc { padding: 12px; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const form = document.getElementById('riReleaseForm');
+  if (form) form.addEventListener('submit', function (e) {
+    const unsaved = window.ieUnsaved ? window.ieUnsaved() : 0;
+    if (unsaved && !confirm(unsaved + ' invoice(s) have unsaved changes that will be lost. Release anyway?')) { e.preventDefault(); return; }
+    if (!unsaved && !confirm('Release {{ manifest.route_code }}? This locks every invoice and the manifest on this route and sends it to the driver.')) { e.preventDefault(); return; }
+    document.querySelectorAll('.ie[data-dirty]').forEach(function (ie) { delete ie.dataset.dirty; });
+  });
+  // After a save the card's status pill reflects the new state
+  document.addEventListener('ie:saved', function (e) {
+    const card = e.detail.editor.closest('.ri-card');
+    const pill = card && card.querySelector('.ri-status');
+    if (pill && e.detail.data.edited) { pill.className = 'ri-status ri-edited'; pill.textContent = '✎ Edited'; }
+  });
+})();
+</script>
+{% endblock %}

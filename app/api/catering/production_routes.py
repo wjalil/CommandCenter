@@ -34,9 +34,9 @@ from app.models.catering import (
     DailyManifestItem,
     CateringDailyCount,
     CateringSubstitution,
+    CateringInvoice,
 )
 from app.models.catering.food_component import FoodComponent
-from app.models.catering.cacfp_rules import CACFPComponentType
 from app.crud.catering import daily_count as daily_count_crud
 from app.services.catering import day_menu, ddi
 from app.services.catering.delivery_link import (
@@ -205,17 +205,8 @@ def _packaging_components(menu_day, slot: str, slots_required: list, produce_set
 
 
 async def _produce_names(db: AsyncSession, tenant_id: int) -> list:
-    """Food components whose CACFP type contains "fruit"."""
-    result = await db.execute(
-        select(FoodComponent.name)
-        .join(FoodComponent.component_type)
-        .where(
-            FoodComponent.tenant_id == tenant_id,
-            CACFPComponentType.name.ilike("%fruit%"),
-        )
-        .order_by(FoodComponent.name)
-    )
-    return [row[0] for row in result.all()]
+    """Food components whose CACFP type contains "fruit" (same list the DDI uses)."""
+    return await ddi.produce_names(db, tenant_id)
 
 
 async def _build_production_data(db: AsyncSession, tenant_id: int, service_date: date):
@@ -1613,14 +1604,7 @@ async def invoice_day_pack(
         meals = ddi.invoice_meals(invoice)
         if any(l["item_name"] == "Seasonal Fruit" for m in meals for l in m["lines"]):
             warnings.append(f"{program.name}: fruit type not picked on the Produce card — prints as \"Seasonal Fruit\".")
-        pages.append({
-            "invoice": invoice,
-            "meals": meals,
-            "total_meals": sum(m["meal_count"] for m in meals),
-            "route": program_route,
-            "stop_no": stop_numbers[program_route],
-            "is_draft": not ddi.is_locked(invoice),
-        })
+        pages.append(_ddi_page(invoice, program_route, stop_numbers[program_route]))
 
     context = {
         "request": request,
@@ -1873,10 +1857,19 @@ async def manifest_save_instructions(
     return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
 
 
+def _back_to(next_url: Optional[str], date_str: str) -> str:
+    """Where a release/reopen goes afterwards: the page that asked (same-site
+    catering paths only), else the Manifest Builder."""
+    if next_url and next_url.startswith("/catering/") and "//" not in next_url:
+        return next_url
+    return f"/catering/production/manifest/builder?date_str={date_str}"
+
+
 @router.post("/production/manifest/{manifest_id}/release")
 async def manifest_release(
     request: Request,
     manifest_id: str,
+    next: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
@@ -1899,13 +1892,14 @@ async def manifest_release(
         # The paperwork rides with the food: freeze this route's Daily Delivery Invoices
         await ddi.finalize_for_programs(db, tenant_id, await _manifest_programs(db, manifest.id), manifest.service_date)
 
-    return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
+    return RedirectResponse(url=_back_to(next, date_str), status_code=303)
 
 
 @router.post("/production/manifest/{manifest_id}/reopen")
 async def manifest_reopen(
     request: Request,
     manifest_id: str,
+    next: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
@@ -1926,7 +1920,220 @@ async def manifest_reopen(
         programs = await _manifest_programs(db, manifest.id)
         await ddi.reopen_for_programs(db, [p.id for p in programs], manifest.service_date)
 
-    return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
+    return RedirectResponse(url=_back_to(next, date_str), status_code=303)
+
+
+# ==================== ROUTE INVOICES (admin) ====================
+# Flow per route: Packaging -> Manifest Builder -> Invoices (pre-filled from the
+# kitchen, editable, + supplies) -> Release (locks both) -> one Print for the pack.
+
+async def _load_manifest(db: AsyncSession, tenant_id: int, manifest_id: str) -> Optional[DailyManifest]:
+    result = await db.execute(
+        select(DailyManifest)
+        .where(DailyManifest.id == manifest_id, DailyManifest.tenant_id == tenant_id)
+        .options(
+            selectinload(DailyManifest.stops).selectinload(DailyManifestStop.program),
+            selectinload(DailyManifest.stops).selectinload(DailyManifestStop.items),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def _route_invoices(db: AsyncSession, tenant_id: int, manifest: DailyManifest) -> list:
+    """[(stop, invoice or None)] for a route in driving order — each invoice
+    current (drafts that follow the kitchen are rebuilt; released routes locked)."""
+    stops = [s for s in _stops_in_order(manifest.stops) if s.program]
+    programs = [s.program for s in stops]
+    if manifest.status == "released":
+        locked = await ddi.locked_program_ids(db, [p.id for p in programs], manifest.service_date)
+        pending = [p for p in programs if p.id not in locked]
+        if pending:
+            await ddi.finalize_for_programs(db, tenant_id, pending, manifest.service_date)
+    built = await ddi.build_for_programs(db, tenant_id, programs, manifest.service_date)
+    out = []
+    for stop in stops:
+        invoice = built.get(stop.program.id)
+        if invoice is not None:
+            invoice = await ddi.ensure_lines(db, invoice)
+        out.append((stop, invoice))
+    return out
+
+
+def _ddi_page(invoice, route: Optional[str] = None, stop_no: Optional[int] = None) -> dict:
+    meals = ddi.invoice_meals(invoice)
+    return {
+        "invoice": invoice,
+        "meals": meals,
+        "supplies": ddi.invoice_supplies(invoice),
+        "total_meals": sum(m["meal_count"] for m in meals),
+        "route": route,
+        "stop_no": stop_no,
+        "is_draft": not ddi.is_locked(invoice),
+    }
+
+
+@router.get("/production/manifest/{manifest_id}/invoices")
+async def route_invoices(
+    request: Request,
+    manifest_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Step 2 of a route's paperwork: every stop's Daily Delivery Invoice, pre-filled
+    from the kitchen and editable line by line, plus one-off supplies. Release and
+    Print live here too."""
+    tenant_id = request.state.tenant_id
+    manifest = await _load_manifest(db, tenant_id, manifest_id)
+    if not manifest:
+        return RedirectResponse(url="/catering/production/manifest/builder", status_code=303)
+
+    cards = []
+    for stop_no, (stop, invoice) in enumerate(await _route_invoices(db, tenant_id, manifest), start=1):
+        cards.append({
+            "stop": stop,
+            "stop_no": stop_no,
+            "program": stop.program,
+            "invoice": invoice,
+            "page": _ddi_page(invoice, manifest.route_code, stop_no) if invoice else None,
+            "locked": ddi.is_locked(invoice),
+        })
+
+    return templates.TemplateResponse("catering/route_invoices.html", {
+        "request": request,
+        "manifest": manifest,
+        "service_date": manifest.service_date,
+        "route_color": _route_color(manifest.route_code),
+        "cards": cards,
+        "vendor": ddi.VENDOR,
+        "slot_names": ddi.SLOT_NAMES,
+        "slot_order": ddi.DDI_SLOT_ORDER,
+        "print_count": sum(1 for c in cards if c["invoice"] and c["program"].cacfp_eligible),
+    })
+
+
+async def _invoice_for_edit(db: AsyncSession, tenant_id: int, invoice_id: str):
+    result = await db.execute(
+        select(CateringInvoice)
+        .where(CateringInvoice.id == invoice_id, CateringInvoice.tenant_id == tenant_id)
+        .options(selectinload(CateringInvoice.lines), selectinload(CateringInvoice.program))
+    )
+    return result.scalar_one_or_none()
+
+
+async def _sync_supplies_to_manifest(db: AsyncSession, tenant_id: int, invoice) -> None:
+    """Supplies added on the invoice show on the stop's manifest so the driver loads them."""
+    labels = [ddi.supply_label(item) for item in ddi.invoice_supplies(invoice)]
+    await _sync_manifest_supply(db, tenant_id, invoice.program_id, invoice.service_date, ddi.SUPPLY_SLOT, labels)
+
+
+@router.post("/production/invoice/{invoice_id}/save")
+async def route_invoice_save(
+    request: Request,
+    invoice_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Save the invoice editor. Body: {meals: [...], supplies: [...]} (see ddi.apply_edits)."""
+    tenant_id = request.state.tenant_id
+    invoice = await _invoice_for_edit(db, tenant_id, invoice_id)
+    if not invoice:
+        return JSONResponse({"error": "Invoice not found"}, status_code=404)
+    body = await request.json()
+    try:
+        changed = ddi.apply_edits(invoice, body.get("meals") or [], body.get("supplies") or [], user.id)
+    except ddi.InvoiceEditError as e:
+        status = 409 if ddi.is_locked(invoice) else 400
+        return JSONResponse({"error": str(e)}, status_code=status)
+    await db.commit()
+    await _sync_supplies_to_manifest(db, tenant_id, invoice)
+    return JSONResponse({
+        "ok": True,
+        "meals_changed": changed,
+        "edited": invoice.edited_at is not None,
+        "total_meals": ddi.total_meals(invoice),
+    })
+
+
+@router.post("/production/invoice/{invoice_id}/reset")
+async def route_invoice_reset(
+    request: Request,
+    invoice_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Drop hand edits to the meals and rebuild from the kitchen (supplies stay)."""
+    tenant_id = request.state.tenant_id
+    invoice = await _invoice_for_edit(db, tenant_id, invoice_id)
+    if not invoice:
+        return JSONResponse({"error": "Invoice not found"}, status_code=404)
+    if ddi.is_locked(invoice):
+        return JSONResponse({"error": "This invoice is locked — reopen the route to change it."}, status_code=409)
+    await ddi.reset_from_kitchen(db, invoice)
+    return JSONResponse({"ok": True})
+
+
+async def _manifest_sheet(db: AsyncSession, manifest: Optional[DailyManifest]) -> dict:
+    """Context for the printed Daily Manifest sheet (catering/_manifest_sheet.html)."""
+    stops, driver_name = [], None
+    if manifest:
+        stops = _stops_in_order(manifest.stops)
+        delivery_route = await delivery_route_for_manifest(db, manifest.id)
+        if delivery_route and delivery_route.assigned_driver_id:
+            driver = await db.get(User, delivery_route.assigned_driver_id)
+            driver_name = driver.name if driver else None
+    return {
+        "manifest": manifest,
+        "stops": stops,
+        "driver_name": driver_name,
+        "item_count": sum(len(s.items) for s in stops),
+        "confirmed_count": sum(1 for s in stops for i in s.items if i.driver_confirmed),
+    }
+
+
+@router.get("/production/manifest/{manifest_id}/print-pack")
+async def route_print_pack(
+    request: Request,
+    manifest_id: str,
+    scope: str = "cacfp",
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """One print job for a route: the stop invoices last-to-first, then the manifest
+    — so the face-up stack comes off the printer as manifest, stop 1, stop 2, ...
+    ready to staple. scope=cacfp (default) prints CACFP invoices only; scope=all
+    prints every stop's invoice."""
+    tenant_id = request.state.tenant_id
+    manifest = await _load_manifest(db, tenant_id, manifest_id)
+    if not manifest:
+        return RedirectResponse(url="/catering/production/manifest/builder", status_code=303)
+
+    pages, warnings = [], []
+    for stop_no, (stop, invoice) in enumerate(await _route_invoices(db, tenant_id, manifest), start=1):
+        if scope != "all" and not stop.program.cacfp_eligible:
+            continue
+        if invoice is None:
+            warnings.append(f"Stop {stop_no} {stop.program.name}: no menu for this day — no invoice.")
+            continue
+        page = _ddi_page(invoice, manifest.route_code, stop_no)
+        if any(l["item_name"] == "Seasonal Fruit" for m in page["meals"] for l in m["lines"]):
+            warnings.append(f"Stop {stop_no} {stop.program.name}: fruit type not picked on the Produce card — prints as \"Seasonal Fruit\".")
+        pages.append(page)
+    if manifest.status != "released":
+        warnings.insert(0, f"Route {manifest.route_code} isn't released yet — invoices print as DRAFT.")
+
+    context = {
+        "request": request,
+        "service_date": manifest.service_date,
+        "route_code": manifest.route_code,
+        "route_color": _route_color(manifest.route_code),
+        "pages": list(reversed(pages)),
+        "warnings": warnings,
+        "vendor": ddi.VENDOR,
+        "scope": scope,
+        "autoprint": request.query_params.get("autoprint") == "1",
+    }
+    context.update(await _manifest_sheet(db, manifest))
+    return templates.TemplateResponse("catering/route_print_pack.html", context)
 
 
 # ==================== ROUTE BOARD (admin) ====================
@@ -2185,28 +2392,17 @@ async def driver_manifest_detail(
     if delivery_route and user.role == "worker":
         return RedirectResponse(url=f"/delivery/driver/route/{delivery_route.id}", status_code=303)
 
-    stops = []
-    driver_name = None
-    if manifest:
-        stops = _stops_in_order(manifest.stops)
-        if delivery_route and delivery_route.assigned_driver_id:
-            driver = await db.get(User, delivery_route.assigned_driver_id)
-            driver_name = driver.name if driver else None
-
     base_template = "worker_base.html" if user.role == "worker" else "base.html"
 
-    return templates.TemplateResponse("catering/production_manifest_driver.html", {
+    context = {
         "request": request,
         "base_template": base_template,
         "route_code": route_code,
         "route_color": _route_color(route_code),
         "service_date": service_date,
-        "manifest": manifest,
-        "stops": stops,
-        "driver_name": driver_name,
-        "item_count": sum(len(s.items) for s in stops),
-        "confirmed_count": sum(1 for s in stops for i in s.items if i.driver_confirmed),
-    })
+    }
+    context.update(await _manifest_sheet(db, manifest))
+    return templates.TemplateResponse("catering/production_manifest_driver.html", context)
 
 
 @router.post("/production/manifest/item/{item_id}/confirm")

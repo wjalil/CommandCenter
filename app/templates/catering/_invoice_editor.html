@@ -1,0 +1,80 @@
+{# Editable Daily Delivery Invoice (draft only). Expects `page` (see _ddi_page),
+   `slot_names`, `slot_order`. Needs catering/_invoice_editor_assets.html once per page. #}
+{% set inv = page.invoice %}
+{% set units = ['oz', 'fl oz', 'cup', 'lb', 'ea', 'servings'] %}
+<div class="ie" data-invoice-id="{{ inv.id }}">
+  {% for meal in page.meals %}
+  <div class="ie-meal" data-slot="{{ meal.slot }}" data-vegan="{{ 1 if meal.is_vegan else 0 }}">
+    <div class="ie-meal-head">
+      <span class="ie-meal-name">{{ meal.label }}</span>
+      <label class="ie-count-label">Meals served <input type="number" class="ie-count" min="0" step="1" value="{{ meal.meal_count }}"></label>
+      <button type="button" class="ie-link ie-remove-meal" title="This meal wasn't delivered">Remove meal</button>
+    </div>
+    <table class="ie-lines">
+      <thead><tr><th class="ie-c-type">Component</th><th>Food item</th><th class="ie-c-qty">Portion</th><th class="ie-c-unit">Unit</th><th class="ie-c-del"></th></tr></thead>
+      <tbody>
+        {% for line in meal.lines %}
+        <tr class="ie-line" data-auto="{{ 1 if line.is_auto else 0 }}" data-sub-for="{{ line.substituted_for or '' }}" data-sub-reason="{{ line.reason or '' }}">
+          <td><input class="ie-type" list="ie-types" value="{{ line.component_type }}" placeholder="Component"></td>
+          <td>
+            <input class="ie-name" value="{{ line.item_name }}" placeholder="Food item" maxlength="200">
+            {% if line.substituted_for %}<div class="ie-sub-note">replaces {{ line.substituted_for }}{% if line.reason %} &mdash; {{ line.reason }}{% endif %}</div>{% endif %}
+          </td>
+          <td><input class="ie-qty" type="number" min="0" step="0.01" value="{{ line.portion_qty if line.portion_qty is not none else '' }}"></td>
+          <td>
+            <select class="ie-unit">
+              {% for u in units %}<option value="{{ u }}" {% if u == line.portion_unit %}selected{% endif %}>{{ u }}</option>{% endfor %}
+              {% if line.portion_unit and line.portion_unit not in units %}<option value="{{ line.portion_unit }}" selected>{{ line.portion_unit }}</option>{% endif %}
+            </select>
+          </td>
+          <td><button type="button" class="ie-del" title="Remove line">&times;</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="button" class="ie-link ie-add-line">+ Add line</button>
+  </div>
+  {% endfor %}
+
+  <div class="ie-add-meal">
+    <select class="ie-new-meal">
+      <option value="">+ Add a meal&hellip;</option>
+      {% for slot in slot_order %}
+      <option value="{{ slot }}|0">{{ slot_names[slot] }}</option>
+      <option value="{{ slot }}|1">{{ slot_names[slot] }} (Vegan)</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="ie-supplies">
+    <div class="ie-supplies-head">
+      <span class="ie-meal-name">Supplies</span>
+      <span class="ie-hint">One-offs on request &mdash; billed separately, also added to the driver's manifest</span>
+    </div>
+    <div class="ie-chips">
+      {% for name in ['Spoons', 'Sporks', 'Forks', 'Knives', 'Napkins', 'Plates', 'Bowls', 'Cups', 'Gloves', 'Serving utensils'] %}
+      <button type="button" class="ie-chip" data-name="{{ name }}">+ {{ name }}</button>
+      {% endfor %}
+    </div>
+    <table class="ie-lines ie-supply-table">
+      <tbody>
+        {% for item in page.supplies %}
+        <tr class="ie-supply">
+          <td><input class="ie-supply-name" value="{{ item.item_name }}" maxlength="200" placeholder="Item"></td>
+          <td class="ie-c-qty"><input class="ie-supply-qty" type="number" min="1" step="1" value="{{ item.qty }}"></td>
+          <td class="ie-c-del"><button type="button" class="ie-del" title="Remove">&times;</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="button" class="ie-link ie-add-supply">+ Other supply</button>
+  </div>
+
+  <div class="ie-actions">
+    <button type="button" class="ie-save" disabled>Save invoice</button>
+    {% if inv.edited_at %}
+    <button type="button" class="ie-reset" title="Throw away hand edits to the meals and reload them from the kitchen (Produce card, counts, subs). Supplies stay.">Reset meals from kitchen</button>
+    {% endif %}
+    <span class="ie-status" aria-live="polite"></span>
+  </div>
+</div>

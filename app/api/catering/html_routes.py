@@ -29,6 +29,7 @@ from app.models.catering import (
     CateringMenuDay,
     MenuDayComponent,
     CateringInvoice,
+    CateringInvoiceLine,
     FoodComponent,
     CACFPAgeGroup
 )
@@ -1629,12 +1630,15 @@ def _slot_has_component_type(components, type_name: str) -> bool:
 
 
 async def _invoice_page(db: AsyncSession, invoice) -> dict:
-    """The one-page Daily Delivery Invoice context for a single invoice."""
-    invoice = await ddi.ensure_lines(db, invoice)
+    """The one-page Daily Delivery Invoice context for a single invoice — a draft
+    that follows the kitchen is rebuilt first, so it shows today's Produce card,
+    counts and subs."""
+    invoice = await ddi.refresh(db, invoice)
     meals = ddi.invoice_meals(invoice)
     return {
         "invoice": invoice,
         "meals": meals,
+        "supplies": ddi.invoice_supplies(invoice),
         "total_meals": sum(m["meal_count"] for m in meals),
         "route": None,
         "stop_no": None,
@@ -1658,6 +1662,19 @@ async def _generate_invoice_pdf_bytes(request: Request, db: AsyncSession, invoic
     return pdf_buffer.getvalue()
 
 
+def _served_counts(invoice) -> dict:
+    """{slot: (meals served incl. vegan, vegan)} as recorded on the invoice — the
+    headcount the client is billed for (hand edits included)."""
+    out = {}
+    for slot in ddi.DDI_SLOT_ORDER:
+        regular = getattr(invoice, f"{slot}_count", None)
+        vegan = getattr(invoice, f"{slot}_vegan_count", 0) or 0
+        if regular is None and not vegan:
+            continue
+        out[slot] = ((regular or 0) + vegan, vegan)
+    return out
+
+
 @router.get("/invoices")
 async def invoices_list(
     request: Request,
@@ -1667,6 +1684,16 @@ async def invoices_list(
     """List invoices grouped by program, then by month"""
     tenant_id = request.state.tenant_id
     invoices = await invoice_crud.get_invoices(db, tenant_id)
+
+    # Supplies are billed separately — totalled per invoice for the month view
+    supply_rows = await db.execute(
+        select(CateringInvoiceLine.invoice_id, CateringInvoiceLine.item_name, CateringInvoiceLine.portion_qty)
+        .join(CateringInvoice, CateringInvoiceLine.invoice_id == CateringInvoice.id)
+        .where(CateringInvoice.tenant_id == tenant_id, CateringInvoiceLine.meal_slot == ddi.SUPPLY_SLOT)
+    )
+    supplies_by_invoice: dict = defaultdict(list)
+    for invoice_id, name, qty in supply_rows.all():
+        supplies_by_invoice[invoice_id].append((name, int(qty or 0)))
 
     # Group by program, then by (year, month)
     by_program: dict = defaultdict(lambda: defaultdict(list))
@@ -1678,17 +1705,35 @@ async def invoices_list(
     for program, months_dict in sorted(by_program.items(), key=lambda x: x[0].name):
         months = []
         for (year, month), month_invoices in sorted(months_dict.items(), reverse=True):
+            served = [_served_counts(inv) for inv in month_invoices]
+            month_totals: dict = defaultdict(lambda: [0, 0])
+            month_supplies: dict = defaultdict(int)
+            for inv, counts in zip(month_invoices, served):
+                for slot, (total, vegan) in counts.items():
+                    month_totals[slot][0] += total
+                    month_totals[slot][1] += vegan
+                for name, qty in supplies_by_invoice.get(inv.id, []):
+                    month_supplies[name] += qty
             months.append({
                 "label": date(year, month, 1).strftime("%B %Y"),
                 "month": month,
                 "year": year,
                 "invoices": sorted(month_invoices, key=lambda i: i.service_date),
+                "served": {inv.id: counts for inv, counts in zip(month_invoices, served)},
+                "totals": [
+                    (ddi.SLOT_NAMES[slot], month_totals[slot][0], month_totals[slot][1])
+                    for slot in ddi.DDI_SLOT_ORDER if slot in month_totals
+                ],
+                "total_meals": sum(t[0] for t in month_totals.values()),
+                "supplies": sorted(month_supplies.items()),
             })
         programs_with_months.append((program, months))
 
     return templates.TemplateResponse("catering/invoices_list.html", {
         "request": request,
         "programs_with_months": programs_with_months,
+        "slot_names": ddi.SLOT_NAMES,
+        "supplies_by_invoice": supplies_by_invoice,
     })
 
 
@@ -1751,6 +1796,8 @@ async def view_invoice(
         "page": page,
         "vendor": ddi.VENDOR,
         "is_locked": ddi.is_locked(page["invoice"]),
+        "slot_names": ddi.SLOT_NAMES,
+        "slot_order": ddi.DDI_SLOT_ORDER,
     })
 
 

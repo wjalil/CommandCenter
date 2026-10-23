@@ -1,0 +1,220 @@
+{# Styles + script for catering/_invoice_editor.html — include once per page. #}
+<datalist id="ie-types">
+  <option value="Milk"><option value="Meat/Meat Alternate"><option value="Grain">
+  <option value="Vegetable"><option value="Fruit"><option value="Juice"><option value="Other">
+</datalist>
+
+<template id="ie-line-tpl">
+  <tr class="ie-line" data-auto="0" data-sub-for="" data-sub-reason="">
+    <td><input class="ie-type" list="ie-types" placeholder="Component"></td>
+    <td><input class="ie-name" placeholder="Food item" maxlength="200"></td>
+    <td><input class="ie-qty" type="number" min="0" step="0.01"></td>
+    <td><select class="ie-unit"><option>oz</option><option>fl oz</option><option>cup</option><option>lb</option><option>ea</option><option>servings</option></select></td>
+    <td><button type="button" class="ie-del" title="Remove line">&times;</button></td>
+  </tr>
+</template>
+
+<template id="ie-supply-tpl">
+  <tr class="ie-supply">
+    <td><input class="ie-supply-name" maxlength="200" placeholder="Item"></td>
+    <td class="ie-c-qty"><input class="ie-supply-qty" type="number" min="1" step="1" value="1"></td>
+    <td class="ie-c-del"><button type="button" class="ie-del" title="Remove">&times;</button></td>
+  </tr>
+</template>
+
+<template id="ie-meal-tpl">
+  <div class="ie-meal" data-slot="" data-vegan="0">
+    <div class="ie-meal-head">
+      <span class="ie-meal-name"></span>
+      <label class="ie-count-label">Meals served <input type="number" class="ie-count" min="0" step="1" value="0"></label>
+      <button type="button" class="ie-link ie-remove-meal">Remove meal</button>
+    </div>
+    <table class="ie-lines">
+      <thead><tr><th class="ie-c-type">Component</th><th>Food item</th><th class="ie-c-qty">Portion</th><th class="ie-c-unit">Unit</th><th class="ie-c-del"></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button type="button" class="ie-link ie-add-line">+ Add line</button>
+  </div>
+</template>
+
+<style>
+.ie { font-size: 0.86rem; }
+.ie input, .ie select { font: inherit; width: 100%; box-sizing: border-box; padding: 0.3rem 0.45rem; border: 1px solid var(--border, #d6dbe3); border-radius: 6px; background: var(--surface, #fff); color: var(--text-primary, #0f172a); }
+.ie input:focus, .ie select:focus { outline: 2px solid rgba(37,99,235,0.25); border-color: #2563eb; }
+.ie-meal, .ie-supplies { border: 1px solid var(--border, #e2e8f0); border-radius: 10px; padding: 0.6rem 0.75rem; margin-bottom: 0.6rem; background: var(--surface, #fff); }
+.ie-meal-head, .ie-supplies-head { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.ie-meal-name { font-weight: 700; font-size: 0.92rem; color: var(--text-primary, #0f172a); }
+.ie-count-label { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary, #64748b); }
+.ie-count-label input { width: 5.2rem; font-weight: 700; }
+.ie-hint { font-size: 0.75rem; color: var(--text-muted, #94a3b8); }
+.ie-lines { width: 100%; border-collapse: separate; border-spacing: 0 0.25rem; }
+.ie-lines th { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted, #94a3b8); text-align: left; padding: 0 0.25rem; }
+.ie-lines td { padding: 0 0.25rem; vertical-align: top; }
+.ie-c-type { width: 22%; } .ie-c-qty { width: 6.5rem; } .ie-c-unit { width: 6.5rem; } .ie-c-del { width: 2rem; }
+.ie-sub-note { font-size: 0.72rem; color: #b45309; margin-top: 0.1rem; }
+.ie-del { border: none; background: none; color: var(--text-muted, #94a3b8); font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 0.25rem; }
+.ie-del:hover { color: #dc2626; }
+.ie-link { border: none; background: none; padding: 0.15rem 0; font-size: 0.78rem; font-weight: 600; color: #2563eb; cursor: pointer; }
+.ie-link:hover { text-decoration: underline; }
+.ie-remove-meal { margin-left: auto; color: var(--text-muted, #94a3b8); }
+.ie-remove-meal:hover { color: #dc2626; }
+.ie-add-meal { margin-bottom: 0.6rem; }
+.ie-add-meal select { width: auto; color: #2563eb; font-weight: 600; }
+.ie-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.4rem; }
+.ie-chip { border: 1px solid var(--border, #d6dbe3); background: var(--bg, #f8fafc); border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary, #475569); cursor: pointer; }
+.ie-chip:hover { border-color: #2563eb; color: #2563eb; }
+.ie-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.ie-save { border: none; border-radius: 8px; padding: 0.45rem 1rem; font-weight: 700; background: #2563eb; color: #fff; cursor: pointer; }
+.ie-save:disabled { background: #cbd5e1; cursor: default; }
+.ie-reset { border: 1px solid var(--border, #d6dbe3); border-radius: 8px; padding: 0.4rem 0.8rem; background: var(--surface, #fff); font-weight: 600; font-size: 0.8rem; color: #b45309; cursor: pointer; }
+.ie-status { font-size: 0.8rem; color: var(--text-secondary, #64748b); }
+.ie-status.ie-err { color: #dc2626; font-weight: 600; }
+.ie-status.ie-dirty { color: #b45309; font-weight: 600; }
+@media (max-width: 640px) {
+  .ie-lines thead { display: none; }
+  .ie-lines tr.ie-line { display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.25rem; padding: 0.35rem 0; border-bottom: 1px dashed var(--border, #e2e8f0); }
+  .ie-lines tr.ie-line td:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
+  .ie-c-qty, .ie-c-unit { width: auto; }
+}
+</style>
+
+<script>
+(function () {
+  const SLOT_NAMES = {{ slot_names|tojson }};
+
+  function editorOf(el) { return el.closest('.ie'); }
+
+  function markDirty(ie) {
+    ie.dataset.dirty = '1';
+    ie.querySelector('.ie-save').disabled = false;
+    const status = ie.querySelector('.ie-status');
+    status.textContent = 'Unsaved changes';
+    status.className = 'ie-status ie-dirty';
+  }
+
+  function collect(ie) {
+    const meals = [...ie.querySelectorAll('.ie-meal')].map(function (m) {
+      return {
+        slot: m.dataset.slot,
+        is_vegan: m.dataset.vegan === '1',
+        meal_count: m.querySelector('.ie-count').value,
+        lines: [...m.querySelectorAll('.ie-line')].map(function (tr) {
+          return {
+            component_type: tr.querySelector('.ie-type').value,
+            item_name: tr.querySelector('.ie-name').value,
+            portion_qty: tr.querySelector('.ie-qty').value,
+            portion_unit: tr.querySelector('.ie-unit').value,
+            substituted_for: tr.dataset.subFor,
+            substitution_reason: tr.dataset.subReason,
+            is_auto: tr.dataset.auto === '1',
+          };
+        }),
+      };
+    });
+    const supplies = [...ie.querySelectorAll('.ie-supply')].map(function (tr) {
+      return { item_name: tr.querySelector('.ie-supply-name').value, qty: tr.querySelector('.ie-supply-qty').value };
+    });
+    return { meals: meals, supplies: supplies };
+  }
+
+  async function save(ie) {
+    const status = ie.querySelector('.ie-status');
+    const btn = ie.querySelector('.ie-save');
+    btn.disabled = true;
+    status.textContent = 'Saving…';
+    status.className = 'ie-status';
+    try {
+      const resp = await fetch('/catering/production/invoice/' + ie.dataset.invoiceId + '/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collect(ie)),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Save failed');
+      delete ie.dataset.dirty;
+      status.textContent = '✓ Saved · ' + data.total_meals + ' meals';
+      document.dispatchEvent(new CustomEvent('ie:saved', { detail: { editor: ie, data: data } }));
+    } catch (e) {
+      btn.disabled = false;
+      status.textContent = e.message;
+      status.className = 'ie-status ie-err';
+    }
+  }
+
+  async function reset(ie) {
+    if (!confirm('Throw away the hand edits to the meals and reload them from the kitchen? Supplies stay.')) return;
+    const resp = await fetch('/catering/production/invoice/' + ie.dataset.invoiceId + '/reset', { method: 'POST' });
+    if (resp.ok) { delete ie.dataset.dirty; location.reload(); }
+    else {
+      const data = await resp.json().catch(function () { return {}; });
+      alert(data.error || 'Reset failed');
+    }
+  }
+
+  function addSupply(ie, name) {
+    const tbody = ie.querySelector('.ie-supply-table tbody');
+    const existing = name && [...tbody.querySelectorAll('.ie-supply-name')].find(function (i) { return i.value.trim().toLowerCase() === name.toLowerCase(); });
+    const row = existing ? existing.closest('tr') : document.getElementById('ie-supply-tpl').content.firstElementChild.cloneNode(true);
+    if (!existing) {
+      if (name) row.querySelector('.ie-supply-name').value = name;
+      tbody.appendChild(row);
+    }
+    const target = name ? row.querySelector('.ie-supply-qty') : row.querySelector('.ie-supply-name');
+    target.focus();
+    target.select();
+    markDirty(ie);
+  }
+
+  function addLine(meal) {
+    const row = document.getElementById('ie-line-tpl').content.firstElementChild.cloneNode(true);
+    meal.querySelector('tbody').appendChild(row);
+    row.querySelector('.ie-name').focus();
+  }
+
+  function addMeal(ie, value) {
+    const [slot, vegan] = value.split('|');
+    const existing = ie.querySelector('.ie-meal[data-slot="' + slot + '"][data-vegan="' + vegan + '"]');
+    if (existing) { existing.querySelector('.ie-count').focus(); return; }
+    const meal = document.getElementById('ie-meal-tpl').content.firstElementChild.cloneNode(true);
+    meal.dataset.slot = slot;
+    meal.dataset.vegan = vegan;
+    meal.querySelector('.ie-meal-name').textContent = SLOT_NAMES[slot] + (vegan === '1' ? ' (Vegan)' : '');
+    ie.querySelector('.ie-add-meal').before(meal);
+    addLine(meal);
+    meal.querySelector('.ie-count').focus();
+    markDirty(ie);
+  }
+
+  document.addEventListener('input', function (e) {
+    const ie = e.target.closest && e.target.closest('.ie');
+    if (ie && !e.target.classList.contains('ie-new-meal')) markDirty(ie);
+  });
+
+  document.addEventListener('change', function (e) {
+    if (e.target.classList && e.target.classList.contains('ie-new-meal') && e.target.value) {
+      addMeal(editorOf(e.target), e.target.value);
+      e.target.value = '';
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+    if (!t.closest) return;
+    const ie = t.closest('.ie');
+    if (!ie) return;
+    if (t.closest('.ie-save')) save(ie);
+    else if (t.closest('.ie-reset')) reset(ie);
+    else if (t.closest('.ie-del')) { t.closest('tr').remove(); markDirty(ie); }
+    else if (t.closest('.ie-add-line')) { addLine(t.closest('.ie-meal')); markDirty(ie); }
+    else if (t.closest('.ie-remove-meal')) {
+      const meal = t.closest('.ie-meal');
+      if (confirm('Remove ' + meal.querySelector('.ie-meal-name').textContent + ' from this invoice?')) { meal.remove(); markDirty(ie); }
+    }
+    else if (t.closest('.ie-chip')) addSupply(ie, t.closest('.ie-chip').dataset.name);
+    else if (t.closest('.ie-add-supply')) addSupply(ie, '');
+  });
+
+  window.ieUnsaved = function () { return document.querySelectorAll('.ie[data-dirty]').length; };
+  window.addEventListener('beforeunload', function (e) {
+    if (window.ieUnsaved()) { e.preventDefault(); e.returnValue = ''; }
+  });
+})();
+</script>

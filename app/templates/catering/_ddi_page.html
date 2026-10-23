@@ -1,5 +1,5 @@
 {# One Daily Delivery Invoice page (NYS DOH CACFP-142B format).
-   Expects `page` = {invoice, meals, total_meals, route, stop_no, is_draft} and `vendor`. #}
+   Expects `page` = {invoice, meals, supplies, total_meals, route, stop_no, is_draft} and `vendor`. #}
 {% set inv = page.invoice %}
 {% set bulk = inv.service_style != 'individual' %}
 <div class="ddi">
@@ -83,6 +83,18 @@
     </table>
   </div>
   {% endfor %}
+
+  {% if page.supplies %}
+  <div class="ddi-meal">
+    <table class="ddi-meal-head"><tr><td>SUPPLIES &mdash; billed separately, not part of the meals</td></tr></table>
+    <table class="ddi-items">
+      <tr><th>Item</th><th style="width: 15%;" class="num">Quantity</th></tr>
+      {% for item in page.supplies %}
+      <tr><td>{{ item.item_name }}</td><td class="num">{{ item.qty }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
 
   {% if ns.subs %}
   <table class="ddi-subs">

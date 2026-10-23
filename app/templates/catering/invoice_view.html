@@ -17,6 +17,7 @@
   <span class="badge bg-secondary">🔒 {{ invoice.status|title }}{% if invoice.finalized_at %} {{ invoice.finalized_at.strftime('%b %d %H:%M') }}{% endif %}</span>
   {% else %}
   <span class="badge bg-warning text-dark">Draft — locks when the route manifest is released</span>
+  {% if invoice.edited_at %}<span class="badge bg-light text-dark border">✎ Edited by hand {{ invoice.edited_at.strftime('%b %d %H:%M') }}</span>{% endif %}
   <form method="POST" action="/catering/invoices/{{ invoice.id }}/delete" class="d-inline" onsubmit="return confirm('Delete this draft invoice?');">
     <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
   </form>
@@ -24,13 +25,21 @@
 </div>
 
 {% include "catering/_ddi_styles.html" %}
+{% if not is_locked %}
+<details class="invoice-edit mb-3" style="max-width: 8.5in; margin: 0 auto;">
+  <summary class="btn btn-outline-primary btn-sm">✎ Edit invoice / add supplies</summary>
+  <div class="mt-2">{% include "catering/_invoice_editor.html" %}</div>
+</details>
+{% include "catering/_invoice_editor_assets.html" %}
+<script>document.addEventListener('ie:saved', function () { location.reload(); });</script>
+{% endif %}
 <div class="invoice-document" style="max-width: 8.5in; margin: 0 auto; background: white; padding: 0.45in; border: 1px solid #ddd;">
   {% include "catering/_ddi_page.html" %}
 </div>
 
 <style>
 @media print {
-  .invoice-actions, .alert, nav, .navbar, .sidebar { display: none !important; }
+  .invoice-actions, .invoice-edit, .alert, nav, .navbar, .sidebar { display: none !important; }
   .invoice-document { border: none !important; padding: 0 !important; }
 }
 </style>

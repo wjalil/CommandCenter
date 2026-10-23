@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Route {{ route_code }} Print Pack {{ service_date.strftime('%b %d') }}</title>
+  {% include "catering/_ddi_styles.html" %}
+  {% include "catering/_manifest_styles.html" %}
+  <style>
+    body { margin: 0; background: #eef0f3; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .pp-bar { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid #d6d9de; padding: 10px 16px; font-size: 14px; }
+    .pp-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .pp-bar h1 { font-size: 16px; margin: 0 12px 0 0; }
+    .pp-bar a, .pp-bar button { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; border: 1px solid #c9ced6; background: #fff; color: #1f2937; text-decoration: none; cursor: pointer; }
+    .pp-bar .primary { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: 600; }
+    .pp-bar .seg a.on { background: #1f2937; color: #fff; border-color: #1f2937; }
+    .pp-hint { margin: 8px 0 0; font-size: 12.5px; color: #475569; }
+    .pp-warn { margin: 10px 0 0; padding: 8px 12px; border-radius: 6px; background: #fff7e6; border: 1px solid #f5c26b; color: #6b4500; font-size: 13px; }
+    .pp-warn ul { margin: 4px 0 0 18px; padding: 0; }
+    .sheet { background: #fff; width: 8.5in; max-width: calc(100% - 32px); margin: 16px auto; padding: 0.45in; box-sizing: border-box; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+    .pp-tag { width: 8.5in; max-width: calc(100% - 32px); margin: 18px auto -8px; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .06em; }
+    @media (max-width: 640px) {
+      .pp-bar h1 { width: 100%; font-size: 15px; }
+      .sheet { max-width: calc(100% - 16px); margin: 8px auto; padding: 12px; overflow-x: auto; }
+    }
+    @media print {
+      @page { size: letter; margin: 0.45in; }
+      body { background: #fff; }
+      .pp-bar, .pp-tag { display: none; }
+      .sheet { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; }
+      .page-break { page-break-after: always; break-after: page; }
+    }
+  </style>
+</head>
+<body>
+<div class="pp-bar">
+  <div class="pp-row">
+    <a href="/catering/production/manifest/builder?date_str={{ service_date.isoformat() }}">&larr; Manifest Builder</a>
+    <h1>Route {{ route_code }} &middot; {{ service_date.strftime('%a %b %d, %Y') }}</h1>
+    <span class="seg">
+      <a href="?scope=cacfp" class="{{ 'on' if scope != 'all' }}">CACFP invoices</a>
+      <a href="?scope=all" class="{{ 'on' if scope == 'all' }}">All invoices</a>
+    </span>
+    <span style="flex:1"></span>
+    <span>{{ pages|length }} invoice{{ 's' if pages|length != 1 }} + manifest</span>
+    <button type="button" class="primary" onclick="window.print()">🖨️ Print Route Pack</button>
+  </div>
+  <p class="pp-hint">Prints last stop first and the manifest last, so the stack comes off the printer face-up as: manifest, stop 1, stop 2, &hellip; &mdash; ready to staple.</p>
+  {% if warnings %}
+  <div class="pp-warn"><strong>Check before printing:</strong>
+    <ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+</div>
+
+{% for page in pages %}
+<div class="pp-tag">Prints {{ loop.index }} of {{ pages|length + 1 }} &middot; stop {{ page.stop_no }}</div>
+<div class="sheet page-break">
+  {% include "catering/_ddi_page.html" %}
+</div>
+{% endfor %}
+
+<div class="pp-tag">Prints {{ pages|length + 1 }} of {{ pages|length + 1 }} &middot; manifest (top of the stack)</div>
+<div class="sheet">
+  <div class="dm-page" style="--dm-route: {{ route_color }};">
+    {% include "catering/_manifest_sheet.html" %}
+  </div>
+</div>
+
+<script>
+  function dmToggleItem() {}  // the manifest sheet's load checkboxes are for the on-screen driver view only
+  {% if autoprint %}window.addEventListener('load', function () { window.print(); });{% endif %}
+</script>
+</body>
+</html>

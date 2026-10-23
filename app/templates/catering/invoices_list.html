@@ -67,6 +67,18 @@
                  class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
                  data-bs-parent="#monthAccordion-{{ prog_idx }}">
               <div class="accordion-body p-0">
+                <div class="inv-served px-3 pt-3">
+                  <span class="inv-served-label">Served this month</span>
+                  <strong>{{ month_data.total_meals }} meals</strong>
+                  {% for name, total, vegan in month_data.totals %}
+                  <span class="inv-served-pill">{{ name }} <strong>{{ total }}</strong>{% if vegan %} <small class="text-success">({{ vegan }} vegan)</small>{% endif %}</span>
+                  {% endfor %}
+                  {% if month_data.supplies %}
+                  <div class="inv-served-supplies">Supplies (billed separately):
+                    {% for name, qty in month_data.supplies %}{{ name }} &times; {{ qty }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+                  </div>
+                  {% endif %}
+                </div>
                 <div class="d-flex justify-content-end px-3 pt-3 pb-1">
                   <a href="/catering/invoices/program/{{ program.id }}/download-month?month={{ month_data.month }}&year={{ month_data.year }}"
                      class="btn btn-sm btn-outline-primary">
@@ -91,9 +103,15 @@
                         <td><strong>{{ invoice.invoice_number }}</strong></td>
                         <td>{{ invoice.service_date.strftime('%b %d, %Y') }}</td>
                         <td>
-                          {{ invoice.regular_meal_count }} regular
-                          {% if invoice.vegan_meal_count > 0 %}
-                          <br><small class="text-success">+ {{ invoice.vegan_meal_count }} vegan</small>
+                          {% set served = month_data.served[invoice.id] %}
+                          {% for slot, counts in served.items() %}
+                          <span class="inv-slot">{{ slot_names[slot] }} <strong>{{ counts[0] }}</strong>{% if counts[1] %} <small class="text-success">({{ counts[1] }} vegan)</small>{% endif %}</span>
+                          {% else %}
+                          <span class="text-muted">&mdash;</span>
+                          {% endfor %}
+                          {% if invoice.edited_at %}<span class="badge bg-light text-dark border" title="Edited by hand">✎</span>{% endif %}
+                          {% if supplies_by_invoice.get(invoice.id) %}
+                          <br><small class="text-muted">+ {% for name, qty in supplies_by_invoice[invoice.id] %}{{ name }} &times; {{ qty }}{% if not loop.last %}, {% endif %}{% endfor %}</small>
                           {% endif %}
                         </td>
                         <td>
@@ -129,6 +147,13 @@
   </div>
   {% endfor %}
 </div>
+<style>
+.inv-served { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; font-size: 0.85rem; }
+.inv-served-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; }
+.inv-served-pill { background: #f1f5f9; border-radius: 999px; padding: 0.15rem 0.6rem; }
+.inv-served-supplies { width: 100%; font-size: 0.8rem; color: #6d28d9; }
+.inv-slot { display: inline-block; margin-right: 0.6rem; white-space: nowrap; }
+</style>
 {% else %}
 <div class="alert alert-info">
   <h5>No Invoices Yet</h5>

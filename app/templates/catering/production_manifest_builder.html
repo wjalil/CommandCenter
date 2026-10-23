@@ -85,17 +85,17 @@
 
     <div class="mb-release-row">
       {% if manifest.status == 'released' %}
+      <a href="/catering/production/manifest/{{ manifest.id }}/print-pack?autoprint=1" target="_blank" class="btn btn-primary btn-sm">🖨️ Print Route Pack</a>
+      <a href="/catering/production/manifest/{{ manifest.id }}/invoices" class="btn btn-outline-secondary btn-sm">Invoices</a>
+      <a href="/catering/production/manifest/driver/view/{{ manifest.route_code }}?date_str={{ service_date.isoformat() }}"
+         target="_blank" class="btn btn-outline-primary btn-sm">👀 View Manifest</a>
       <form action="/catering/production/manifest/{{ manifest.id }}/reopen" method="POST">
         <button type="submit" class="btn btn-outline-warning btn-sm">Reopen for Editing</button>
       </form>
-      <a href="/catering/production/manifest/driver/view/{{ manifest.route_code }}?date_str={{ service_date.isoformat() }}"
-         target="_blank" class="btn btn-outline-primary btn-sm">👀 View Manifest</a>
-      <span class="text-muted" style="font-size:0.78rem;">Drivers can see this route's manifest.</span>
+      <span class="text-muted" style="font-size:0.78rem;">Released &mdash; invoices + manifest locked, driver can see the route.</span>
       {% else %}
-      <form action="/catering/production/manifest/{{ manifest.id }}/release" method="POST">
-        <button type="submit" class="btn btn-success btn-sm">Release {{ manifest.route_code }} Manifest</button>
-      </form>
-      <span class="text-muted" style="font-size:0.78rem;">Not visible to drivers until released.</span>
+      <a href="/catering/production/manifest/{{ manifest.id }}/invoices" class="btn btn-success btn-sm">Next: Build {{ manifest.route_code }} Invoices &rsaquo;</a>
+      <span class="text-muted" style="font-size:0.78rem;">Review &amp; edit each stop's invoice, add supplies, then release for print.</span>
       {% endif %}
     </div>
   </div>
@@ -152,6 +152,7 @@
   padding: 0.12rem 0.4rem; border-radius: 999px; background: #e2e8f0; color: #475569; flex-shrink: 0;
 }
 .mb-source-manual { background: rgba(245,158,11,0.15); color: #b45309; }
+.mb-source-supplies { background: rgba(139,92,246,0.14); color: #6d28d9; }
 .mb-item-edit-form { flex: 1; display: flex; gap: 0.4rem; align-items: center; margin: 0; }
 .mb-item-input {
   flex: 1; border: 1px solid transparent; background: transparent; border-radius: 6px;
