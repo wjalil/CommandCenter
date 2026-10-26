@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Route {{ route_code }} Print Pack {{ service_date.strftime('%b %d') }}</title>
+  <title>{{ title }} Print Pack {{ service_date.strftime('%b %d') }}</title>
   {% include "catering/_ddi_styles.html" %}
   {% include "catering/_manifest_styles.html" %}
   <style>
@@ -35,17 +35,17 @@
 <body>
 <div class="pp-bar">
   <div class="pp-row">
-    <a href="/catering/production/manifest/builder?date_str={{ service_date.isoformat() }}">&larr; Manifest Builder</a>
-    <h1>Route {{ route_code }} &middot; {{ service_date.strftime('%a %b %d, %Y') }}</h1>
+    <a href="/catering/production/dispatch?date_str={{ service_date.isoformat() }}&step=release">&larr; Dispatch</a>
+    <h1>{{ title }} &middot; {{ service_date.strftime('%a %b %d, %Y') }}</h1>
     <span class="seg">
-      <a href="?scope=cacfp" class="{{ 'on' if scope != 'all' }}">CACFP invoices</a>
-      <a href="?scope=all" class="{{ 'on' if scope == 'all' }}">All invoices</a>
+      <a href="?{{ query }}scope=cacfp" class="{{ 'on' if scope != 'all' }}">CACFP invoices</a>
+      <a href="?{{ query }}scope=all" class="{{ 'on' if scope == 'all' }}">All invoices</a>
     </span>
     <span style="flex:1"></span>
-    <span>{{ pages|length }} invoice{{ 's' if pages|length != 1 }} + manifest</span>
-    <button type="button" class="primary" onclick="window.print()">🖨️ Print Route Pack</button>
+    <span>{{ sections|length }} manifest{{ 's' if sections|length != 1 }} + {{ invoice_count }} invoice{{ 's' if invoice_count != 1 }}</span>
+    <button type="button" class="primary" onclick="window.print()">🖨️ Print Pack</button>
   </div>
-  <p class="pp-hint">Prints last stop first and the manifest last, so the stack comes off the printer face-up as: manifest, stop 1, stop 2, &hellip; &mdash; ready to staple.</p>
+  <p class="pp-hint">Each route prints its manifest first, then its stops in order (1, 2, 3&hellip;) &mdash; split the stack at each manifest and staple.</p>
   {% if warnings %}
   <div class="pp-warn"><strong>Check before printing:</strong>
     <ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul>
@@ -53,19 +53,31 @@
   {% endif %}
 </div>
 
-{% for page in pages %}
-<div class="pp-tag">Prints {{ loop.index }} of {{ pages|length + 1 }} &middot; stop {{ page.stop_no }}</div>
-<div class="sheet page-break">
-  {% include "catering/_ddi_page.html" %}
-</div>
-{% endfor %}
-
-<div class="pp-tag">Prints {{ pages|length + 1 }} of {{ pages|length + 1 }} &middot; manifest (top of the stack)</div>
-<div class="sheet">
-  <div class="dm-page" style="--dm-route: {{ route_color }};">
+{% set ns = namespace(n=0) %}
+{% for section in sections %}
+{% set ns.n = ns.n + 1 %}
+{% set manifest = section.manifest %}
+{% set stops = section.stops %}
+{% set driver_name = section.driver_name %}
+{% set item_count = section.item_count %}
+{% set confirmed_count = section.confirmed_count %}
+{% set route_code = section.route_code %}
+<div class="pp-tag">Prints {{ ns.n }} of {{ sheet_count }} &middot; route {{ route_code }} manifest</div>
+<div class="sheet {{ 'page-break' if ns.n < sheet_count }}">
+  <div class="dm-page" style="--dm-route: {{ section.route_color }};">
     {% include "catering/_manifest_sheet.html" %}
   </div>
 </div>
+{% for page in section.pages %}
+{% set ns.n = ns.n + 1 %}
+<div class="pp-tag">Prints {{ ns.n }} of {{ sheet_count }} &middot; route {{ route_code }} stop {{ page.stop_no }}</div>
+<div class="sheet {{ 'page-break' if ns.n < sheet_count }}">
+  {% include "catering/_ddi_page.html" %}
+</div>
+{% endfor %}
+{% else %}
+<div class="pp-tag">No routes for this day.</div>
+{% endfor %}
 
 <script>
   function dmToggleItem() {}  // the manifest sheet's load checkboxes are for the on-screen driver view only

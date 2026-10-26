@@ -19,7 +19,7 @@
       <input type="date" name="date_str" value="{{ service_date.isoformat() }}" class="form-control form-control-sm" style="width:auto;" onchange="this.form.submit()">
     </form>
     <a href="/catering/production/routes?date_str={{ next_date }}" class="btn btn-outline-secondary btn-sm" title="Next day">&rsaquo;</a>
-    <a href="/catering/production/manifest/builder?date_str={{ service_date.isoformat() }}" class="btn btn-outline-primary btn-sm">📋 Manifests</a>
+    <a href="/catering/production/dispatch?date_str={{ service_date.isoformat() }}&step=manifest" class="btn btn-outline-primary btn-sm">🚚 Dispatch</a>
     <a href="/catering/production?date_str={{ service_date.isoformat() }}" class="btn btn-outline-secondary btn-sm">Production Sheet</a>
   </div>
 </div>
@@ -40,7 +40,7 @@
       <span class="rb-route-badge">{{ col.route }}</span>
       <span class="rb-stop-count"><span class="rb-count-num">{{ col.stops|length }}</span> stop<span class="rb-count-plural">{{ 's' if col.stops|length != 1 }}</span></span>
       {% if col.status == 'released' %}
-      <span class="rb-status rb-status-released" title="Drivers can see this manifest — changes show up for them right away">Released</span>
+      <span class="rb-status rb-status-released" title="Locked — reopen this route on Dispatch to move its stops">🔒 Released</span>
       {% endif %}
     </header>
     {% if col.route != unassigned_route %}
@@ -60,7 +60,7 @@
       {% endif %}
     </div>
     {% endif %}
-    <ol class="rb-stop-list" data-route="{{ col.route }}">
+    <ol class="rb-stop-list" data-route="{{ col.route }}"{% if col.status == 'released' %} data-released="1"{% endif %}>
       {% for s in col.stops %}
       <li class="rb-stop {% if s.home_route != col.route %}is-moved{% endif %}"
           data-program-id="{{ s.program.id }}" data-home-route="{{ s.home_route }}">
@@ -232,16 +232,19 @@ async function save(lists, makePermanentIds) {
     setStatus('Saved ✓', 'saved');
     return true;
   } catch (e) {
-    setStatus('Could not save — reloading the board.', 'error');
-    setTimeout(() => location.reload(), 1200);
+    setStatus((e.message && e.message !== 'save failed' ? e.message + ' ' : 'Could not save — ') + 'Reloading the board.', 'error');
+    setTimeout(() => location.reload(), 2500);
     return false;
   }
 }
 
 function initList(list) {
   if (IS_PAST) return;
+  // A released route is on paper — its stops can't be dragged in, out or around until it's reopened
+  const released = list.dataset.released === '1';
   new Sortable(list, {
-    group: 'routes',
+    group: { name: 'routes', pull: !released, put: !released },
+    sort: !released,
     animation: 150,
     delay: 150,
     delayOnTouchOnly: true,

@@ -199,7 +199,7 @@ class Env:
 
     async def build_manifests(self):
         async with self.Session() as db:
-            resp = await pr.manifest_builder(make_request(method="GET"), date_str=SERVICE.isoformat(), db=db, user=self.admin)
+            resp = await pr.dispatch(make_request(method="GET"), date_str=SERVICE.isoformat(), step="manifest", db=db, user=self.admin)
             assert resp.status_code == 200
 
     async def manifest(self, route):
@@ -537,7 +537,7 @@ async def test_production_page_renders_sub_controls(env):
     async with env.Session() as db:
         page = html(await pr.production_daily_view(make_request(method="GET"), date_str=SERVICE.isoformat(), selected=None, db=db, user=env.admin))
         assert "Today's substitutions" in page and "⇄ Sub" in page and 'id="subModal"' in page
-        assert "/catering/production/day-pack" in page and "prod-actions" in page
+        assert "/catering/production/dispatch" in page and "prod-actions" in page
         assert 'class="prod-chip"' not in page, "no per-program bubbles"
         worker_page = html(await pr.production_daily_view(make_request(method="GET"), date_str=SERVICE.isoformat(), selected=None, db=db, user=env.worker))
         assert "⇄ Sub" not in worker_page and 'id="subModal"' not in worker_page

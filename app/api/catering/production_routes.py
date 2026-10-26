@@ -17,6 +17,7 @@ from typing import Optional
 import calendar
 import json
 import re
+from urllib.parse import quote, quote_plus
 
 from app.db import get_db
 from app.auth.dependencies import get_current_admin_or_worker, get_current_admin_user
@@ -184,6 +185,15 @@ def _group_programs_by_route(programs_data: list) -> list:
     ]
 
 
+def _is_family_style(program) -> bool:
+    return program.meal_service_style == "family_style"
+
+
+def _breakdown_sort_key(row: dict) -> tuple:
+    """Per-program breakdown rows: family-style programs first, then regular, each A-Z."""
+    return (not row.get("family"), row["name"].lower())
+
+
 def _effective_slot_counts(program, overrides_for_program: dict) -> tuple[dict, dict]:
     """Per-slot (count, vegan) for one program on one date — see
     day_menu.effective_slot_counts, the one place this rule lives (kitchen prep,
@@ -262,7 +272,8 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
         entry["type_name"] = comp.type_name
         if comp.is_sub:
             entry["sub_from"].add(comp.original_name)
-        pb = entry["program_breakdown"].setdefault(program.name, {"count": 0, "oz": 0.0, "id": program.id})
+        pb = entry["program_breakdown"].setdefault(
+            program.name, {"count": 0, "oz": 0.0, "id": program.id, "family": _is_family_style(program)})
         pb["count"] += meal_count
         pb["oz"] += comp.qty_oz * meal_count
 
@@ -317,10 +328,11 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
                     for s in slots_sorted
                 ],
                 "primary_slot": slots_sorted[0] if slots_sorted else "other",
-                "program_breakdown": [
-                    {"name": pname, "id": vals["id"], "count": vals["count"], "oz": round(vals["oz"], 1), "lb": round(vals["oz"] / 16, 2)}
-                    for pname, vals in sorted(data["program_breakdown"].items())
-                ],
+                "program_breakdown": sorted((
+                    {"name": pname, "id": vals["id"], "family": vals["family"], "count": vals["count"],
+                     "oz": round(vals["oz"], 1), "lb": round(vals["oz"] / 16, 2)}
+                    for pname, vals in data["program_breakdown"].items()
+                ), key=_breakdown_sort_key),
                 "component_id": data["component_id"],
                 "type_name": data["type_name"],
                 "sub_from": sorted(data["sub_from"]),
@@ -523,11 +535,11 @@ async def _build_production_data(db: AsyncSession, tenant_id: int, service_date:
         })
 
     # Vegan headcount, broken down by program (program.vegan_count is filled in per-program)
-    vegan_breakdown = [
-        {"name": program.name, "count": program.vegan_count}
+    vegan_breakdown = sorted((
+        {"name": program.name, "count": program.vegan_count, "family": _is_family_style(program)}
         for program in serving_programs
         if program.vegan_count
-    ]
+    ), key=_breakdown_sort_key)
     vegan_total = sum(vb["count"] for vb in vegan_breakdown)
 
     total_routes = len({pd["route_group_code"] for pd in programs_data if pd["route_group_code"]})
@@ -607,7 +619,7 @@ def _merge_component_lists(base: list, extras: list) -> list:
                         bd[p["name"]]["oz"] = round(bd[p["name"]]["oz"] + p["oz"], 1)
                     else:
                         bd[p["name"]] = {**p}
-                m["program_breakdown"] = sorted(bd.values(), key=lambda x: x["name"])
+                m["program_breakdown"] = sorted(bd.values(), key=_breakdown_sort_key)
             else:
                 merged[comp["name"]] = {**comp, "program_breakdown": [{**p} for p in comp["program_breakdown"]]}
     return sorted(merged.values(), key=_sort_key_for_comp)
@@ -753,7 +765,6 @@ async def production_daily_view(
             "manifests_released_count": data["manifests_released_count"],
             "manifests_total_routes": data["manifests_total_routes"],
             "substitutions": data["substitutions"],
-            "cacfp_count": sum(1 for p in data["serving_programs"] if p.cacfp_eligible),
             "sub_options": sub_options,
             "slot_display": SLOT_DISPLAY,
         },
@@ -816,6 +827,15 @@ async def production_print_view(
     )
 
 
+RELEASED_MESSAGE = "This program's route is released — reopen it on Dispatch to change what goes on the truck."
+
+
+async def _program_released(db: AsyncSession, tenant_id: int, program_id: str, service_date: date) -> bool:
+    """Whether the route this program rides today has been released."""
+    _, manifest = await _find_stop(db, tenant_id, program_id, service_date)
+    return bool(manifest and manifest.status == "released")
+
+
 @router.post("/production/toggle")
 async def toggle_production_check(
     request: Request,
@@ -842,6 +862,10 @@ async def toggle_production_check(
         service_date = date.fromisoformat(date_str)
     except ValueError:
         return JSONResponse({"error": "invalid date"}, status_code=400)
+
+    # A packaging line feeds the driver manifest, which is frozen once its route is released
+    if program_id and check_type in MEAL_SLOT_TYPES and await _program_released(db, tenant_id, program_id, service_date):
+        return JSONResponse({"error": RELEASED_MESSAGE}, status_code=409)
 
     # Find existing log
     query = select(ProductionDailyLog).where(
@@ -916,6 +940,9 @@ async def save_supply_selection(
         service_date = date.fromisoformat(date_str)
     except ValueError:
         return JSONResponse({"error": "invalid date"}, status_code=400)
+
+    if await _program_released(db, tenant_id, program_id, service_date):
+        return JSONResponse({"error": RELEASED_MESSAGE}, status_code=409)
 
     items = _order_supply_items(supply, [str(i).strip() for i in body.get("items") or [] if str(i).strip()])
 
@@ -1684,49 +1711,208 @@ async def _serving_programs_for_date(db: AsyncSession, tenant_id: int, service_d
 async def manifest_builder(
     request: Request,
     date_str: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    """One consolidated admin screen: every route serving today, each with its stops
-    and their items, editable inline, with a release toggle per route."""
-    tenant_id = request.state.tenant_id
+    """Old Manifest Builder URL — the builder is now step 1 of Dispatch."""
+    return RedirectResponse(url=_dispatch_url(_parse_date(date_str), "manifest"), status_code=303)
+
+
+# ==================== DISPATCH (admin) ====================
+# The day's paperwork in one pass, every route at once:
+#   1 Manifest (driver lines per stop) -> 2 Invoices (skim, edit if needed)
+#   -> 3 Release all & Print (one pack: each route's manifest on top of its stops).
+# Release stays per route underneath, so one route can be reopened, fixed and
+# re-released without touching the others.
+
+DISPATCH_STEPS = ("manifest", "invoices", "release")
+BEVERAGE_CHECK_TYPES = ["beverage", *LEGACY_BEVERAGE_TYPES]
+
+
+def _parse_date(date_str: Optional[str]) -> date:
     try:
-        service_date = date.fromisoformat(date_str) if date_str else date.today()
+        return date.fromisoformat(date_str) if date_str else date.today()
     except ValueError:
-        service_date = date.today()
+        return date.today()
 
-    serving_programs = await _serving_programs_for_date(db, tenant_id, service_date)
 
-    # Ensure every serving route+stop has a row to attach manual items/instructions to.
-    for program in serving_programs:
+def _dispatch_url(service_date, step: str = "manifest") -> str:
+    day = service_date.isoformat() if isinstance(service_date, date) else service_date
+    return f"/catering/production/dispatch?date_str={day}&step={step}"
+
+
+async def _ensure_stops(db: AsyncSession, tenant_id: int, service_date: date) -> list:
+    """Give every serving program that has a route its stop (and route manifest)
+    for the day, so lines and notes have somewhere to attach. Returns the serving programs."""
+    serving = await _serving_programs_for_date(db, tenant_id, service_date)
+    for program in serving:
         if program.route_code:
             await _get_or_create_stop(db, tenant_id, program, service_date)
-    await db.commit()  # persist them — the add-item/instructions forms post to these stop ids
+    await db.commit()
+    return serving
 
-    manifests_result = await db.execute(
+
+async def _day_manifests(db: AsyncSession, tenant_id: int, service_date: date) -> list:
+    """The day's route manifests that have stops, in route order. Unassigned isn't
+    a drivable route, so it's left out (its programs show up as a warning instead)."""
+    result = await db.execute(
         select(DailyManifest)
-        .where(
-            DailyManifest.tenant_id == tenant_id,
-            DailyManifest.service_date == service_date,
-        )
+        .where(DailyManifest.tenant_id == tenant_id, DailyManifest.service_date == service_date)
         .options(
             selectinload(DailyManifest.stops).selectinload(DailyManifestStop.program),
             selectinload(DailyManifest.stops).selectinload(DailyManifestStop.items),
         )
-        .order_by(DailyManifest.route_code)
     )
-    manifests = manifests_result.scalars().all()
-    manifest_order = _sorted_routes(m.route_code for m in manifests)
-    manifest_cards = [
-        {"manifest": m, "stops": _stops_in_order(m.stops)}
-        for m in sorted(manifests, key=lambda m: manifest_order.index(m.route_code))
-    ]
+    manifests = [m for m in result.scalars().all() if m.stops and m.route_code != UNASSIGNED_ROUTE]
+    order = _sorted_routes(m.route_code for m in manifests)
+    return sorted(manifests, key=lambda m: order.index(m.route_code))
 
-    return templates.TemplateResponse("catering/production_manifest_builder.html", {
+
+async def _release_manifest(db: AsyncSession, tenant_id: int, manifest: DailyManifest, user: User) -> None:
+    """Release one route: drivers can see it (the day's delivery route is created or
+    refreshed with the template's driver and pay) and its Daily Delivery Invoices freeze."""
+    manifest.status = "released"
+    manifest.released_at = datetime.utcnow()
+    manifest.released_by_user_id = user.id
+    await sync_delivery_route_for_manifest(db, manifest)
+    await db.commit()
+    # The paperwork rides with the food
+    await ddi.finalize_for_programs(db, tenant_id, await _manifest_programs(db, manifest.id), manifest.service_date)
+
+
+async def _invoice_cards(db: AsyncSession, tenant_id: int, manifest: DailyManifest) -> list:
+    """One card per stop on a route, in driving order, for the Invoices step."""
+    cards = []
+    for stop_no, (stop, invoice) in enumerate(await _route_invoices(db, tenant_id, manifest), start=1):
+        cards.append({
+            "stop": stop,
+            "stop_no": stop_no,
+            "program": stop.program,
+            "invoice": invoice,
+            "page": _ddi_page(invoice, manifest.route_code, stop_no) if invoice else None,
+            "locked": ddi.is_locked(invoice),
+        })
+    return cards
+
+
+async def _dispatch_warnings(db: AsyncSession, tenant_id: int, service_date: date,
+                             serving: list, routes: list) -> list:
+    """Things to look at before releasing — never blocking. Only routes still in
+    draft are checked; a released route's paperwork is already out."""
+    warnings = []
+    positions = await _route_positions(db, tenant_id, service_date, serving)
+    for program in serving:
+        if positions[program.id][0] == UNASSIGNED_ROUTE:
+            warnings.append(f"{program.name} isn't on a route — it won't be on any manifest or in the print pack. Assign it on the Route Board.")
+
+    drafts = [r for r in routes if not r["released"]]
+    program_ids = [s.program_id for r in drafts for s in r["stops"]]
+    with_beverage = set()
+    if program_ids:
+        result = await db.execute(
+            select(ProductionDailyLog.program_id).where(
+                ProductionDailyLog.tenant_id == tenant_id,
+                ProductionDailyLog.service_date == service_date,
+                ProductionDailyLog.program_id.in_(program_ids),
+                ProductionDailyLog.check_type.in_(BEVERAGE_CHECK_TYPES),
+            )
+        )
+        with_beverage = set(result.scalars().all())
+
+    for route in drafts:
+        code = route["manifest"].route_code
+        for card in route.get("cards") or []:
+            where = f"{code} · {card['program'].name}"
+            if card["invoice"] is None:
+                warnings.append(f"{where}: no menu for this day — no invoice.")
+                continue
+            if any(l["item_name"] == "Seasonal Fruit" for m in card["page"]["meals"] for l in m["lines"]):
+                warnings.append(f"{where}: fruit type not picked on the Produce card — prints as \"Seasonal Fruit\".")
+            if card["program"].id not in with_beverage:
+                warnings.append(f"{where}: no beverage picked on the Packaging screen.")
+    return warnings
+
+
+@router.get("/production/dispatch")
+async def dispatch(
+    request: Request,
+    date_str: Optional[str] = None,
+    step: str = "manifest",
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """The day's driver paperwork for every route: Manifest -> Invoices -> Release & Print."""
+    tenant_id = request.state.tenant_id
+    service_date = _parse_date(date_str)
+    step = step if step in DISPATCH_STEPS else "manifest"
+
+    serving = await _ensure_stops(db, tenant_id, service_date)
+    routes = []
+    for manifest in await _day_manifests(db, tenant_id, service_date):
+        route = {
+            "manifest": manifest,
+            "color": _route_color(manifest.route_code),
+            "stops": _stops_in_order(manifest.stops),
+            "released": manifest.status == "released",
+        }
+        if step != "manifest":
+            route["cards"] = await _invoice_cards(db, tenant_id, manifest)
+        routes.append(route)
+
+    warnings = await _dispatch_warnings(db, tenant_id, service_date, serving, routes) if step != "manifest" else []
+    drafts = [r for r in routes if not r["released"]]
+
+    return templates.TemplateResponse("catering/production_dispatch.html", {
         "request": request,
         "service_date": service_date,
-        "manifest_cards": manifest_cards,
+        "step": step,
+        "routes": routes,
+        "warnings": warnings,
+        "released_count": len(routes) - len(drafts),
+        "draft_routes": drafts,
+        "draft_stop_count": sum(len(r["stops"]) for r in drafts),
+        "draft_print_count": sum(
+            1 for r in drafts for c in r.get("cards") or [] if c["invoice"] and c["program"].cacfp_eligible
+        ),
+        "error": request.query_params.get("error"),
+        "vendor": ddi.VENDOR,
+        "slot_names": ddi.SLOT_NAMES,
+        "slot_order": ddi.DDI_SLOT_ORDER,
     })
+
+
+@router.post("/production/dispatch/release-all")
+async def dispatch_release_all(
+    request: Request,
+    date_str: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """Release every route still in draft, then open the day's print pack. Routes
+    already released are skipped, so pressing it again is always safe; a route
+    that fails is reported and can be released by pressing it again."""
+    tenant_id = request.state.tenant_id
+    service_date = _parse_date(date_str)
+    await _ensure_stops(db, tenant_id, service_date)
+
+    # Ids up front: a failed route's rollback expires every loaded object
+    pending = [(m.id, m.route_code) for m in await _day_manifests(db, tenant_id, service_date) if m.status != "released"]
+    failed = []
+    for manifest_id, route_code in pending:
+        try:
+            await _release_manifest(db, tenant_id, await _load_manifest(db, tenant_id, manifest_id), user)
+        except Exception:
+            import logging
+            logging.exception("Releasing route %s failed", route_code)
+            await db.rollback()
+            failed.append(route_code)
+
+    if failed:
+        error = quote_plus(f"Couldn't release {', '.join(failed)} — press Release again to retry.")
+        return RedirectResponse(url=f"{_dispatch_url(service_date, 'release')}&error={error}", status_code=303)
+    return RedirectResponse(
+        url=f"/catering/production/dispatch/print-pack?date_str={service_date.isoformat()}&autoprint=1",
+        status_code=303,
+    )
 
 
 @router.post("/production/manifest/stop/{stop_id}/items")
@@ -1745,6 +1931,8 @@ async def manifest_add_item(
         .where(DailyManifestStop.id == stop_id, DailyManifest.tenant_id == tenant_id)
     )
     stop = result.scalar_one_or_none()
+    if stop and await _stop_released(db, stop):
+        return JSONResponse({"error": MANIFEST_LOCKED}, status_code=409)
 
     date_str = ""
     if stop and label.strip():
@@ -1762,7 +1950,7 @@ async def manifest_add_item(
             date_str = manifest.service_date.isoformat()
         await db.commit()
 
-    return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
+    return RedirectResponse(url=_dispatch_url(date_str, "manifest"), status_code=303)
 
 
 @router.post("/production/manifest/item/{item_id}/edit")
@@ -1782,6 +1970,8 @@ async def manifest_edit_item(
         .where(DailyManifestItem.id == item_id, DailyManifest.tenant_id == tenant_id)
     )
     item = result.scalar_one_or_none()
+    if item and await _item_released(db, item):
+        return JSONResponse({"error": MANIFEST_LOCKED}, status_code=409)
 
     date_str = ""
     if item and label.strip():
@@ -1789,7 +1979,7 @@ async def manifest_edit_item(
         date_str = await _date_for_item(db, item)
         await db.commit()
 
-    return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
+    return RedirectResponse(url=_dispatch_url(date_str, "manifest"), status_code=303)
 
 
 @router.post("/production/manifest/item/{item_id}/delete")
@@ -1808,6 +1998,8 @@ async def manifest_delete_item(
         .where(DailyManifestItem.id == item_id, DailyManifest.tenant_id == tenant_id)
     )
     item = result.scalar_one_or_none()
+    if item and await _item_released(db, item):
+        return JSONResponse({"error": MANIFEST_LOCKED}, status_code=409)
 
     date_str = ""
     if item:
@@ -1815,7 +2007,20 @@ async def manifest_delete_item(
         await db.delete(item)
         await db.commit()
 
-    return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
+    return RedirectResponse(url=_dispatch_url(date_str, "manifest"), status_code=303)
+
+
+MANIFEST_LOCKED = "This route is released — reopen it on Dispatch to change its manifest."
+
+
+async def _stop_released(db: AsyncSession, stop: DailyManifestStop) -> bool:
+    manifest = await db.get(DailyManifest, stop.manifest_id)
+    return bool(manifest and manifest.status == "released")
+
+
+async def _item_released(db: AsyncSession, item: DailyManifestItem) -> bool:
+    stop = await db.get(DailyManifestStop, item.stop_id)
+    return bool(stop and await _stop_released(db, stop))
 
 
 async def _date_for_item(db: AsyncSession, item: DailyManifestItem) -> str:
@@ -1844,6 +2049,8 @@ async def manifest_save_instructions(
         .where(DailyManifestStop.id == stop_id, DailyManifest.tenant_id == tenant_id)
     )
     stop = result.scalar_one_or_none()
+    if stop and await _stop_released(db, stop):
+        return JSONResponse({"error": MANIFEST_LOCKED}, status_code=409)
 
     date_str = ""
     if stop:
@@ -1854,15 +2061,15 @@ async def manifest_save_instructions(
             date_str = manifest.service_date.isoformat()
         await db.commit()
 
-    return RedirectResponse(url=f"/catering/production/manifest/builder?date_str={date_str}", status_code=303)
+    return RedirectResponse(url=_dispatch_url(date_str, "manifest"), status_code=303)
 
 
 def _back_to(next_url: Optional[str], date_str: str) -> str:
     """Where a release/reopen goes afterwards: the page that asked (same-site
-    catering paths only), else the Manifest Builder."""
+    catering paths only), else Dispatch's Release step."""
     if next_url and next_url.startswith("/catering/") and "//" not in next_url:
         return next_url
-    return f"/catering/production/manifest/builder?date_str={date_str}"
+    return _dispatch_url(date_str, "release")
 
 
 @router.post("/production/manifest/{manifest_id}/release")
@@ -1883,14 +2090,8 @@ async def manifest_release(
 
     date_str = ""
     if manifest:
-        manifest.status = "released"
-        manifest.released_at = datetime.utcnow()
-        manifest.released_by_user_id = user.id
         date_str = manifest.service_date.isoformat()
-        await sync_delivery_route_for_manifest(db, manifest)
-        await db.commit()
-        # The paperwork rides with the food: freeze this route's Daily Delivery Invoices
-        await ddi.finalize_for_programs(db, tenant_id, await _manifest_programs(db, manifest.id), manifest.service_date)
+        await _release_manifest(db, tenant_id, manifest, user)
 
     return RedirectResponse(url=_back_to(next, date_str), status_code=303)
 
@@ -1924,8 +2125,8 @@ async def manifest_reopen(
 
 
 # ==================== ROUTE INVOICES (admin) ====================
-# Flow per route: Packaging -> Manifest Builder -> Invoices (pre-filled from the
-# kitchen, editable, + supplies) -> Release (locks both) -> one Print for the pack.
+# Invoices are pre-filled from the kitchen and editable (+ supplies) until their
+# route is released, which locks them with the manifest — see DISPATCH.
 
 async def _load_manifest(db: AsyncSession, tenant_id: int, manifest_id: str) -> Optional[DailyManifest]:
     result = await db.execute(
@@ -1979,36 +2180,12 @@ async def route_invoices(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    """Step 2 of a route's paperwork: every stop's Daily Delivery Invoice, pre-filled
-    from the kitchen and editable line by line, plus one-off supplies. Release and
-    Print live here too."""
-    tenant_id = request.state.tenant_id
-    manifest = await _load_manifest(db, tenant_id, manifest_id)
+    """Old per-route Invoices URL — every route's invoices are now step 2 of Dispatch."""
+    manifest = await _load_manifest(db, request.state.tenant_id, manifest_id)
     if not manifest:
-        return RedirectResponse(url="/catering/production/manifest/builder", status_code=303)
-
-    cards = []
-    for stop_no, (stop, invoice) in enumerate(await _route_invoices(db, tenant_id, manifest), start=1):
-        cards.append({
-            "stop": stop,
-            "stop_no": stop_no,
-            "program": stop.program,
-            "invoice": invoice,
-            "page": _ddi_page(invoice, manifest.route_code, stop_no) if invoice else None,
-            "locked": ddi.is_locked(invoice),
-        })
-
-    return templates.TemplateResponse("catering/route_invoices.html", {
-        "request": request,
-        "manifest": manifest,
-        "service_date": manifest.service_date,
-        "route_color": _route_color(manifest.route_code),
-        "cards": cards,
-        "vendor": ddi.VENDOR,
-        "slot_names": ddi.SLOT_NAMES,
-        "slot_order": ddi.DDI_SLOT_ORDER,
-        "print_count": sum(1 for c in cards if c["invoice"] and c["program"].cacfp_eligible),
-    })
+        return RedirectResponse(url=_dispatch_url(date.today(), "invoices"), status_code=303)
+    url = f"{_dispatch_url(manifest.service_date, 'invoices')}#route-{quote(manifest.route_code)}"
+    return RedirectResponse(url=url, status_code=303)
 
 
 async def _invoice_for_edit(db: AsyncSession, tenant_id: int, invoice_id: str):
@@ -2090,6 +2267,73 @@ async def _manifest_sheet(db: AsyncSession, manifest: Optional[DailyManifest]) -
     }
 
 
+async def _print_section(db: AsyncSession, tenant_id: int, manifest: DailyManifest, scope: str) -> tuple[dict, list]:
+    """One route's slice of a print pack — its manifest sheet, then its stops'
+    invoices in driving order — plus anything to check before printing."""
+    code = manifest.route_code
+    pages, warnings = [], []
+    for stop_no, (stop, invoice) in enumerate(await _route_invoices(db, tenant_id, manifest), start=1):
+        if scope != "all" and not stop.program.cacfp_eligible:
+            continue
+        if invoice is None:
+            warnings.append(f"{code} stop {stop_no} {stop.program.name}: no menu for this day — no invoice.")
+            continue
+        page = _ddi_page(invoice, code, stop_no)
+        if any(l["item_name"] == "Seasonal Fruit" for m in page["meals"] for l in m["lines"]):
+            warnings.append(f"{code} stop {stop_no} {stop.program.name}: fruit type not picked on the Produce card — prints as \"Seasonal Fruit\".")
+        pages.append(page)
+    if manifest.status != "released":
+        warnings.insert(0, f"Route {code} isn't released yet — its invoices print as DRAFT.")
+
+    section = {"route_code": code, "route_color": _route_color(code), "pages": pages}
+    section.update(await _manifest_sheet(db, manifest))
+    return section, warnings
+
+
+async def _print_pack_response(request: Request, db: AsyncSession, tenant_id: int, service_date: date,
+                               manifests: list, scope: str, title: str, query: str):
+    """Print pack: per route, the manifest on top then its stops in order (1, 2, 3...).
+    Pages print first-to-last — the printer stacks them so the pack comes off in order."""
+    sections, warnings = [], []
+    for manifest in manifests:
+        section, section_warnings = await _print_section(db, tenant_id, manifest, scope)
+        sections.append(section)
+        warnings += section_warnings
+    return templates.TemplateResponse("catering/route_print_pack.html", {
+        "request": request,
+        "service_date": service_date,
+        "title": title,
+        "sections": sections,
+        "sheet_count": sum(1 + len(s["pages"]) for s in sections),
+        "invoice_count": sum(len(s["pages"]) for s in sections),
+        "warnings": warnings,
+        "vendor": ddi.VENDOR,
+        "scope": scope,
+        "query": query,
+        "autoprint": request.query_params.get("autoprint") == "1",
+    })
+
+
+@router.get("/production/dispatch/print-pack")
+async def dispatch_print_pack(
+    request: Request,
+    date_str: Optional[str] = None,
+    scope: str = "cacfp",
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_admin_user),
+):
+    """The whole day in one print job: Route 1 manifest, its stops, Route 2 manifest,
+    its stops, ... scope=cacfp (default) prints CACFP invoices only; scope=all
+    prints every stop's invoice."""
+    tenant_id = request.state.tenant_id
+    service_date = _parse_date(date_str)
+    manifests = await _day_manifests(db, tenant_id, service_date)
+    return await _print_pack_response(
+        request, db, tenant_id, service_date, manifests, scope,
+        title="All Routes", query=f"date_str={service_date.isoformat()}&",
+    )
+
+
 @router.get("/production/manifest/{manifest_id}/print-pack")
 async def route_print_pack(
     request: Request,
@@ -2098,45 +2342,76 @@ async def route_print_pack(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_admin_user),
 ):
-    """One print job for a route: the stop invoices last-to-first, then the manifest
-    — so the face-up stack comes off the printer as manifest, stop 1, stop 2, ...
-    ready to staple. scope=cacfp (default) prints CACFP invoices only; scope=all
-    prints every stop's invoice."""
+    """One route's print pack (a reprint, or a route re-released on its own)."""
     tenant_id = request.state.tenant_id
     manifest = await _load_manifest(db, tenant_id, manifest_id)
     if not manifest:
-        return RedirectResponse(url="/catering/production/manifest/builder", status_code=303)
-
-    pages, warnings = [], []
-    for stop_no, (stop, invoice) in enumerate(await _route_invoices(db, tenant_id, manifest), start=1):
-        if scope != "all" and not stop.program.cacfp_eligible:
-            continue
-        if invoice is None:
-            warnings.append(f"Stop {stop_no} {stop.program.name}: no menu for this day — no invoice.")
-            continue
-        page = _ddi_page(invoice, manifest.route_code, stop_no)
-        if any(l["item_name"] == "Seasonal Fruit" for m in page["meals"] for l in m["lines"]):
-            warnings.append(f"Stop {stop_no} {stop.program.name}: fruit type not picked on the Produce card — prints as \"Seasonal Fruit\".")
-        pages.append(page)
-    if manifest.status != "released":
-        warnings.insert(0, f"Route {manifest.route_code} isn't released yet — invoices print as DRAFT.")
-
-    context = {
-        "request": request,
-        "service_date": manifest.service_date,
-        "route_code": manifest.route_code,
-        "route_color": _route_color(manifest.route_code),
-        "pages": list(reversed(pages)),
-        "warnings": warnings,
-        "vendor": ddi.VENDOR,
-        "scope": scope,
-        "autoprint": request.query_params.get("autoprint") == "1",
-    }
-    context.update(await _manifest_sheet(db, manifest))
-    return templates.TemplateResponse("catering/route_print_pack.html", context)
+        return RedirectResponse(url=_dispatch_url(date.today(), "release"), status_code=303)
+    return await _print_pack_response(
+        request, db, tenant_id, manifest.service_date, [manifest], scope,
+        title=f"Route {manifest.route_code}", query="",
+    )
 
 
 # ==================== ROUTE BOARD (admin) ====================
+
+async def _board_stops(db: AsyncSession, tenant_id: int, service_date: date, serving_programs: list) -> dict:
+    """{route: [{program, home_route, order}]} in driving order — where each serving
+    program rides on the day (its manifest stop, else its permanent route)."""
+    stops_result = await db.execute(
+        select(DailyManifestStop, DailyManifest)
+        .join(DailyManifest, DailyManifestStop.manifest_id == DailyManifest.id)
+        .where(DailyManifest.tenant_id == tenant_id, DailyManifest.service_date == service_date)
+    )
+    stop_info = {stop.program_id: (stop, manifest) for stop, manifest in stops_result.all()}
+
+    stops_by_route: dict = {}
+    for program in serving_programs:
+        home_route, home_order = _program_route(program)
+        stop, manifest = stop_info.get(program.id, (None, None))
+        route = manifest.route_code if manifest else home_route
+        stops_by_route.setdefault(route, []).append({
+            "program": program,
+            "home_route": home_route,
+            "order": stop.sort_order if stop else home_order,
+        })
+    for stops in stops_by_route.values():
+        stops.sort(key=lambda s: (s["order"], s["program"].name.lower()))
+    return stops_by_route
+
+
+async def _route_statuses(db: AsyncSession, tenant_id: int, service_date: date) -> dict:
+    result = await db.execute(
+        select(DailyManifest).where(DailyManifest.tenant_id == tenant_id, DailyManifest.service_date == service_date)
+    )
+    return {m.route_code: m.status for m in result.scalars().all()}
+
+
+async def _released_routes_touched(db: AsyncSession, tenant_id: int, service_date: date, columns: list) -> list:
+    """Released routes a Route Board save would change — a stop moved in, out, or
+    reordered. Their manifest and invoices are on paper, so they have to be reopened first."""
+    released = {route for route, status in (await _route_statuses(db, tenant_id, service_date)).items() if status == "released"}
+    if not released:
+        return []
+    serving = await _serving_programs_for_date(db, tenant_id, service_date)
+    layout = {
+        route: [s["program"].id for s in stops]
+        for route, stops in (await _board_stops(db, tenant_id, service_date, serving)).items()
+    }
+    current_route = {pid: route for route, ids in layout.items() for pid in ids}
+
+    touched = set()
+    for col in columns:
+        route = (col.get("route") or "").strip() or UNASSIGNED_ROUTE
+        ids = list(col.get("program_ids") or [])
+        if route in released and ids != layout.get(route, []):
+            touched.add(route)
+        for program_id in ids:
+            source = current_route.get(program_id)
+            if source in released and source != route:
+                touched.add(source)
+    return _sorted_routes(touched)
+
 
 @router.get("/production/routes")
 async def route_board(
@@ -2156,18 +2431,8 @@ async def route_board(
         service_date = date.today()
 
     serving_programs = await _serving_programs_for_date(db, tenant_id, service_date)
-
-    stops_result = await db.execute(
-        select(DailyManifestStop, DailyManifest)
-        .join(DailyManifest, DailyManifestStop.manifest_id == DailyManifest.id)
-        .where(DailyManifest.tenant_id == tenant_id, DailyManifest.service_date == service_date)
-    )
-    stop_info = {stop.program_id: (stop, manifest) for stop, manifest in stops_result.all()}
-
-    manifests_result = await db.execute(
-        select(DailyManifest).where(DailyManifest.tenant_id == tenant_id, DailyManifest.service_date == service_date)
-    )
-    status_by_route = {m.route_code: m.status for m in manifests_result.scalars().all()}
+    stops_by_route = await _board_stops(db, tenant_id, service_date, serving_programs)
+    status_by_route = await _route_statuses(db, tenant_id, service_date)
 
     # Delivery-module side: each program's mirrored stop, and the template (driver,
     # pay) that runs each route
@@ -2183,22 +2448,11 @@ async def route_board(
         )
     )
     routes = {_parse_route_input(code)[0] for code in codes_result.scalars().all() if (code or "").strip()}
-
-    stops_by_route: dict = {}
-    for program in serving_programs:
-        home_route, home_order = _program_route(program)
-        stop, manifest = stop_info.get(program.id, (None, None))
-        route = manifest.route_code if manifest else home_route
-        stops_by_route.setdefault(route, []).append({
-            "program": program,
-            "home_route": home_route,
-            "order": stop.sort_order if stop else home_order,
-        })
     routes |= set(stops_by_route)
 
     columns = []
     for i, route in enumerate(_sorted_routes(routes)):
-        stops = sorted(stops_by_route.get(route, []), key=lambda s: (s["order"], s["program"].name.lower()))
+        stops = stops_by_route.get(route, [])
         if route == UNASSIGNED_ROUTE and not stops:
             continue
         template = template_by_route.get(route)
@@ -2252,6 +2506,11 @@ async def route_board_save(
 
     make_permanent = set(body.get("make_permanent") or [])
     columns = body.get("columns") or []
+
+    locked = await _released_routes_touched(db, tenant_id, service_date, columns)
+    if locked:
+        names = ", ".join(locked)
+        return JSONResponse({"error": f"{names} {'is' if len(locked) == 1 else 'are'} released — reopen on Dispatch before moving stops."}, status_code=409)
 
     for col in columns:
         route = (col.get("route") or "").strip() or UNASSIGNED_ROUTE

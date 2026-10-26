@@ -220,6 +220,14 @@
 </style>
 </head>
 <body>
+{# Family-style programs first, then regular (rows arrive sorted) — labelled only when both kinds are present. #}
+{% macro inline_breakdown(rows) %}
+{%- set mixed = (rows | selectattr('family') | list | length) not in (0, rows | length) -%}
+{%- for pb in rows -%}
+{%- if mixed and (loop.first or loop.previtem.family != pb.family) -%}{% if not loop.first %} | {% endif %}<strong>{{ 'Family' if pb.family else 'Regular' }}:</strong> {% elif not loop.first %} &middot; {% endif -%}
+{{ pb.name }}: {{ pb.count }}
+{%- endfor -%}
+{% endmacro %}
 
 <div class="topbar no-print">
   <div class="topbar-title">🗓️ Production Sheet — {{ month_label }}</div>
@@ -267,7 +275,7 @@
               <div class="item-name">{{ comp.name }}</div>
               {% if comp.program_breakdown|length > 1 %}
               <div class="item-breakdown">
-                {% for pb in comp.program_breakdown %}{{ pb.name }}: {{ pb.count }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+                {{ inline_breakdown(comp.program_breakdown) }}
               </div>
               {% endif %}
             </td>
@@ -292,7 +300,7 @@
               <div class="item-name">{{ comp.name }}</div>
               {% if comp.program_breakdown|length > 1 %}
               <div class="item-breakdown">
-                {% for pb in comp.program_breakdown %}{{ pb.name }}: {{ pb.count }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+                {{ inline_breakdown(comp.program_breakdown) }}
               </div>
               {% endif %}
             </td>
@@ -315,7 +323,7 @@
               <div class="item-name">Vegan meals</div>
               {% if day.vegan_breakdown|length > 1 %}
               <div class="item-breakdown">
-                {% for vb in day.vegan_breakdown %}{{ vb.name }}: {{ vb.count }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+                {{ inline_breakdown(day.vegan_breakdown) }}
               </div>
               {% endif %}
             </td>

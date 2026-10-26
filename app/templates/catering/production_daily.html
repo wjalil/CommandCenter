@@ -3,6 +3,24 @@
 {% block nav_title %}Production Sheet{% endblock %}
 
 {% block content %}
+{# Per-program breakdown rows: family-style programs first, then regular (rows arrive sorted). #}
+{% macro breakdown_rows(rows, vegan=false) %}
+{% set has_family = rows | selectattr('family') | list | length > 0 %}
+{% for pb in rows %}
+{% if has_family and (loop.first or loop.previtem.family != pb.family) %}
+<div class="prod-bd-group">{{ '🍽️ Family Style' if pb.family else '🍱 Regular' }}</div>
+{% endif %}
+<div class="prod-breakdown-row">
+  <span class="prod-bd-name">{{ pb.name }}</span>
+  {% if vegan %}
+  <span class="prod-bd-count">{{ pb.count }} vegan</span>
+  {% else %}
+  <span class="prod-bd-count">{{ pb.count }} svgs</span>
+  <span class="prod-bd-oz" data-oz="{{ pb.oz }}" data-lb="{{ pb.lb }}">{{ pb.oz }} oz</span>
+  {% endif %}
+</div>
+{% endfor %}
+{% endmacro %}
 {% if user.role != 'worker' %}
 {% set active = 'production' %}
 {% include "catering/_nav.html" %}
@@ -66,18 +84,11 @@
 {% if user.role != 'worker' and serving_programs %}
 {% set all_released = manifests_total_routes and manifests_released_count == manifests_total_routes %}
 <div class="prod-actions mb-3">
-  <a class="prod-action prod-action-primary {% if all_released %}is-done{% endif %}" href="/catering/production/manifest/builder?date_str={{ primary_date.isoformat() }}">
-    <span class="prod-action-icon">📋</span>
+  <a class="prod-action prod-action-primary {% if all_released %}is-done{% endif %}" href="/catering/production/dispatch?date_str={{ primary_date.isoformat() }}&step=manifest">
+    <span class="prod-action-icon">🚚</span>
     <span class="prod-action-text">
-      <span class="prod-action-label">Manifests</span>
-      <span class="prod-action-sub">{{ manifests_released_count }}/{{ manifests_total_routes }} released</span>
-    </span>
-  </a>
-  <a class="prod-action prod-action-invoices" href="/catering/production/day-pack?date_str={{ primary_date.isoformat() }}" target="_blank">
-    <span class="prod-action-icon">🧾</span>
-    <span class="prod-action-text">
-      <span class="prod-action-label">Delivery<span class="prod-action-extra"> Invoices</span><span class="prod-action-short"> Inv.</span></span>
-      <span class="prod-action-sub">{{ cacfp_count }} to print{% if not all_released %}<span class="prod-action-extra"> · drafts until released</span>{% endif %}</span>
+      <span class="prod-action-label">Dispatch</span>
+      <span class="prod-action-sub">{{ manifests_released_count }}/{{ manifests_total_routes }} routes released</span>
     </span>
   </a>
   <a class="prod-action" href="/catering/production/routes?date_str={{ primary_date.isoformat() }}">
@@ -212,13 +223,7 @@
             </div>
             {% if comp.program_breakdown | length > 0 %}
             <div class="prod-breakdown-panel" hidden>
-              {% for pb in comp.program_breakdown %}
-              <div class="prod-breakdown-row">
-                <span class="prod-bd-name">{{ pb.name }}</span>
-                <span class="prod-bd-count">{{ pb.count }} svgs</span>
-                <span class="prod-bd-oz" data-oz="{{ pb.oz }}" data-lb="{{ pb.lb }}">{{ pb.oz }} oz</span>
-              </div>
-              {% endfor %}
+              {{ breakdown_rows(comp.program_breakdown) }}
             </div>
             {% endif %}
           </li>
@@ -279,13 +284,7 @@
             </div>
             {% if comp.program_breakdown | length > 0 %}
             <div class="prod-breakdown-panel" hidden>
-              {% for pb in comp.program_breakdown %}
-              <div class="prod-breakdown-row">
-                <span class="prod-bd-name">{{ pb.name }}</span>
-                <span class="prod-bd-count">{{ pb.count }} svgs</span>
-                <span class="prod-bd-oz" data-oz="{{ pb.oz }}" data-lb="{{ pb.lb }}">{{ pb.oz }} oz</span>
-              </div>
-              {% endfor %}
+              {{ breakdown_rows(comp.program_breakdown) }}
             </div>
             {% endif %}
           </li>
@@ -315,12 +314,7 @@
               </span>
             </div>
             <div class="prod-breakdown-panel" hidden>
-              {% for vb in vegan_breakdown %}
-              <div class="prod-breakdown-row">
-                <span class="prod-bd-name">{{ vb.name }}</span>
-                <span class="prod-bd-count">{{ vb.count }} vegan</span>
-              </div>
-              {% endfor %}
+              {{ breakdown_rows(vegan_breakdown, vegan=true) }}
             </div>
           </li>
         </ul>
@@ -373,7 +367,7 @@
         <div class="prod-card-body">
           {% if user.role != 'worker' and pd.route_group_code %}
           <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
-            <a href="/catering/production/manifest/builder?date_str={{ primary_date.isoformat() }}"
+            <a href="/catering/production/dispatch?date_str={{ primary_date.isoformat() }}&step=manifest#route-{{ pd.route_group_code | urlencode }}"
                class="prod-manifest-link {% if pd.manifest_status == 'released' %}is-released{% elif pd.manifest_status == 'draft' %}is-draft{% endif %}">
               {% if pd.manifest_status == 'released' %}✓ {{ pd.route_group_code }} Manifest Released{% elif pd.manifest_status == 'draft' %}📋 {{ pd.route_group_code }} Draft ({{ pd.manifest_item_count }} item{{ 's' if pd.manifest_item_count != 1 }} this stop) — Finish &amp; Release{% else %}📋 Build {{ pd.route_group_code }} Manifest{% endif %}
             </a>
@@ -412,6 +406,7 @@
                 <label class="pkg-component-label">
                   <input type="checkbox" class="pkg-check-input"
                          {% if comp.checked %}checked{% endif %}
+                         {% if pd.manifest_status == 'released' %}disabled title="Route released — reopen it on Dispatch to change"{% endif %}
                          data-program-id="{{ pd.program.id }}"
                          data-slot="{{ pkg.slot }}"
                          data-component="{{ comp.name }}"
@@ -442,6 +437,7 @@
                  data-check-type="produce"
                  data-program-id="{{ pd.program.id }}"
                  data-program-name="{{ pd.program.name }}"
+                 {% if pd.manifest_status == 'released' %}data-locked="1" title="Route released — reopen it on Dispatch to change"{% endif %}
                  onclick="openProduceModal(this)">
               <div class="prod-supply-emoji">&#x1F966;</div>
               <div class="prod-supply-name">Produce</div>
@@ -474,6 +470,7 @@
                 {% for bev in beverage_options %}
                 <button type="button" class="bev-toggle {% if bev in sc.selected_items %}active{% endif %}"
                         data-beverage="{{ bev }}" aria-pressed="{{ 'true' if bev in sc.selected_items else 'false' }}"
+                        {% if pd.manifest_status == 'released' %}disabled title="Route released — reopen it on Dispatch to change"{% endif %}
                         onclick="toggleBeverage(this)">{{ bev }}</button>
                 {% endfor %}
               </div>
@@ -1132,6 +1129,15 @@
   gap: 0.5rem;
   font-size: 0.75rem;
 }
+.prod-bd-group {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 0.3rem;
+}
+.prod-bd-group:first-child { margin-top: 0; }
 .prod-bd-name {
   flex: 1;
   color: var(--text-primary, #1e293b);
@@ -1253,7 +1259,6 @@
 .prod-action-sub { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary, #64748b); }
 .prod-action.is-done { border-color: rgba(22,163,74,0.45); background: rgba(22,163,74,0.05); }
 .prod-action.is-done .prod-action-sub { color: #15803d; }
-.prod-action-invoices { border-color: rgba(22,163,74,0.45); }
 @media (max-width: 640px) {
   .prod-action-extra { display: none; }
   .prod-action-short { display: inline !important; }
@@ -1483,6 +1488,16 @@ let batchMode = {{ 'true' if is_batch_mode else 'false' }};
 
 const TOGGLE_URL = "/catering/production/toggle";
 const SUPPLY_SAVE_URL = "/catering/production/supply-save";
+const RELEASED_MSG = "This route is released — reopen it on Dispatch to change what goes on the truck.";
+
+// A 409 means the route was released meanwhile; surface the server's reason
+async function failIfRefused(resp) {
+  if (resp.ok) return;
+  let msg = 'save failed';
+  try { msg = (await resp.json()).error || msg; } catch (e) {}
+  if (resp.status === 409) alert(msg);
+  throw new Error(msg);
+}
 const ROUTE_SAVE_URL = "/catering/production/route-code-save";
 const COUNT_SAVE_URL = "/catering/production/count-save";
 
@@ -1772,6 +1787,7 @@ async function togglePackagingComponent(checkbox) {
         reference_key: component,
       })
     });
+    await failIfRefused(resp);
     const data = await resp.json();
     checkbox.checked = data.checked;
     li.classList.toggle('is-done', data.checked);
@@ -1865,7 +1881,7 @@ async function toggleBeverage(btn) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ date: SERVICE_DATE, program_id: card.dataset.programId, supply: 'beverage', items })
     });
-    if (!resp.ok) throw new Error('save failed');
+    await failIfRefused(resp);
     const data = await resp.json();
     toggles.forEach(t => {
       const on = data.items.includes(t.dataset.beverage);
@@ -1934,6 +1950,7 @@ async function saveEditRoute(event, el) {
 }
 
 function openProduceModal(card) {
+  if (card.dataset.locked) { alert(RELEASED_MSG); return; }
   activeProduceCard = card;
   document.getElementById('produceModalProgram').textContent = card.dataset.programName;
 
@@ -1966,6 +1983,7 @@ async function saveProduce(clear) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ date: SERVICE_DATE, program_id: programId, supply: 'produce', items })
     });
+    await failIfRefused(resp);
     const data = await resp.json();
 
     const badge = activeProduceCard.querySelector('.supply-badge');

@@ -178,9 +178,9 @@ class Env:
             return await db.get(CateringProgram, self.p[name])
 
     async def build_manifests(self, day=SERVICE):
-        """Opening the Manifest Builder creates every serving program's stop."""
+        """Opening Dispatch (its Manifest step) creates every serving program's stop."""
         async with self.Session() as db:
-            resp = await pr.manifest_builder(make_request(method="GET"), date_str=day.isoformat(), db=db, user=self.admin)
+            resp = await pr.dispatch(make_request(method="GET"), date_str=day.isoformat(), step="manifest", db=db, user=self.admin)
             assert resp.status_code == 200
             return html(resp)
 
@@ -189,6 +189,14 @@ class Env:
         async with self.Session() as db:
             resp = await pr.manifest_release(make_request(), manifest_id=m.id, db=db, user=self.admin)
             assert resp.status_code == 303
+
+    async def reopen(self, *routes, day=SERVICE):
+        """A released route is locked on the Route Board — reopen it to move its stops."""
+        for route in routes:
+            m = await self.manifest(route, day)
+            async with self.Session() as db:
+                resp = await pr.manifest_reopen(make_request(), manifest_id=m.id, db=db, user=self.admin)
+                assert resp.status_code == 303
 
     async def board_save(self, columns, make_permanent=None, day=SERVICE):
         body = {
@@ -560,6 +568,7 @@ async def test_board_changes_resync_driver_routes(env):
     await env.release("R1")
     await env.release("R2")
     r1, r2 = await env.route_for("R1"), await env.route_for("R2")
+    await env.reopen("R1", "R2")  # the driver's route stays out while the routes are corrected
 
     await env.board_save([("R1", ["Charlie", "Alpha", "Bravo"])])
     assert await env.route_stop_names(r1.id) == ["Charlie", "Alpha", "Bravo"], "reorder flows to the driver"
@@ -589,6 +598,7 @@ async def test_driver_progress_is_never_undone(env):
         await db.commit()
 
     # Route was: trays, Alpha, Bravo(delivered), Charlie. Move Bravo to R2 and swap the rest.
+    await env.reopen("R1", "R2")
     await env.board_save([("R1", ["Charlie", "Alpha"]), ("R2", ["Delta", "Echo", "Bravo"])])
     names = await env.route_stop_names(r1.id)
     # Fixed stops (the manual extra, the delivered Bravo) hold their slots; program
@@ -689,7 +699,7 @@ async def test_catering_manifest_page_sends_drivers_to_delivery_app(env):
 
 
 @test
-async def test_manifest_builder_lists_stops_in_board_order(env):
+async def test_dispatch_lists_stops_in_board_order(env):
     await env.board_save([("R1", ["Charlie", "Bravo", "Alpha"])])
     page = await env.build_manifests()
     assert page.index("Charlie") < page.index("Bravo") < page.index("Alpha")

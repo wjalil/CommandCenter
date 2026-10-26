@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+{% block title %}Dispatch {{ service_date.strftime('%b %d') }}{% endblock %}
+
+{% block content %}
+{% set active = 'production' %}
+{% include "catering/_nav.html" %}
+{% set day = service_date.isoformat() %}
+{% set here = '/catering/production/dispatch?date_str=' ~ day ~ '&step=' ~ step %}
+{% set steps = [('manifest', 'Manifest'), ('invoices', 'Invoices'), ('release', 'Release & Print')] %}
+{% set all_released = routes and not draft_routes %}
+
+<div class="dp-head">
+  <div>
+    <h3 class="mb-0">🚚 Dispatch</h3>
+    <p class="text-muted mb-0 dp-sub">
+      {{ service_date.strftime('%A, %B ') ~ service_date.day ~ service_date.strftime(', %Y') }}
+      &middot; {{ routes|length }} route{{ 's' if routes|length != 1 }}
+      &middot; {{ released_count }}/{{ routes|length }} released
+    </p>
+  </div>
+  <div class="dp-head-actions">
+    <form method="GET" action="/catering/production/dispatch" class="m-0">
+      <input type="hidden" name="step" value="{{ step }}">
+      <input type="date" name="date_str" value="{{ day }}" class="form-control form-control-sm" style="width:auto;" onchange="this.form.submit()">
+    </form>
+    <a href="/catering/production/routes?date_str={{ day }}" class="btn btn-outline-primary btn-sm">🗺️ Route Board</a>
+    <a href="/catering/production?date_str={{ day }}" class="btn btn-outline-secondary btn-sm">&lsaquo; Production Sheet</a>
+  </div>
+</div>
+
+<ol class="dp-steps">
+  {% for key, label in steps %}
+  <li class="{{ 'current' if key == step }}">
+    <a href="/catering/production/dispatch?date_str={{ day }}&step={{ key }}">
+      <span class="dp-step-num">{{ loop.index }}</span>{{ label }}
+    </a>
+  </li>
+  {% endfor %}
+</ol>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if not routes %}
+<div class="dp-empty">
+  <div style="font-size:2rem;">📋</div>
+  <p class="text-muted mb-0">No routes deliver on this day. Programs need a route (set it on the Route Board) to show up here.</p>
+</div>
+{% endif %}
+
+{% if warnings %}
+<div class="dp-warn">
+  <strong>Check before releasing</strong> <span class="dp-warn-sub">&mdash; these don't block anything</span>
+  <ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{# ==================== 1) MANIFEST ==================== #}
+{% if step == 'manifest' %}
+{% for route in routes %}
+{% set manifest = route.manifest %}
+<details class="dp-route" id="route-{{ manifest.route_code }}" data-manifest-id="{{ manifest.id }}" data-status="{{ manifest.status }}" style="--route-color: {{ route.color }};" {% if not route.released %}open{% endif %}>
+  <summary class="dp-route-summary">
+    <span class="dp-route-badge">{{ manifest.route_code }}</span>
+    <span class="dp-route-meta">{{ route.stops|length }} stop{{ 's' if route.stops|length != 1 }}</span>
+    {% if route.released %}
+    <span class="dp-status dp-status-released">✓ Released &middot; 🔒 locked</span>
+    {% else %}
+    <span class="dp-status dp-status-draft">Draft</span>
+    {% endif %}
+    <span class="dp-route-hint">click to {{ 'collapse' if not route.released else 'expand' }}</span>
+  </summary>
+
+  <div class="dp-route-body">
+    {% if route.released %}
+    <div class="dp-locked-note">
+      Released &mdash; drivers can see this route.
+      <form action="/catering/production/manifest/{{ manifest.id }}/reopen?next={{ here|urlencode }}" method="POST" class="d-inline dp-reopen-form">
+        <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Reopen {{ manifest.route_code }} to change it</button>
+      </form>
+    </div>
+    {% endif %}
+    {% for stop in route.stops %}
+    <div class="mb-stop">
+      <div class="mb-stop-header">
+        <span class="mb-stop-code">Stop {{ loop.index }}</span>
+        <span class="mb-stop-name">{{ stop.program.name if stop.program else 'Unknown Program' }}</span>
+      </div>
+
+      {% if route.released %}
+        {% if stop.items %}
+        <ul class="mb-item-list">
+          {% for item in stop.items %}
+          <li class="mb-item"><span class="mb-item-source mb-source-{{ item.source }}">{{ item.source }}</span><span class="mb-item-text">{{ item.label }}</span></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="mb-empty">No items on this stop.</div>
+        {% endif %}
+        {% if stop.special_instructions %}<div class="mb-note-text">📝 {{ stop.special_instructions }}</div>{% endif %}
+      {% else %}
+        {% if stop.items %}
+        <ul class="mb-item-list">
+          {% for item in stop.items %}
+          <li class="mb-item">
+            <span class="mb-item-source mb-source-{{ item.source }}">{{ item.source }}</span>
+            <form action="/catering/production/manifest/item/{{ item.id }}/edit" method="POST" class="mb-item-edit-form" data-autosave>
+              <input type="text" name="label" value="{{ item.label }}" class="mb-item-input" maxlength="200" required>
+              <button type="submit" class="mb-item-save" title="Save">Save</button>
+              <span class="mb-save-status" aria-live="polite"></span>
+            </form>
+            <form action="/catering/production/manifest/item/{{ item.id }}/delete" method="POST" class="mb-item-remove-form" data-ajax-delete>
+              <button type="submit" class="mb-item-remove" title="Remove">&times;</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="mb-empty">No items yet — check off meal slots, produce or beverages on the Packaging screen, or add one below.</div>
+        {% endif %}
+
+        <form action="/catering/production/manifest/stop/{{ stop.id }}/items" method="POST" class="mb-add-form">
+          <input type="text" name="label" class="form-control form-control-sm" placeholder="e.g., 2 catering bags, put in wingo bags" maxlength="200" required>
+          <button type="submit" class="btn btn-outline-primary btn-sm">+ Add</button>
+        </form>
+
+        <form action="/catering/production/manifest/stop/{{ stop.id }}/instructions" method="POST" class="mb-instructions-form" data-autosave>
+          <input type="text" name="special_instructions" value="{{ stop.special_instructions or '' }}" class="form-control form-control-sm" placeholder="Special instructions for this stop (e.g. gated entrance)" maxlength="300">
+          <button type="submit" class="btn btn-outline-secondary btn-sm mb-note-save">Save Note</button>
+          <span class="mb-save-status" aria-live="polite"></span>
+        </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endfor %}
+{% if routes %}
+<div class="dp-next">
+  <a href="/catering/production/dispatch?date_str={{ day }}&step=invoices" class="btn btn-success">Next: Invoices &rsaquo;</a>
+</div>
+{% endif %}
+{% endif %}
+
+{# ==================== 2) INVOICES ==================== #}
+{% if step == 'invoices' %}
+{% for route in routes %}
+{% set manifest = route.manifest %}
+<section class="dp-inv-route" id="route-{{ manifest.route_code }}" style="--route-color: {{ route.color }}; --ri-route: {{ route.color }};">
+  <header class="dp-inv-route-head">
+    <span class="dp-route-badge">{{ manifest.route_code }}</span>
+    <span class="dp-route-meta">{{ route.cards|length }} stop{{ 's' if route.cards|length != 1 }}</span>
+    {% if route.released %}<span class="dp-status dp-status-released">✓ Released &middot; 🔒 locked</span>{% else %}<span class="dp-status dp-status-draft">Draft</span>{% endif %}
+  </header>
+  {% for card in route.cards %}
+  {% set inv = card.invoice %}
+  <details class="ri-card">
+    <summary class="ri-card-head">
+      <span class="ri-stop-num">{{ card.stop_no }}</span>
+      <span class="ri-stop-name">{{ card.program.name }}</span>
+      {% if card.program.cacfp_eligible %}<span class="ri-tag">CACFP</span>{% else %}<span class="ri-tag ri-tag-muted" title="Kept on record; the print pack prints CACFP invoices only unless you choose All">not printed</span>{% endif %}
+      {% if inv %}
+        <span class="ri-meta">{{ inv.invoice_number }}{% for m in card.page.meals %} &middot; {{ m.label }} {{ m.meal_count }}{% endfor %}{% if card.page.supplies %} &middot; {{ card.page.supplies|length }} suppl{{ 'ies' if card.page.supplies|length != 1 else 'y' }}{% endif %}</span>
+        {% if card.locked %}<span class="ri-status ri-locked">🔒 Locked</span>
+        {% elif inv.edited_at %}<span class="ri-status ri-edited" title="Edited by hand — Produce card / count / sub changes no longer flow in until you reset">✎ Edited {{ inv.edited_at.strftime('%H:%M') }}</span>
+        {% else %}<span class="ri-status ri-live" title="Follows the kitchen until you edit it">Live from kitchen</span>{% endif %}
+        <a href="/catering/invoices/{{ inv.id }}/view" target="_blank" class="ri-preview" onclick="event.stopPropagation()">Preview</a>
+      {% else %}
+        <span class="ri-meta">no menu today &mdash; no invoice</span>
+      {% endif %}
+    </summary>
+    {% if inv %}
+    <div class="ri-card-body">
+      {% set page = card.page %}
+      {% if card.locked %}
+      <div class="ri-doc">{% include "catering/_ddi_page.html" %}</div>
+      {% else %}
+      {% include "catering/_invoice_editor.html" %}
+      {% endif %}
+    </div>
+    {% endif %}
+  </details>
+  {% else %}
+  <div class="text-muted py-2">No stops on this route.</div>
+  {% endfor %}
+</section>
+{% endfor %}
+{% if routes %}
+<div class="dp-next">
+  <a href="/catering/production/dispatch?date_str={{ day }}&step=manifest" class="btn btn-outline-secondary">&lsaquo; Manifest</a>
+  <a href="/catering/production/dispatch?date_str={{ day }}&step=release" class="btn btn-success">Next: Release &amp; Print &rsaquo;</a>
+</div>
+{% endif %}
+{% endif %}
+
+{# ==================== 3) RELEASE & PRINT ==================== #}
+{% if step == 'release' and routes %}
+<div class="dp-release-card">
+  {% if draft_routes %}
+  <div class="dp-release-summary">
+    <div class="dp-release-title">Ready to release</div>
+    <div class="dp-release-counts">
+      {{ draft_routes|length }} route{{ 's' if draft_routes|length != 1 }} &middot;
+      {{ draft_stop_count }} stop{{ 's' if draft_stop_count != 1 }} &middot;
+      {{ draft_print_count }} CACFP invoice{{ 's' if draft_print_count != 1 }} to print
+    </div>
+    <div class="dp-release-what">Releasing locks every invoice and manifest on these routes, sends each route to its driver, and opens one print pack: each route's manifest, then its stops.</div>
+  </div>
+  <form action="/catering/production/dispatch/release-all" method="POST" id="dpReleaseAll" class="m-0"
+        data-summary="Release {{ draft_routes|length }} route{{ 's' if draft_routes|length != 1 }} · {{ draft_stop_count }} stops · lock {{ draft_print_count }} CACFP invoices?">
+    <input type="hidden" name="date_str" value="{{ day }}">
+    <button type="submit" class="btn btn-success btn-lg">✓ Release all &amp; Print</button>
+  </form>
+  {% else %}
+  <div class="dp-release-summary">
+    <div class="dp-release-title">✓ All {{ routes|length }} route{{ 's' if routes|length != 1 }} released</div>
+    <div class="dp-release-what">Invoices and manifests are locked and every driver has their route.</div>
+  </div>
+  <a href="/catering/production/dispatch/print-pack?date_str={{ day }}&autoprint=1" target="_blank" class="btn btn-primary btn-lg">🖨️ Reprint Day Pack</a>
+  {% endif %}
+</div>
+
+<div class="dp-route-table">
+  {% for route in routes %}
+  {% set manifest = route.manifest %}
+  <div class="dp-route-row" style="--route-color: {{ route.color }};">
+    <span class="dp-route-badge">{{ manifest.route_code }}</span>
+    <span class="dp-route-meta">{{ route.stops|length }} stop{{ 's' if route.stops|length != 1 }}</span>
+    {% if route.released %}
+    <span class="dp-status dp-status-released">✓ Released{% if manifest.released_at %} {{ manifest.released_at.strftime('%H:%M') }}{% endif %}</span>
+    <span class="dp-row-actions">
+      <a href="/catering/production/manifest/{{ manifest.id }}/print-pack?autoprint=1" target="_blank" class="btn btn-outline-primary btn-sm">🖨️ Reprint {{ manifest.route_code }}</a>
+      <a href="/catering/production/manifest/driver/view/{{ manifest.route_code }}?date_str={{ day }}" target="_blank" class="btn btn-outline-secondary btn-sm">👀 View Manifest</a>
+      <form action="/catering/production/manifest/{{ manifest.id }}/reopen?next={{ here|urlencode }}" method="POST" class="m-0 dp-reopen-form">
+        <button type="submit" class="btn btn-outline-warning btn-sm">Reopen</button>
+      </form>
+    </span>
+    {% else %}
+    <span class="dp-status dp-status-draft">Draft</span>
+    <span class="dp-row-actions">
+      {% set print_url = '/catering/production/manifest/' ~ manifest.id ~ '/print-pack?autoprint=1' %}
+      <form action="/catering/production/manifest/{{ manifest.id }}/release?next={{ print_url|urlencode }}" method="POST" class="m-0 dp-release-one"
+            data-route="{{ manifest.route_code }}">
+        <button type="submit" class="btn btn-outline-success btn-sm">Release &amp; Print {{ manifest.route_code }} only</button>
+      </form>
+    </span>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+<p class="dp-foot">The print pack prints CACFP invoices by default &mdash; switch to <em>All invoices</em> at the top of the print page. Need to change a released route? Reopen it, fix it, then release just that route.</p>
+{% endif %}
+
+{% include "catering/_ddi_styles.html" %}
+{% if step == 'invoices' %}{% include "catering/_invoice_editor_assets.html" %}{% endif %}
+
+<style>
+.dp-head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.9rem; }
+.dp-sub { font-size: 0.85rem; }
+.dp-head-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+.dp-steps { list-style: none; display: flex; gap: 0.4rem; padding: 0; margin: 0 0 1rem; flex-wrap: wrap; }
+.dp-steps a { display: flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; font-weight: 700; padding: 0.4rem 0.95rem 0.4rem 0.45rem; border-radius: 999px; background: var(--bg, #f1f5f9); color: var(--text-secondary, #64748b); text-decoration: none; }
+.dp-steps a:hover { text-decoration: none; background: #e2e8f0; }
+.dp-step-num { display: inline-flex; align-items: center; justify-content: center; width: 1.45rem; height: 1.45rem; border-radius: 50%; background: #cbd5e1; color: #fff; font-size: 0.75rem; }
+.dp-steps li.current a { background: #0f172a; color: #fff; }
+.dp-steps li.current .dp-step-num { background: rgba(255,255,255,0.25); }
+
+.dp-empty { text-align: center; padding: 3rem 1rem; }
+.dp-warn { margin-bottom: 1rem; padding: 0.7rem 0.95rem; border-radius: 10px; background: #fff7e6; border: 1px solid #f5c26b; color: #6b4500; font-size: 0.85rem; }
+.dp-warn-sub { font-weight: 400; font-size: 0.78rem; }
+.dp-warn ul { margin: 0.35rem 0 0 1.1rem; padding: 0; }
+
+.dp-route, .dp-inv-route { --route-color: #2563EB; background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-left: 4px solid var(--route-color); border-radius: 10px; box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05)); margin-bottom: 0.9rem; overflow: hidden; }
+.dp-route-summary { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; padding: 0.85rem 1.1rem; cursor: pointer; list-style: none; user-select: none; }
+.dp-route-summary::-webkit-details-marker { display: none; }
+.dp-route-summary:hover { background: var(--bg, #f8fafc); }
+.dp-route-badge { display: inline-block; font-size: 0.85rem; font-weight: 800; color: #fff; background: var(--route-color, #2563EB); padding: 0.2rem 0.7rem; border-radius: 999px; }
+.dp-route-meta { font-size: 0.8rem; color: var(--text-secondary, #64748b); font-weight: 600; }
+.dp-route-hint { margin-left: auto; font-size: 0.72rem; color: var(--text-muted, #94a3b8); }
+.dp-status { font-size: 0.7rem; font-weight: 700; padding: 0.22rem 0.6rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+.dp-status-draft { background: rgba(239,68,68,0.13); color: #b91c1c; }
+.dp-status-released { background: rgba(16,185,129,0.12); color: #059669; }
+.dp-route-body { border-top: 1px solid var(--border, #e2e8f0); padding: 0.6rem 1.1rem 0.9rem; }
+.dp-locked-note { font-size: 0.8rem; color: var(--text-secondary, #64748b); padding: 0.4rem 0; }
+
+.mb-stop { padding: 0.8rem 0; border-bottom: 1px solid var(--border, #f1f5f9); }
+.mb-stop:last-of-type { border-bottom: none; }
+.mb-stop-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.mb-stop-code { font-size: 0.68rem; font-weight: 700; color: var(--text-secondary, #64748b); background: var(--bg, #f1f5f9); padding: 0.1rem 0.4rem; border-radius: 6px; }
+.mb-stop-name { font-size: 0.95rem; font-weight: 700; color: var(--text-primary, #0f172a); }
+.mb-item-list { list-style: none; padding: 0; margin: 0 0 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.mb-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.6rem; background: var(--bg, #f8fafc); border-radius: 8px; }
+.mb-item-source { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.12rem 0.4rem; border-radius: 999px; background: #e2e8f0; color: #475569; flex-shrink: 0; }
+.mb-source-manual { background: rgba(245,158,11,0.15); color: #b45309; }
+.mb-source-supplies { background: rgba(139,92,246,0.14); color: #6d28d9; }
+.mb-item-text { font-size: 0.85rem; font-weight: 600; color: var(--text-primary, #0f172a); }
+.mb-note-text { font-size: 0.8rem; color: var(--text-secondary, #475569); }
+.mb-item-edit-form { flex: 1; display: flex; gap: 0.4rem; align-items: center; margin: 0; min-width: 0; }
+.mb-item-input { flex: 1; min-width: 0; border: 1px solid transparent; background: transparent; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: var(--text-primary, #0f172a); padding: 0.2rem 0.35rem; }
+.mb-item-input:hover, .mb-item-input:focus { border-color: var(--border, #cbd5e1); background: var(--surface, #fff); outline: none; }
+.mb-item-save { flex-shrink: 0; font-size: 0.65rem; font-weight: 700; color: var(--accent, #14b8a6); border: none; background: none; cursor: pointer; padding: 0.15rem 0.35rem; opacity: 0.7; }
+.mb-item-remove-form { margin: 0; }
+.mb-item-remove { border: none; background: none; color: #ef4444; font-size: 1.05rem; line-height: 1; cursor: pointer; padding: 0 0.3rem; }
+.mb-empty { color: var(--text-muted, #94a3b8); font-size: 0.8rem; font-style: italic; margin-bottom: 0.6rem; }
+.mb-add-form, .mb-instructions-form { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; }
+.mb-add-form input, .mb-instructions-form input { flex: 1; min-width: 0; }
+.mb-js .mb-item-save, .mb-js .mb-note-save { display: none; }
+.mb-save-status { flex-shrink: 0; min-width: 3.2rem; font-size: 0.68rem; font-weight: 700; color: var(--text-muted, #94a3b8); align-self: center; }
+.mb-save-status.is-saved { color: #059669; }
+.mb-save-status.is-error { color: #dc2626; }
+.mb-item.is-removing { opacity: 0.4; pointer-events: none; }
+
+.dp-inv-route { padding: 0.75rem 0.9rem 0.2rem; }
+.dp-inv-route-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.7rem; }
+.ri-card { background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 10px; margin-bottom: 0.6rem; overflow: hidden; }
+.ri-card-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.6rem 0.8rem; cursor: pointer; list-style: none; }
+.ri-card-head::-webkit-details-marker { display: none; }
+.ri-card-head:hover { background: var(--bg, #f8fafc); }
+.ri-card[open] .ri-card-head { border-bottom: 1px solid var(--border, #e2e8f0); }
+.ri-stop-num { width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--route-color); color: #fff; font-weight: 800; font-size: 0.8rem; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ri-stop-name { font-weight: 700; font-size: 0.95rem; color: var(--text-primary, #0f172a); }
+.ri-tag { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.1rem 0.45rem; border-radius: 5px; background: rgba(37,99,235,0.1); color: #1d4ed8; }
+.ri-tag-muted { background: var(--bg, #f1f5f9); color: var(--text-muted, #94a3b8); }
+.ri-meta { font-size: 0.8rem; color: var(--text-secondary, #64748b); }
+.ri-status { font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 999px; }
+.ri-live { background: rgba(16,185,129,0.12); color: #047857; }
+.ri-edited { background: rgba(245,158,11,0.15); color: #b45309; }
+.ri-locked { background: var(--bg, #f1f5f9); color: var(--text-secondary, #475569); }
+.ri-preview { margin-left: auto; font-size: 0.78rem; font-weight: 600; }
+.ri-card-body { padding: 0.8rem 0.9rem; background: var(--bg, #f8fafc); }
+.ri-doc { background: #fff; border: 1px solid #ddd; padding: 0.35in; max-width: 8.5in; margin: 0 auto; overflow-x: auto; }
+
+.dp-next { display: flex; justify-content: flex-end; gap: 0.6rem; margin: 1rem 0 2rem; }
+
+.dp-release-card { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-left: 4px solid #10b981; border-radius: 12px; padding: 1.1rem 1.2rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05)); }
+.dp-release-summary { flex: 1 1 320px; }
+.dp-release-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary, #0f172a); }
+.dp-release-counts { font-size: 0.95rem; font-weight: 600; color: var(--text-primary, #0f172a); margin-top: 0.15rem; }
+.dp-release-what { font-size: 0.8rem; color: var(--text-secondary, #64748b); margin-top: 0.35rem; }
+.dp-route-table { display: flex; flex-direction: column; gap: 0.5rem; }
+.dp-route-row { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-left: 4px solid var(--route-color); border-radius: 10px; padding: 0.6rem 0.9rem; }
+.dp-row-actions { margin-left: auto; display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+.dp-foot { font-size: 0.78rem; color: var(--text-secondary, #64748b); margin: 0.9rem 0 2rem; }
+@media (max-width: 640px) {
+  .dp-row-actions { margin-left: 0; }
+  .ri-preview { margin-left: 0; }
+  .ri-doc { padding: 12px; }
+  .dp-route-hint { display: none; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  document.documentElement.classList.add('mb-js');
+  var STATE_KEY = 'dp-state:' + location.pathname + location.search;
+
+  // ---- Keep scroll position + expanded routes across the reloads we still do (add line, reopen) ----
+  function saveState() {
+    var cards = {};
+    document.querySelectorAll('.dp-route').forEach(function (d) {
+      cards[d.dataset.manifestId] = { open: d.open, status: d.dataset.status };
+    });
+    try { sessionStorage.setItem(STATE_KEY, JSON.stringify({ y: window.scrollY, cards: cards })); } catch (e) {}
+  }
+  (function restoreState() {
+    var raw = null;
+    try { raw = sessionStorage.getItem(STATE_KEY); sessionStorage.removeItem(STATE_KEY); } catch (e) {}
+    if (!raw) return;
+    try {
+      var st = JSON.parse(raw);
+      document.querySelectorAll('.dp-route').forEach(function (d) {
+        var prev = st.cards && st.cards[d.dataset.manifestId];
+        // A route that just changed status keeps its default (released collapses, reopened expands).
+        if (prev && prev.status === d.dataset.status) d.open = prev.open;
+      });
+      window.scrollTo(0, st.y || 0);
+    } catch (e) {}
+  })();
+
+  function post(form) {
+    return fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin' })
+      .then(function (res) {
+        // Endpoints redirect back to Dispatch on success; anything else (a locked route, the login page) is a failure.
+        if (!res.ok || res.url.indexOf('/production/dispatch') === -1) throw new Error('save failed');
+        return res;
+      });
+  }
+
+  // ---- Autosave: item labels and stop notes ----
+  document.querySelectorAll('form[data-autosave]').forEach(function (form) {
+    var input = form.querySelector('input[type="text"]');
+    var status = form.querySelector('.mb-save-status');
+    var saved = input.value;
+    var timer = null, statusTimer = null, inFlight = null;
+
+    function setStatus(text, cls) {
+      clearTimeout(statusTimer);
+      status.textContent = text;
+      status.className = 'mb-save-status' + (cls ? ' ' + cls : '');
+      if (cls === 'is-saved') statusTimer = setTimeout(function () { status.textContent = ''; }, 1800);
+    }
+
+    function save() {
+      clearTimeout(timer);
+      var value = input.value;
+      if (value.trim() === saved.trim()) return;
+      if (input.required && !value.trim()) { setStatus('Can’t be blank', 'is-error'); return; }
+      setStatus('Saving…');
+      var run = function () {
+        return post(form).then(function () {
+          saved = value;
+          if (input.value === value) setStatus('Saved', 'is-saved');
+        }).catch(function () { setStatus('Not saved', 'is-error'); });
+      };
+      inFlight = (inFlight || Promise.resolve()).then(run, run);
+    }
+
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(save, 800);
+    });
+    input.addEventListener('blur', save);
+    form.addEventListener('submit', function (e) { e.preventDefault(); save(); });
+    // Blank item label on blur: put the last saved text back rather than leaving it empty.
+    if (input.required) input.addEventListener('blur', function () {
+      if (!input.value.trim()) { input.value = saved; setStatus(''); }
+    });
+  });
+
+  // ---- Delete a line in place ----
+  document.querySelectorAll('form[data-ajax-delete]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!confirm('Remove this item?')) return;
+      var li = form.closest('.mb-item');
+      li.classList.add('is-removing');
+      post(form).then(function () {
+        var list = li.parentElement;
+        li.remove();
+        if (!list.querySelector('.mb-item')) {
+          var empty = document.createElement('div');
+          empty.className = 'mb-empty';
+          empty.textContent = 'No items yet — check off meal slots, produce or beverages on the Packaging screen, or add one below.';
+          list.replaceWith(empty);
+        }
+      }).catch(function () {
+        li.classList.remove('is-removing');
+        alert('Could not remove that item. Please try again.');
+      });
+    });
+  });
+
+  // ---- Everything else still reloads; remember where we were ----
+  document.querySelectorAll('.mb-add-form, .dp-reopen-form').forEach(function (form) {
+    form.addEventListener('submit', saveState);
+  });
+
+  document.querySelectorAll('.dp-reopen-form').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      if (!confirm('Reopen this route? Its invoices and manifest unlock for editing; release it again when you\'re done.')) e.preventDefault();
+    });
+  });
+
+  // ---- Release ----
+  var all = document.getElementById('dpReleaseAll');
+  if (all) all.addEventListener('submit', function (e) {
+    if (!confirm(all.dataset.summary + '\n\nEach driver gets their route and the print pack opens.')) e.preventDefault();
+  });
+  document.querySelectorAll('.dp-release-one').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      if (!confirm('Release ' + form.dataset.route + ' only? This locks its invoices and manifest, sends it to the driver and opens its print pack.')) e.preventDefault();
+    });
+  });
+
+  // ---- Invoices: after a save the card's status pill reflects the new state ----
+  document.addEventListener('ie:saved', function (e) {
+    var card = e.detail.editor.closest('.ri-card');
+    var pill = card && card.querySelector('.ri-status');
+    if (pill && e.detail.data.edited) { pill.className = 'ri-status ri-edited'; pill.textContent = '✎ Edited'; }
+  });
+  // Arriving at #route-R2 (e.g. from an old Invoices link) opens that route's stops
+  if (location.hash) {
+    var target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (target && target.tagName === 'DETAILS') target.open = true;
+  }
+})();
+</script>
+{% endblock %}

@@ -1,6 +1,7 @@
 """
 Route paperwork flow — Produce card on the invoice, editable invoices + supplies,
-release, and the one-button route print pack (invoices last-to-first, manifest last).
+Dispatch (Manifest -> Invoices -> Release all & Print), release locks, and the
+print pack (each route's manifest on top of its stops, first-to-last).
 
 Same harness as test_subs_ddi_flow.py (its Env is reused). Run:
 
@@ -85,17 +86,40 @@ async def view(env, program):
         return html(await hr.view_invoice(make_request(method="GET"), invoice_id=inv.id, db=db, user=env.admin))
 
 
-async def route_page(env, route):
-    await env.build_manifests()
-    m = await env.manifest(route)
+async def dispatch_page(env, step):
     async with env.Session() as db:
-        return await pr.route_invoices(make_request(method="GET"), manifest_id=m.id, db=db, user=env.admin)
+        return await pr.dispatch(make_request(method="GET"), date_str=SERVICE.isoformat(), step=step, db=db, user=env.admin)
+
+
+async def release_all(env):
+    async with env.Session() as db:
+        return await pr.dispatch_release_all(make_request(form={"date_str": SERVICE.isoformat()}),
+                                             date_str=SERVICE.isoformat(), db=db, user=env.admin)
 
 
 async def print_pack(env, route, scope="cacfp"):
     m = await env.manifest(route)
     async with env.Session() as db:
         return html(await pr.route_print_pack(make_request(method="GET"), manifest_id=m.id, scope=scope, db=db, user=env.admin))
+
+
+async def day_print_pack(env, scope="cacfp"):
+    async with env.Session() as db:
+        return html(await pr.dispatch_print_pack(make_request(method="GET"), date_str=SERVICE.isoformat(), scope=scope, db=db, user=env.admin))
+
+
+async def move_charlie_onto_r1(env):
+    """Charlie (not CACFP) rides R1 as stop 3, so R1 mixes CACFP and non-CACFP stops."""
+    async with env.Session() as db:
+        from app.models.catering import CateringProgram
+        charlie = await db.get(CateringProgram, env.p["Charlie"])
+        charlie.route_code, charlie.route_stop_order = "R1", 3
+        await db.commit()
+
+
+def in_order(page, *markers):
+    positions = [page.index(m) for m in markers]
+    return positions == sorted(positions)
 
 
 def items(lines):
@@ -275,64 +299,201 @@ async def test_edited_invoice_is_what_gets_locked(env):
     assert inv.status == "finalized" and inv.breakfast_count == 9, "release must not rebuild over hand edits"
 
 
-# ==================== route Invoices page ====================
+# ==================== Dispatch ====================
 
 @test
-async def test_route_invoices_page_draft_then_released(env):
-    resp = await route_page(env, "R1")
+async def test_dispatch_invoices_step_every_route_draft_then_released(env):
+    resp = await dispatch_page(env, "invoices")
     assert resp.status_code == 200
     page = html(resp)
-    assert page.index("Alpha") < page.index("Bravo"), "driving order"
-    assert page.count('class="ie"') == 2, "one editor per stop"
-    assert "Release R1 for Print" in page and "Live from kitchen" in page
-    assert "+ Sporks" in page
+    assert in_order(page, 'id="route-R1"', 'ri-stop-name">Alpha', 'ri-stop-name">Bravo', 'id="route-R2"', 'ri-stop-name">Charlie'), \
+        "route order, then driving order"
+    assert page.count('class="ie"') == 3, "one editor per stop, every route on one page"
+    assert "Live from kitchen" in page and "+ Sporks" in page
 
+    await env.release("R1")
+    page = html(await dispatch_page(env, "invoices"))
+    assert page.count('class="ie"') == 1, "R1's invoices are locked, R2's still editable"
+    assert "🔒 Locked" in page
+
+
+@test
+async def test_release_all_releases_every_route_then_opens_the_day_pack(env):
+    page = html(await dispatch_page(env, "release"))
+    assert "Release all &amp; Print" in page and "2 routes" in page and "3 stops" in page
+    assert "2 CACFP invoices to print" in page
+    assert "no beverage picked" in page, "readiness check flags missing beverages"
+
+    resp = await release_all(env)
+    assert resp.status_code == 303
+    assert resp.headers["location"].startswith("/catering/production/dispatch/print-pack") and "autoprint=1" in resp.headers["location"]
+    for route in ("R1", "R2"):
+        m = await env.manifest(route)
+        assert m.status == "released", route
+    for program in ("Alpha", "Bravo", "Charlie"):
+        assert ddi.is_locked(await the_invoice(env, program)), f"{program} invoice locked"
+
+    page = html(await dispatch_page(env, "release"))
+    assert "All 2 routes released" in page and "Reprint Day Pack" in page and "Release all" not in page
+
+
+@test
+async def test_release_all_twice_is_safe(env):
+    await release_all(env)
+    first = (await env.manifest("R1")).released_at
+    resp = await release_all(env)
+    assert resp.status_code == 303 and "print-pack" in resp.headers["location"]
+    assert (await env.manifest("R1")).released_at == first, "already-released routes are skipped"
+
+
+@test
+async def test_one_route_can_be_reopened_and_released_alone(env):
+    await release_all(env)
+    await env.reopen("R2")
+    assert (await env.manifest("R1")).status == "released", "reopening R2 leaves R1 alone"
+    page = html(await dispatch_page(env, "release"))
+    assert "Release &amp; Print R2 only" in page and "Reprint R1" in page
+
+    m = await env.manifest("R2")
+    print_url = f"/catering/production/manifest/{m.id}/print-pack?autoprint=1"
+    async with env.Session() as db:
+        resp = await pr.manifest_release(make_request(), manifest_id=m.id, next=print_url, db=db, user=env.admin)
+        assert resp.headers["location"] == print_url, "release one route goes straight to its print pack"
+        evil = await pr.manifest_reopen(make_request(), manifest_id=m.id, next="//evil.example", db=db, user=env.admin)
+        assert evil.headers["location"].startswith("/catering/production/dispatch")
+
+
+@test
+async def test_old_builder_and_invoices_urls_redirect_to_dispatch(env):
+    await env.build_manifests()
+    resp = await pr.manifest_builder(make_request(method="GET"), date_str=SERVICE.isoformat(), user=env.admin)
+    assert resp.status_code == 303 and resp.headers["location"].endswith(f"date_str={SERVICE.isoformat()}&step=manifest")
     m = await env.manifest("R1")
     async with env.Session() as db:
-        here = f"/catering/production/manifest/{m.id}/invoices"
-        resp = await pr.manifest_release(make_request(), manifest_id=m.id, next=here, db=db, user=env.admin)
-        assert resp.headers["location"] == here, "release from the Invoices step comes back to it"
-        evil = await pr.manifest_reopen(make_request(), manifest_id=m.id, next="//evil.example", db=db, user=env.admin)
-        assert evil.headers["location"].startswith("/catering/production/manifest/builder")
-        await pr.manifest_release(make_request(), manifest_id=m.id, next=here, db=db, user=env.admin)
-
-    page = html(await route_page(env, "R1"))
-    assert 'class="ie"' not in page and "🔒 Locked" in page
-    assert "Print Route Pack" in page and "print-pack?autoprint=1" in page
+        resp = await pr.route_invoices(make_request(method="GET"), manifest_id=m.id, db=db, user=env.admin)
+    assert resp.status_code == 303 and resp.headers["location"].endswith("step=invoices#route-R1")
 
 
 @test
-async def test_manifest_builder_points_to_invoices_then_print(env):
-    async with env.Session() as db:
-        page = html(await pr.manifest_builder(make_request(method="GET"), date_str=SERVICE.isoformat(), db=db, user=env.admin))
-    assert "Next: Build R1 Invoices" in page and "/release\" method" not in page
+async def test_manifest_step_edits_until_released(env):
+    page = html(await dispatch_page(env, "manifest"))
+    assert page.count('class="mb-add-form"') == 3, "an add-line form per stop on every route"
     await env.release("R1")
-    async with env.Session() as db:
-        page = html(await pr.manifest_builder(make_request(method="GET"), date_str=SERVICE.isoformat(), db=db, user=env.admin))
-    assert "Print Route Pack" in page
+    page = html(await dispatch_page(env, "manifest"))
+    assert page.count('class="mb-add-form"') == 1, "R1 is read-only once released"
+    assert "Reopen R1 to change it" in page
 
 
-# ==================== one print button ====================
+# ==================== release locks ====================
 
 @test
-async def test_print_pack_is_last_stop_first_then_manifest(env):
+async def test_released_route_locks_packaging_and_manifest_lines(env):
+    await env.build_manifests()
     async with env.Session() as db:
-        from app.models.catering import CateringProgram
-        charlie = await db.get(CateringProgram, env.p["Charlie"])
-        charlie.route_code, charlie.route_stop_order = "R1", 3  # non-CACFP stop on the same route
-        await db.commit()
+        stop = (await db.execute(select(DailyManifestStop).where(DailyManifestStop.program_id == env.p["Alpha"]))).scalar_one()
+        await pr.manifest_add_item(make_request(form={"label": "2 catering bags"}), stop_id=stop.id, label="2 catering bags", db=db, user=env.admin)
+        item = (await db.execute(select(DailyManifestItem).where(DailyManifestItem.stop_id == stop.id))).scalars().first()
+    await env.release("R1")
+
+    async with env.Session() as db:
+        resp = await pr.save_supply_selection(make_request({
+            "date": SERVICE.isoformat(), "program_id": env.p["Alpha"], "supply": "beverage", "items": ["Milk"],
+        }), db=db, user=env.worker)
+        assert resp.status_code == 409 and "reopen" in body_json(resp)["error"]
+        resp = await pr.toggle_production_check(make_request({
+            "date": SERVICE.isoformat(), "check_type": "lunch", "program_id": env.p["Alpha"], "reference_key": "Chicken",
+        }), db=db, user=env.worker)
+        assert resp.status_code == 409
+        resp = await pr.manifest_edit_item(make_request(form={"label": "x"}), item_id=item.id, label="x", db=db, user=env.admin)
+        assert resp.status_code == 409
+        resp = await pr.manifest_delete_item(make_request(), item_id=item.id, db=db, user=env.admin)
+        assert resp.status_code == 409
+        resp = await pr.manifest_save_instructions(make_request(form={}), stop_id=stop.id, special_instructions="gate", db=db, user=env.admin)
+        assert resp.status_code == 409
+        # Charlie's route (R2) is still a draft
+        resp = await pr.save_supply_selection(make_request({
+            "date": SERVICE.isoformat(), "program_id": env.p["Charlie"], "supply": "beverage", "items": ["Milk"],
+        }), db=db, user=env.worker)
+        assert resp.status_code == 200
+
+    await env.reopen("R1")
+    async with env.Session() as db:
+        resp = await pr.save_supply_selection(make_request({
+            "date": SERVICE.isoformat(), "program_id": env.p["Alpha"], "supply": "beverage", "items": ["Milk"],
+        }), db=db, user=env.worker)
+        assert resp.status_code == 200, "reopening unlocks it"
+
+
+@test
+async def test_route_board_refuses_moves_touching_a_released_route(env):
+    await env.release("R1")
+
+    async def board(columns):
+        async with env.Session() as db:
+            return await pr.route_board_save(make_request({"date": SERVICE.isoformat(), "columns": columns}), db=db, user=env.admin)
+
+    a, b, c = env.p["Alpha"], env.p["Bravo"], env.p["Charlie"]
+    resp = await board([{"route": "R1", "program_ids": [b]}, {"route": "R2", "program_ids": [c, a]}])
+    assert resp.status_code == 409 and "R1" in body_json(resp)["error"], "moving a stop out of a released route"
+    resp = await board([{"route": "R1", "program_ids": [b, a]}])
+    assert resp.status_code == 409, "reordering a released route"
+    resp = await board([{"route": "R1", "program_ids": [a, b, c]}, {"route": "R2", "program_ids": []}])
+    assert resp.status_code == 409, "moving a stop into a released route"
+    resp = await board([{"route": "R1", "program_ids": [a, b]}, {"route": "R2", "program_ids": [c]}])
+    assert resp.status_code == 200, "an unchanged released column alongside is fine"
+    stop, manifest = await _stop_of(env, "Alpha")
+    assert manifest.route_code == "R1" and stop.sort_order == 1
+
+
+async def _stop_of(env, program):
+    async with env.Session() as db:
+        return await pr._find_stop(db, TENANT_ID, env.p[program], SERVICE)
+
+
+# ==================== print pack ====================
+
+@test
+async def test_route_print_pack_is_manifest_then_stops_in_order(env):
+    await move_charlie_onto_r1(env)
     await env.release("R1")
     page = await print_pack(env, "R1")
 
-    alpha, bravo, manifest = page.index("1 Alpha St"), page.index("1 Bravo St"), page.index("Daily Manifest")
-    assert bravo < alpha < manifest, "stop 2, stop 1, then the manifest — face-up stack reads manifest, 1, 2"
+    assert in_order(page, "route R1 manifest", "route R1 stop 1", "route R1 stop 2"), "manifest on top, then stop 1, 2"
     assert page.count("DAILY DELIVERY INVOICE") == 2, "CACFP only by default"
+    assert "route R1 stop 3" not in page
     assert "Driver signature" in page and "dm-stops" in page, "same manifest sheet as View Manifest"
-    assert "not released" not in page
+    assert "not released" not in page and "last stop first" not in page
 
     everyone = await print_pack(env, "R1", scope="all")
     assert everyone.count("DAILY DELIVERY INVOICE") == 3
-    assert everyone.index("1 Charlie St") < everyone.index("1 Bravo St"), "stop 3 prints first"
+    assert in_order(everyone, "route R1 manifest", "route R1 stop 1", "route R1 stop 2", "route R1 stop 3")
+
+
+@test
+async def test_day_print_pack_is_each_route_manifest_then_its_stops(env):
+    await release_all(env)
+    page = await day_print_pack(env)
+    assert in_order(page, "route R1 manifest", "route R1 stop 1", "route R1 stop 2", "route R2 manifest")
+    assert page.count("DAILY DELIVERY INVOICE") == 2 and page.count("Driver signature") == 2
+    assert "Prints 4 of 4" in page, "every route's manifest prints even with no CACFP stops"
+    assert 'href="?date_str=' in page, "the CACFP/All toggle keeps the day"
+
+    everyone = await day_print_pack(env, scope="all")
+    assert in_order(everyone, "route R1 manifest", "route R1 stop 2", "route R2 manifest", "route R2 stop 1")
+    assert everyone.count("DAILY DELIVERY INVOICE") == 3
+
+
+# ==================== production sheet ====================
+
+@test
+async def test_breakdown_lists_family_style_first(env):
+    d = await env.data()
+    chicken = next(c for c in d["prep_components"] if c["name"] == "Chicken")
+    assert [p["name"] for p in chicken["program_breakdown"]] == ["Alpha", "Charlie", "Bravo"], \
+        "family style (Alpha, Charlie) A-Z, then regular (Bravo)"
+    async with env.Session() as db:
+        page = html(await pr.production_daily_view(make_request(method="GET"), date_str=SERVICE.isoformat(), selected=None, db=db, user=env.admin))
+    assert in_order(page, "🍽️ Family Style</div>", "🍱 Regular</div>")
 
 
 @test
