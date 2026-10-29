@@ -678,31 +678,52 @@
     </footer>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>
-    async function downloadPDF() {
-      // Try server-side PDF generation first
-      try {
-        const pdfUrl = {% if worker_view %}'/worker/menus/{{ monthly_menu.id }}/pdf'{% elif portal_view %}'/portal/menus/{{ monthly_menu.id }}/pdf'{% else %}'/catering/monthly-menus/{{ monthly_menu.id }}/pdf'{% endif %};
-        const response = await fetch(pdfUrl);
-        if (response.ok && response.headers.get('content-type')?.includes('pdf')) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = '{{ program.name.replace(" ", "_") }}_{{ month_name }}_{{ year }}_Menu.pdf';
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          a.remove();
-          return;
-        }
-      } catch (e) {
-        console.log('Server PDF failed, using browser print:', e);
-      }
+    const PDF_FILENAME = '{{ program.name.replace(" ", "_") }}_{{ month_name }}_{{ year }}_Menu.pdf';
 
-      // Fallback: use browser print dialog (user can save as PDF)
-      alert('For best results, use your browser\'s "Save as PDF" option in the print dialog.');
-      window.print();
+    // One click: render the menu exactly as shown on screen into a single landscape Letter page and download it.
+    async function downloadPDF() {
+      const btn = document.querySelector('.btn-pdf');
+      const label = btn.innerHTML;
+      btn.disabled = true;
+      btn.textContent = 'Preparing PDF…';
+      try {
+        if (!window.html2canvas || !window.jspdf) throw new Error('PDF libraries not loaded');
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+        const page = document.querySelector('.page');
+        const canvas = await html2canvas(page, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          windowWidth: 1100,
+          ignoreElements: el => el.classList && el.classList.contains('no-print'),
+        });
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter' });
+        const margin = 0.3;
+        const maxW = 11 - margin * 2;
+        const maxH = 8.5 - margin * 2;
+        const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+        const w = canvas.width * ratio;
+        const h = canvas.height * ratio;
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (11 - w) / 2, margin, w, h);
+        pdf.save(PDF_FILENAME);
+      } catch (e) {
+        console.log('Client PDF failed, using browser print:', e);
+        window.print();
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = label;
+      }
+    }
+
+    // ?download=1 (from the menus list) downloads immediately on load.
+    if (new URLSearchParams(location.search).get('download') === '1') {
+      window.addEventListener('load', () => downloadPDF());
     }
   </script>
 </body>

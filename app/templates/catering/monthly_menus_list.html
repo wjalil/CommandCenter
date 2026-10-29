@@ -127,6 +127,7 @@
                 <div class="btn-group btn-group-sm">
                   <a href="/catering/monthly-menus/{{ menu.id }}/calendar" class="btn btn-outline-primary">📅 Calendar</a>
                   <a href="/catering/monthly-menus/{{ menu.id }}/share" class="btn btn-outline-info">📤 Share</a>
+                  <a href="/catering/monthly-menus/{{ menu.id }}/share?download=1" class="btn btn-outline-secondary">⬇️ PDF</a>
                   <a href="/catering/monthly-menus/{{ menu.id }}/duplicate" class="btn btn-outline-success">📋 Duplicate</a>
                   <button type="button" class="btn btn-outline-danger" onclick="confirmDelete('{{ menu.id }}', '{{ program.name }} - {{ month_names_short[menu.month] }} {{ menu.year }} ({{ menu.menu_type | capitalize }})')">🗑️ Delete</button>
                 </div>
